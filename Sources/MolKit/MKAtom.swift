@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Algorithms
 import simd
 
 //ATOM Property Macros (flags)
@@ -23,6 +24,20 @@ public let OB_DONOR_ATOM: UInt =     1<<7
 public let OB_ACCEPTOR_ATOM: UInt =  1<<8
 
 public let OBATOM_TYPE_LEN: UInt = 6
+
+// The number of valence electrons in a free atom
+public let VALENCE: [Int] = [0,1,2,1,2,3,4,5,6,7,8,1,2,3,4,5,6,7,8,1,2,3,4,5,6,7,8,9,10,
+                             11,12,3,4,5,6,7,8,1,2,3,4,5,6,7,8,9,10,11,12,3,4,5,6,7,8,1,2,
+                             4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,4,5,6,7,8,9,10,11,12,3,4,5,6,7,
+                             8,1,1,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,4,5,6,7,8,9,10,11,12]
+// The number of electrons required to make up a full valence shell
+public let SHELL: [Int] = [0,2,2,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,18,18,18,18,18,18,
+                           18,18,18,18,8,8,8,8,8,8,8,8,18,18,18,18,18,18,18,18,18,18,8,
+                           8,8,8,8,8,8,8,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,
+                           18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,8,8,18,18,18,18,
+                           18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18]
+
+typealias Pair<T: Any, U: Any> = (T, U)
 
 class MKAtom: MKBase {
     
@@ -263,12 +278,17 @@ class MKAtom: MKBase {
         self._residue = res
     }
 
-    func getResidue() -> MKResidue {
-        guard let mol: MKMol = (self._parent as? MKMol) else { return MKResidue() }
-        if !mol.hasChainsPerceived() {
-            MKChainsParser.sharedInstance.perceiveChains(mol)
+    func getResidue() -> MKResidue? {
+        if let mol: MKMol = (self._parent as? MKMol) {
+            if !mol.hasChainsPerceived() {
+                MKChainsParser.sharedInstance.perceiveChains(mol)
+            }
+            return self._residue!
+        } else if self.hasResidue() { 
+            return self._residue!
+        } else {
+            return nil
         }
-        return self._residue!
     }
 
     func setParent(_ mol: MKMol) {
@@ -301,55 +321,196 @@ class MKAtom: MKBase {
     }
     
     //! \return the distance to the atom defined by OBMol::GetAtom()
-    // double GetDistance(int index);
+    func getDistance(_ index: Int) -> Double {
+        guard let mol = self.getParent() else { return 0.0 }
+        return self.getDistance(mol.getAtom(index))
+    }
+
     // //! \return the distance to the supplied OBAtom
-    // double GetDistance(OBAtom*);
+    func getDistance(_ atom: MKAtom) -> Double {
+        if !self.isPeriodic() {
+            return simd_distance(self.getVector(), atom.getVector())
+        } else {
+            // TODO: 
+            // OBUnitCell *box = (OBUnitCell*)GetParent()->GetData(OBGenericDataType::UnitCell);
+            // return (box->MinimumImageCartesian(this->GetVector() - b->GetVector())).length();
+            return 0.0
+        }
+    }
+
     // //! \return the distance to the coordinates of the supplied vector3
     // //! \since version 2.4
-    // double GetDistance(vector3* v);
+    func getDistance(_ v: SIMD3<Double>) -> Double {
+        return simd_distance(self._c, v)
+    }
+
     // //! \return the angle defined by this atom -> b (vertex) -> c
-    // double GetAngle(int b, int c);
+    func getAngle(_ b: Int, _ c: Int) -> Double {
+        guard let mol = self.getParent() else { return 0.0 }
+        return self.getAngle(mol.getAtom(b), mol.getAtom(c))
+    }
+
     // //! \return the angle defined by this atom -> b (vertex) -> c
-    // double GetAngle(OBAtom *b, OBAtom *c);
+    func getAngle(_ b: MKAtom, _ c: MKAtom) -> Double {
+
+        var v1: SIMD3<Double> = self.getVector() - b.getVector()
+        var v2: SIMD3<Double> = c.getVector() - b.getVector()
+
+        // TODO: 
+        // if self.isPeriodic() {
+        //     OBUnitCell *box = (OBUnitCell*)GetParent()->GetData(OBGenericDataType::UnitCell);
+        //     v1 = box->MinimumImageCartesian(v1);
+        //     v2 = box->MinimumImageCartesian(v2);
+        // }
+
+        if (isNearZero(simd_length(v1), 1.0e-3) || isNearZero(simd_length(v2), 1.0e-3)) {
+            return(0.0)
+        }
+
+        return SIMD3<Double>.vector_angle(v1, v2)
+    }
     
     //! \name Addition of residue/bond info. for an atom
     //@{
-    
     //! If no residue has been set for this atom, create a new one
-    // void NewResidue()
-    // {
-    //     if (!_residue)
-    //     _residue = new OBResidue;
-    // }
+    func newResidue() {
+        if (self._residue == nil) {
+            self._residue = MKResidue()
+        }
+    }
+
     // //! Add (set) the residue for this atom
-    // void AddResidue(OBResidue *res) { SetResidue(res); }
+    func addResidue(_ res: MKResidue) { 
+        self.setResidue(res)
+    }
+
     // //! Delete any residue associated with this atom
-    // void DeleteResidue(){
-    // if (_residue) {
-    //     delete _residue;
-    //     _residue = nullptr; // Make sure to clear that a residue existed
-    // }
-    // }
-    // //! Add a bond to the internal list. Does not update the bond.
-    // void AddBond(OBBond *bond) { _vbond.push_back(bond); }
-    // //! \brief Insert @p bond into the internal list at the position from @p i
-    // //! Does not modify the bond
-    // void InsertBond(OBBondIterator &i, OBBond *bond)
-    // {
-    //     _vbond.insert(i, bond);
-    // }
-    // //! Find @p bond and remove it from the internal list. Does not update the bond.
-    // bool DeleteBond(OBBond* bond);
-    // //! Clear all bonding information in this atom (does not delete them)
-    // void ClearBond() {_vbond.clear();}
-    // //@}
+    func deleteResidue() {
+        if (self._residue != nil) {
+            self._residue!.clear()
+            self._residue = nil
+        }
+    }
+
+    //! Add a bond to the internal list. Does not update the bond.
+    func addBond(_ bond: MKBond) {
+        if var bonds = self._vbond {
+            bonds.append(bond)
+        } else {
+            self._vbond = [bond]
+        }
+    }
+
+    //! \brief Insert @p bond into the internal list at the position from @p i
+    //! Does not modify the bond
+    func insertBond(_ i: Int, _ bond: MKBond) {
+        if var bonds = self._vbond {
+            bonds.insert(bond, at: i)
+        } else {
+            self._vbond = [bond]
+        }
+    }
+
+    //! Find @p bond and remove it from the internal list. Does not update the bond.
+    func deleteBond(_ bond: MKBond) -> Bool {
+        guard var bonds = self._vbond else { return false }
+        if let index = bonds.firstIndex(of: bond) {
+            bonds.remove(at: index)
+            return true
+        }
+        return false
+    }
+
+    //! Clear all bonding information in this atom (does not delete them)
+    func clearBond() {
+        guard var bonds = self._vbond else { self._vbond = []; return }
+        bonds.removeAll()
+    }
+    //@}
     
     // //! \name Builder utilities
     // //@{
-    
+    // MARK: Apparently not used?? 
+    func getNewBondVector(_ length: Double) -> SIMD3<Double> {
+        return MKBuilder.sharedInstance.getNewBondVector(self, length)
+    } 
+
+    static func correctedBondRad(_ ele: Int, _ hyb: Int) -> Double {
+        let rad: Double = MKElements.getCovalentRad(ele)
+        switch (hyb) {
+            case 2:
+                return rad * 0.95
+            case 1: 
+                return rad * 0.90
+            default:
+                return rad
+        }
+    }
+
     // //! \brief If this is a hydrogen atom, transform into a methyl group
     // //! \return success or failure
-    // bool HtoMethyl();
+    func hToMethyl() -> Bool {
+
+        if self.getAtomicNum() != MKElements.getAtomicNum("H") {
+            return false
+        }
+
+        var mol: MKMol? = self.getParent()
+        
+        if mol == nil {
+            mol = MKMol(atoms: [self])
+            self.setParent(mol!)
+        }
+
+        mol!.beginModify()
+
+        self.setAtomicNum(6)
+        self.setType("C3")
+        self.setHyb(3)
+
+        let neigh: MKAtom? = self._vbond?.first?.getNbrAtom(self)
+        let bond: MKBond? = self._vbond?.first
+
+        if neigh == nil {
+            mol!.endModify()
+            return false
+        }
+
+        let br1: Double = MKAtom.correctedBondRad(6,3)
+        var br2: Double = MKAtom.correctedBondRad(neigh!.getAtomicNum(), neigh!.getHyb())
+
+        bond!.setLength(neigh!, br1 + br2)
+
+        br2 = MKAtom.correctedBondRad(1,0)
+
+        for _ in 0..<3 {
+            let hatom = mol!.newAtom()
+            hatom.setAtomicNum(1)
+            hatom.setType("H")
+
+            let v = self.getNewBondVector(br1+br2)
+            hatom.setVector(v)
+            mol!.addBond(self.getIdx(), mol!.numAtoms(), 1)
+        }
+
+        mol!.endModify()
+        return true
+    }
+
+    static func applyRotMatToBond(_ mol: MKMol, _ m: simd_double3x3, _ atom1: MKAtom, _ atom2: MKAtom) {
+        var children = mol.findChildren(atom1.getIdx(), atom2.getIdx())
+        children.append(atom2.getIdx())
+        
+        for i in children {
+            var v: SIMD3<Double> = mol.getAtom(i).getVector()
+            v -= atom1.getVector()
+            v = v * m
+            v += atom1.getVector()
+            mol.getAtom(i).setVector(v)
+        }
+        
+    }
+
     // //! Change the hybridization of this atom and modify the geometry accordingly
     // //! \return success or failure
     // //! \deprecated This will be removed in future versions of Open Babel
@@ -387,24 +548,113 @@ class MKAtom: MKBase {
         }
         return numH
     }
-    // //! \return The number of rings that contain this atom
-    // unsigned int  MemberOfRingCount()     const;
-    // //! \return The size of the smallest ring that contains this atom (0 if not in a ring)
-    // unsigned int  MemberOfRingSize()	  const;
-    // //! \return The number of explicit ring connections to this atom
-    // unsigned int  CountRingBonds() const;
-    // //! \return The smallest angle of bonds to this atom
-    // double	  SmallestBondAngle();
+
+    //! \return The number of rings that contain this atom
+    func memberOfRingCount() -> UInt {
+        var count: UInt = 0
+        guard let mol = self.getParent() else { return count }
+        
+        if (!mol.hasSSSRPerceived()) {
+            mol.findSSSR()
+        }
+
+        if !self.isInRing() {
+            return count
+        }
+
+        for ring in mol.getSSSR() {
+            if ring.isInRing(self.getIdx()) {
+                count+=1
+            }
+        }
+        return count
+    }
+
+    //! \return The size of the smallest ring that contains this atom (0 if not in a ring)
+    func memberOfRingSize()	-> UInt {
+        guard let mol = self.getParent() else { return 0 }
+        
+        if (!mol.hasSSSRPerceived()) {
+            mol.findSSSR()
+        }
+
+        if !self.isInRing() {
+            return 0
+        }
+
+        for ring in mol.getSSSR() {
+            if ring.isInRing(self.getIdx()) {
+                return ring.size()
+            }
+        }
+        return 0
+    }
+
+    //! \return The number of explicit ring connections to this atom
+    func countRingBonds() -> Int {
+        guard let bonds = self._vbond else { return 0 }
+        return bonds.filter({ $0.isInRing() }).count
+    }
+
+    //! \return The smallest angle of bonds to this atom
+    func smallestBondAngle() -> Double {
+        var minAngle: Double = 360.0
+
+        guard let neigh_pairs = self._vbond?.map({ $0.getNbrAtom(self) }).adjacentPairs() else { return 0.0 }
+
+        for pair in neigh_pairs {
+            let degrees = pair.0.getAngle(self, pair.1)
+            if degrees < minAngle {
+                minAngle = degrees
+            }
+        }
+
+        return minAngle
+    }
+
     // //! \return The average angle of bonds to this atom
-    // double	  AverageBondAngle();
+    func averageBondAngle() -> Double {
+        var sumAngle: Double = 0.0
+        var count: UInt = 0
+
+        guard let neigh_pairs = self._vbond?.map({ $0.getNbrAtom(self) }).adjacentPairs() else { return 0.0 }
+
+        for pair in neigh_pairs {
+            sumAngle += pair.0.getAngle(self, pair.1)
+            count+=1
+        }
+
+        return sumAngle / Double(count)
+    }
+
     // /** Lewis acid/base vacancies for this atom
     // *  \return A pair of integers, where first is acid count and second is base count
     // *  \since version 2.3
     // */
-    // std::pair<int, int> LewisAcidBaseCounts() const;
+    func lewisAcidBaseCounts() -> Pair<Int, Int> {
+        var counts: Pair<Int, Int> = (0, 0)
+        
+        let N = self.getAtomicNum()
+
+        if (N == 0 || N > 122) {
+            return counts
+        } else {
+            let S = SHELL[N]
+            let V = VALENCE[N]
+            let C = self.getFormalCharge()
+            let B = Int(self.getTotalValence())
+
+            counts.0 = (S - V - B + C) / 2
+            counts.1 = (V - B - C) / 2
+
+            return counts
+        }
+    }
     
     // //! \return Is there any residue information?
-    // bool HasResidue()    { return(_residue != nullptr);    }
+    func hasResidue() -> Bool { 
+        return self._residue != nil
+    }
     
     // //! \return Is this a HETATM in a residue (returns false if not in a residue)
     // //! \since version 2.4
@@ -447,7 +697,24 @@ class MKAtom: MKBase {
     }
 
     // //! \return Is the atom in a ring of a given size?
-    // bool IsInRingSize(int) const;
+    func isInRingSize(_ size: Int) -> Bool {
+        guard let mol = self.getParent() else { return false }
+        if !mol.hasSSSRPerceived() {
+            mol.findSSSR()
+        }
+
+        if !self.hasFlag(OB_RING_ATOM) {
+            return false
+        }
+
+        let rings = mol.getSSSR()
+        for ring in rings {
+            if ring.isInRing(self.getIdx()) && ring.pathSize() == size {
+                return true
+            }
+        }
+        return false
+    }
     
     //! \return Is this atom an element in the 15th or 16th main groups
     //!  (i.e., N, O, P, S ...) ?
@@ -694,11 +961,15 @@ class MKAtom: MKBase {
     // //! \return Is this atom chiral?
     func isChiral() -> Bool {
         guard let mol = self.getParent() else { return false }
-        
+        let stereoFacade = MKStereoFacade(mol)
+        return stereoFacade.hasTetrahedralStereo(self._id.rawValue)
     }
     
     // //! \return Is the atom part of a periodic unit cell?
-    // bool IsPeriodic() const;
+    func isPeriodic() -> Bool {
+        guard let mol = self.getParent() else { return false }
+        return mol.isPeriodic()
+    }
     
     //! \return Is this atom an axial atom in a ring
     func isAxial() -> Bool {

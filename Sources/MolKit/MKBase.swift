@@ -10,6 +10,15 @@ import Foundation
 enum MKBaseID {
     case NoId
     case _id(Int)
+
+    var rawValue: Int {
+        switch self {
+        case .NoId:
+            return -1
+        case ._id(let id):
+            return id
+        }
+    }
 }
 
 class MKBase: NSObject {

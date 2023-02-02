@@ -34,6 +34,14 @@ class MKBond: MKBase {
         return MKAtom()
     }
 
+    func setLength(_ atom: MKAtom, _ length: Double) {
+
+    }
+
+    func setLength(_ length: Double) {
+
+    }
+
     func isInRing() -> Bool {
         return false
     }

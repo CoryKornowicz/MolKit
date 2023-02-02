@@ -15,8 +15,29 @@ class MKMol: MKBase {
         self.atoms = atoms
     }
     
+    func getAtom(_ id: Int) -> MKAtom {
+        return self.atoms[id]
+    }
+
+    func newAtom() -> MKAtom {
+        return MKAtom()
+    }
+
+    func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
+
+    func numAtoms() -> Int {
+        return self.atoms.count
+    }
+
     func automaticPartialCharge() -> Bool {
         return false
+    }
+
+    func beginModify() {}
+    func endModify() {}
+    
+    func findChildren(_ idxA: Int, _ idx2: Int) -> [Int] {
+        return []
     }
     
     func hasPartialChargesPerceived() -> Bool {
@@ -43,12 +64,28 @@ class MKMol: MKBase {
         return false
     }
 
+    func hasSSSRPerceived() -> Bool {
+        return false
+    }
+
     func findRingAtomsAndBonds() {
         
     }
 
+    func findSSSR() {
+        
+    }
+
+    func isPeriodic() -> Bool {
+        return false
+    }
+
     func getTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom) -> Double {
         return 0.0
+    }
+
+    func getSSSR() -> [MKRing] {
+        return []
     }
 
 }
