@@ -216,7 +216,7 @@ class MKAtom: MKBase {
                 return self._pcharge
             }
             if !mol.hasPartialChargesPerceived() {
-                for atom in mol.atoms {
+                for atom in mol.getAtoms() {
                     atom.setPartialCharge(0.0)
                 }
                 MKPhModel.sharedInstance.assignSeedPartialCharge(mol)
