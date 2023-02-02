@@ -44,7 +44,7 @@ class MKAtom: MKBase {
     private var _parent: MKBase? = nil
     private var _residue: MKResidue? = nil                         //!< parent residue (if applicable)
     
-    private var _id: MKBaseID = .NoId                              //!< unique id
+    private var _id: MKBaseID = ._id(generateUUID())                              //!< unique id
     private var _idx: Int = 0                                      //!< unique node index (GetIdx(), SetIdx())
     
     private var _ele: Int = 0                                      //!< atomic number (type unsigned char to minimize space -- allows for 0..255 elements)
@@ -54,7 +54,7 @@ class MKAtom: MKBase {
     
     private var _c: SIMD3<Double> = simd_double3(0.0,0.0,0.0)     //!< coordinate array in double*
     
-    private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
+    // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
     private var _hyb: Int = 0                                     //!< hybridization
     
     private var _isotope: UInt = 0                                 //!< isotope (0 = most abundant)
@@ -70,22 +70,6 @@ class MKAtom: MKBase {
         super.init()
         self._parent = nil
         self.clear()
-    }
-    
-    func getFlag() -> UInt {
-        return self._flags
-    }
-    
-    func setFlag(_ flag: UInt) {
-        self._flags |= flag
-    }
-    
-    func unsetFlag(_ flag: UInt) {
-        self._flags &= ~flag
-    }
-    
-    func hasFlag(_ flag: UInt) -> Bool {
-        return (self._flags & flag) != 0
     }
     
     func setIdx(_ idx: Int) {
@@ -353,8 +337,8 @@ class MKAtom: MKBase {
     // //! \return the angle defined by this atom -> b (vertex) -> c
     func getAngle(_ b: MKAtom, _ c: MKAtom) -> Double {
 
-        var v1: SIMD3<Double> = self.getVector() - b.getVector()
-        var v2: SIMD3<Double> = c.getVector() - b.getVector()
+        let v1: SIMD3<Double> = self.getVector() - b.getVector()
+        let v2: SIMD3<Double> = c.getVector() - b.getVector()
 
         // TODO: 
         // if self.isPeriodic() {
@@ -892,7 +876,7 @@ class MKAtom: MKBase {
         guard let bonds = self._vbond else { return false }
         
         for bond in bonds {
-            var nbatom = bond.getNbrAtom(self)
+            let nbatom = bond.getNbrAtom(self)
             guard let nb_bonds = nbatom._vbond else { continue }
             for nbbond in nb_bonds {
                 if (nbbond.getBondOrder() == 2 &&
@@ -1248,7 +1232,6 @@ class MKAtom: MKBase {
     
     override func clear() {
         super.clear()
-        self._flags = 0
         self._idx = 0
         self._hyb = 0
         self._ele = 0
@@ -1260,7 +1243,7 @@ class MKAtom: MKBase {
         self._pcharge = 0.0
         self._vbond?.removeAll()
         self._residue = nil;
-        self._id = .NoId
+        self._id = ._id(generateUUID())
         self._c = simd_double3(0.0,0.0,0.0)
     }
     

@@ -64,6 +64,10 @@ class MKMol: MKBase {
         return false
     }
 
+    func hasClosureBondsPerceived() -> Bool {
+        return false
+    }
+
     func hasSSSRPerceived() -> Bool {
         return false
     }

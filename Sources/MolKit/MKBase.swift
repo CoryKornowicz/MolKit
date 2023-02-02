@@ -7,6 +7,14 @@
 
 import Foundation
 
+// Generate UUID in UInt format
+func generateUUID() -> Int {
+    let uuid = UUID().uuidString
+    let uuidData = uuid.data(using: .utf8)!
+    let uuidUInt = uuidData.withUnsafeBytes { $0.load(as: Int.self) }
+    return uuidUInt
+}
+
 enum MKBaseID {
     case NoId
     case _id(Int)
@@ -24,13 +32,33 @@ enum MKBaseID {
 class MKBase: NSObject {
     
     private var _vdata: [MKGenericData]? = nil
+    private var _flags: UInt = 0
 
     public override init() {
         super.init()
+        self._vdata = []
+        self._flags = 0
     }
 
     func clear() { 
-        self._vdata = nil
+        self._vdata = []
+        self._flags = 0
+    }
+
+    func getFlag() -> UInt {
+        return self._flags
+    }
+    
+    func setFlag(_ flag: UInt) {
+        self._flags |= flag
+    }
+    
+    func unsetFlag(_ flag: UInt) {
+        self._flags &= ~flag
+    }
+    
+    func hasFlag(_ flag: UInt) -> Bool {
+        return (self._flags & flag) != 0
     }
 
     //! \return whether the generic attribute/value pair exists
