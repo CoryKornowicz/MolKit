@@ -166,5 +166,79 @@ class MKGenericData: NSObject {
         self._type = type ?? MKGenericDataType.UndefinedData
         self._source = source ?? DataOrigin.any 
     }
+
+    static func == (lhs: MKGenericData, rhs: MKGenericData) -> Bool {
+        return lhs.attr == rhs.attr && lhs.type == rhs.type && lhs.source == rhs.source
+    }
     
 }
+
+class MKCommentData: MKGenericData {
+    
+    var data: String = ""
+
+    init() {
+        super.init("Comment", MKGenericDataType.CommentData, DataOrigin.any)
+    }
+
+    init(_ src: MKCommentData) {
+        super.init(src.attr, src.type, src.source)
+        self.data = src.data
+    }
+
+    static func == (lhs: MKCommentData, rhs: MKCommentData) -> Bool {
+        return lhs.data == rhs.data && lhs == rhs
+    }
+
+}
+
+class MKExternalBond: MKGenericData {
+    
+    var idx = 0
+    var atom: MKAtom? = nil
+    var bond: MKBond? = nil
+    
+    init(_ atom: MKAtom, _ bond: MKBond, _ idx: Int) {
+        super.init(nil, nil, nil)
+        self.atom = atom
+        self.bond = bond
+        self.idx = idx
+    }
+
+    static func == (lhs: MKExternalBond, rhs: MKExternalBond) -> Bool {
+        return lhs.idx == rhs.idx && lhs.atom == rhs.atom && lhs.bond == rhs.bond
+    }
+    
+}
+
+class MKExternalBondData: MKGenericData {
+    
+    var vexbonds: [MKExternalBond] = [MKExternalBond]()
+
+    init() {
+        super.init("ExternalBondData", MKGenericDataType.ExternalBondData, .perceived)
+    }
+
+    func setData(_ atom: MKAtom, _ bond: MKBond, _ idx: Int) {
+        self.vexbonds.append(MKExternalBond(atom, bond, idx))
+    }
+
+}
+
+class MKPairData<T>: MKGenericData {
+
+    var value: T? = nil
+
+    init() {
+        super.init("PairData", MKGenericDataType.PairData, .any)
+    }
+    
+    init(_ t: T) {
+        super.init("PairData", MKGenericDataType.PairData, .any)
+        self.value = t
+    }
+
+}
+
+
+

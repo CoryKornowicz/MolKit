@@ -7,7 +7,7 @@
 
 import Foundation
 import simd
-    
+
 extension SIMD3 {
     
     static func vector_angle(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Double {
