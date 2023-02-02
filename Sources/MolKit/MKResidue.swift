@@ -7,11 +7,15 @@
 
 import Foundation
 
-class Residue: Base {
+class MKResidue: MKBase {
     
-    
-    public func removeAtom(_ atom: Atom) -> Bool {
+    func removeAtom(_ atom: MKAtom) -> Bool {
         return true
     }
+    
+    func isHetAtom(_ atom: MKAtom) -> Bool {
+        return false
+    }
+    
 
 }

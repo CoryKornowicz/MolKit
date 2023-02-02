@@ -6,3 +6,19 @@
 //
 
 import Foundation
+
+class MKAtomTyper {
+    
+    static let sharedInstance = MKAtomTyper()
+    
+    private init() {}
+    
+    func assignTypes(_ mol: MKMol) {
+        
+    }
+    
+    func assignHyb(_ mol: MKMol) {
+        
+    }
+    
+}

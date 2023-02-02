@@ -6,3 +6,165 @@
 //
 
 import Foundation
+
+enum MKGenericDataType: UInt {
+    //! Unknown data type (default)
+    case UndefinedData =      0
+
+    //! Arbitrary key/value data, i.e., OBPairData
+    case PairData      =      1
+
+    //! Energetics data (e.g., total energy, heat of formation, etc.)
+    case EnergyData    =      2
+
+    //! Storing text comments (one per molecule, atom, bond, etc.) (for other data, e.g., author, keyword, ... use OBPairData)
+    case CommentData   =      3
+
+    //! Arbitrary information about conformers, i.e., OBConformerData
+    case ConformerData =      4
+
+    //! Bond data external to OpenBabel, i.e., OBExternalBond, OBExternalBondData
+    case ExternalBondData =   5
+
+    //! Information for generating & manipulating rotamers, i.e. OBRotamerList
+    case RotamerList =        6
+
+    //! Info. for storing bonds to atoms yet to be added, i.e. OBVirtualBond
+    case VirtualBondData =    7
+
+    //! Information on rings in a molecule, i.e., OBRingData
+    case RingData =           8
+
+    //! Information about torsion/dihedral angles, i.e., OBTorsionData and OBTorsion
+    case TorsionData =        9
+
+    //! Bond angles in a molecule, i.e., OBAngle, OBAngleData
+    case AngleData =         10
+
+    //! Residue serial numbers
+    case SerialNums =        11
+
+    //! Crystallographic unit cell data, i.e., OBUnitCell
+    case UnitCell =          12
+
+    //! Spin data, including NMR, atomic and molecular spin, etc.
+    case SpinData =          13
+
+    //! Arbitrary partial and total charges, dipole moments, etc.
+    case ChargeData =        14
+
+    //! Symmetry data -- point and space groups, transforms, etc. i.e., OBSymmetryData
+    case SymmetryData =      15
+
+    // 16 - Value unused, formerly ChiralData
+
+    //! Atomic and molecular occupation data (e.g., for crystal structures)
+    case OccupationData =    17
+
+    //! Density (cube) data and surfaces
+    case DensityData =       18
+
+    //! Electronic levels, redox states, orbitals, etc.
+    case ElectronicData =    19
+
+    //! Vibrational modes, frequencies, etc.
+    case VibrationData =     20
+
+    //! Rotational energy information
+    case RotationData =      21
+
+    //! Nuclear transitions (e.g., decay, capture, fission, fusion)
+    case NuclearData =       22
+
+    //! Set Data (a set of OBGenericData)
+    case SetData =           23
+
+    //! Grid Data (e.g., 3D grids of data a.k.a. cubes)
+    case GridData =          24
+
+    //! Vector Data (i.e., one vector like a dipole moment)
+    case VectorData =        25
+
+    //! Matrix data (i.e., a 3x3 matrix like a rotation or quadrupole moment)
+    case MatrixData =        26
+
+    //! Stereochemistry data (see OBStereoBase)
+    case StereoData =        27
+
+    //! Density of States data (fermi energy and energy vs. density data)
+    case DOSData =           28
+
+    //! Electronic transition data (e.g., UV/Vis, excitation energies, etc.)
+    case ElectronicTransitionData = 29
+
+    // space for up to 2^14 more entries...
+
+    //! Custom (user-defined data)
+    case CustomData0 = 16384
+    case CustomData1 = 16385
+    case CustomData2 = 16386
+    case CustomData3 = 16387
+    case CustomData4 = 16388
+    case CustomData5 = 16389
+    case CustomData6 = 16390
+    case CustomData7 = 16391
+    case CustomData8 = 16392
+    case CustomData9 = 16393
+    case CustomData10 = 16394
+    case CustomData11 = 16395
+    case CustomData12 = 16396
+    case CustomData13 = 16397
+    case CustomData14 = 16398
+    case CustomData15 = 16399
+}
+
+enum DataOrigin {
+    case any                 //!< Undefined or unspecified (default)
+    case fileformatInput     //!< Read from an input file
+    case userInput           //!< Added by the user
+    case perceived           //!< Perceived by Open Babel library methods
+    case external            //!< Added by an external program
+    case local                //!< Not for routine external use (e.g. in sdf or cml properties)
+}
+
+
+class MKGenericData: NSObject {
+
+    private var _attr: String
+    private var _type: MKGenericDataType
+    private var _source: DataOrigin
+
+    var attr: String {
+        get {
+            return self._attr
+        }
+        set {
+            self._attr = newValue
+        }
+    }
+
+    var type: MKGenericDataType {
+        get {
+            return self._type
+        }
+        set {
+            self._type = newValue
+        }
+    }
+    
+    var source: DataOrigin {
+        get {
+            return self._source
+        }
+        set {
+            self._source = newValue
+        }
+    }
+
+    init(_ attr: String?, _ type: MKGenericDataType?, _ source: DataOrigin?) {
+        self._attr = attr ?? "Undefined"
+        self._type = type ?? MKGenericDataType.UndefinedData
+        self._source = source ?? DataOrigin.any 
+    }
+    
+}
