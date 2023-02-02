@@ -108,12 +108,53 @@ class MKBond: MKBase {
         return self._begin! != atom ? self._begin!.getIdx() : self._end!.getIdx()
     }
 
-    func setLength(_ atom: MKAtom, _ length: Double) {
+    func setLength(_ fixed: MKAtom, _ length: Double) {
 
+        guard let mol: MKMol = fixed.getParent() else {
+            return
+        }
+
+        let a: Int = fixed.getIdx()
+        let b: Int = self.getNbrAtom(fixed).getIdx()
+
+        if a == b { return }
+
+        var children: [Int] = mol.findChildren(a, b)
+        children.append(b)
+
+        var v1: SIMD3<Double> = self.getNbrAtom(fixed).getVector()
+        let v2: SIMD3<Double> = fixed.getVector()
+        var v3 = v1 - v2 
+
+        if (isNearZero(simd_length(v3), 1e-6)) {
+            // set v3 to a random unit vector
+            print("Warning: bond length is near zero")
+            v3 = SIMD3<Double>.randomUnitVector()
+        } else {
+            v3 = simd_normalize(v3)
+        }
+
+        v3 *= length
+        v3 += v2
+        let v4: SIMD3<Double> = v3 - v1
+
+        for i in children {
+            v1 = mol.getAtom(i).getVector()
+            v1 += v4 
+            mol.getAtom(i).setVector(v1)
+        }
     }
 
     func setLength(_ length: Double) {
 
+        guard let begin = self._begin, let end = self._end else {
+            return
+        }
+
+        let firstLength: Double = length + ((self.getLength() - length) / 2)
+
+        self.setLength(begin, firstLength)
+        self.setLength(end, length)
     }
 
     func getParent() -> MKMol? {
@@ -183,9 +224,20 @@ class MKBond: MKBase {
         }
     }
   
-
     func findSmallestRing() -> MKRing? {
-        return nil
+        
+        guard let mol = self.getParent() else { return nil }
+        guard let ring_list: [MKRing] = mol.getSSSR() else { return nil }
+        
+        var min_size: Int = .max
+        var min_ring: MKRing? = nil
+        for ring in MKIterator<MKRing>(ring_list) {
+            if ring.isMember(self) && ring.size() < min_size {
+                min_size = ring.size()
+                min_ring = ring
+            }
+        }
+        return min_ring
     }
       //@}
 
@@ -219,7 +271,23 @@ class MKBond: MKBase {
            For more detailed rotor detection, check the OBRotorList and
            OBRotorRules classes **/
     func isRotor(_ includeRingBonds: Bool = false) -> Bool {
-        return false 
+        if self.getBondOrder() != 1 { return false }
+        guard let begin = self._begin, let end = self._end else { return false }
+        // not in a ring, or in a large ring
+        // and if it's a ring, not sp2
+        if let ring = self.findSmallestRing() {
+            if !includeRingBonds { return false }
+            if ring.size() <= 3 { return false }
+            if (begin.getHyb() == 2 || end.getHyb() == 2) { return false }
+        }
+        
+        if (begin.getHyb() == 1 || end.getHyb() == 1) { return false }
+        // not just an -OH or -NH2, etc.
+        // maybe we want to add this as an option
+//        TODO: add option of adding rotatable flag
+        //    rotatable = rotatable && ((_bgn->IsHeteroatom() || _bgn->GetHvyDegree() > 1)
+        //                               && (_end->IsHeteroatom() || _end->GetHvyDegree() > 1) );
+        return (begin.getHeavyDegree() > 1 && end.getHeavyDegree() > 1)
     }
 
     //! \return Is the bond within a periodic unit cell?
@@ -231,32 +299,162 @@ class MKBond: MKBase {
     /** \return Is the bond an amide link (i.e., between a carbonyl C and a N)?
      No distinction is made between primary, secondary, and tertiary amides. **/
     func isAmide() -> Bool {
+
+        guard let begin = self._begin, let end = self._end else {
+            return false
+        }
+        var c,n : MKAtom
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 7) {
+            c = begin
+            n = end
+        } else if (begin.getAtomicNum() == 7 && end.getAtomicNum() == 6) {
+            c = end
+            n = begin
+        } else {
+            return false
+        }
+
+        if self.getBondOrder() != 1 { return false }
+        if n.getTotalDegree() != 3 { return false }
+
+        // Make sure c isCarbonyl
+        guard let c_bonds = c.getBondIterator() else { return false }
+        
+        for bond in c_bonds {
+            if bond.isCarbonyl() { return true }
+        }
+        
         return false
     }
     
     /** \return Is the bond a primary amide (i.e., between carbonyl C and a NH2)?
      In versions prior to 2.3, this function incorrectly identified secondary amides. **/
     func isPrimaryAmide() -> Bool {
+        guard let begin = self._begin, let end = self._end else {
+            return false
+        }
+        var c,n : MKAtom
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 7) {
+            c = begin
+            n = end
+        } else if (begin.getAtomicNum() == 7 && end.getAtomicNum() == 6) {
+            c = end
+            n = begin
+        } else {
+            return false
+        }
+
+        if self.getBondOrder() != 1 { return false }
+        if n.getTotalDegree() != 3 { return false }
+        
+        if n.getHeavyDegree() != 1 { return false }
+        
+        // Make sure c isCarbonyl
+        guard let c_bonds = c.getBondIterator() else { return false }
+        
+        for bond in c_bonds {
+            if bond.isCarbonyl() { return true }
+        }
+        
         return false
     }
     
     /** \return Is the bond a secondary amide (i.e., between a carbonyl C and a NH1)?
      In versions prior to 2.3, this function incorrectly identified tertiary amides. **/
     func isSecondaryAmide() -> Bool {
+        guard let begin = self._begin, let end = self._end else {
+            return false
+        }
+        var c,n : MKAtom
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 7) {
+            c = begin
+            n = end
+        } else if (begin.getAtomicNum() == 7 && end.getAtomicNum() == 6) {
+            c = end
+            n = begin
+        } else {
+            return false
+        }
+
+        if self.getBondOrder() != 1 { return false }
+        if n.getTotalDegree() != 3 { return false }
+        
+        if n.getHeavyDegree() != 2 { return false }
+        
+        // Make sure c isCarbonyl
+        guard let c_bonds = c.getBondIterator() else { return false }
+        
+        for bond in c_bonds {
+            if bond.isCarbonyl() { return true }
+        }
+        
         return false
     }
     
     //! \return Is the bond a teriary amide (i.e., between a carbonyl C and a NH0)?
     //!  \since version 2.3.
     func IsTertiaryAmide() -> Bool {
+        guard let begin = self._begin, let end = self._end else {
+            return false
+        }
+        var c,n : MKAtom
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 7) {
+            c = begin
+            n = end
+        } else if (begin.getAtomicNum() == 7 && end.getAtomicNum() == 6) {
+            c = end
+            n = begin
+        } else {
+            return false
+        }
+
+        if self.getBondOrder() != 1 { return false }
+        if n.getTotalDegree() != 3 { return false }
+        
+        if n.getHeavyDegree() != 3 { return false }
+        
+        // Make sure c isCarbonyl
+        guard let c_bonds = c.getBondIterator() else { return false }
+        
+        for bond in c_bonds {
+            if bond.isCarbonyl() { return true }
+        }
+        
         return false
     }
 
     func isEster() -> Bool {
+        guard let begin = self._begin, let end = self._end else {
+            return false
+        }
+        var a : MKAtom
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 8) {
+            a = begin
+        } else if (begin.getAtomicNum() == 8 && end.getAtomicNum() == 6) {
+            a = end
+        } else {
+            return false
+        }
+
+        if self.getBondOrder() != 1 { return false }
+        
+        if let bonds = a.getBondIterator() {
+            for bond in bonds {
+                if bond.isCarbonyl() {
+                    return true
+                }
+            }
+        }
         return false
     }
 
     func isCarbonyl() -> Bool {
+        if self.getBondOrder() != 2 { return false }
+        guard let begin = self._begin, let end = self._end else { return false }
+        if (begin.getAtomicNum() == 6 && end.getAtomicNum() == 8) ||
+            (begin.getAtomicNum() == 8 && end.getAtomicNum() == 6) {
+            return true
+        }
         return false
     }
 
@@ -285,7 +483,31 @@ class MKBond: MKBase {
     }
 
     func isDoubleBondGeometry() -> Bool {
-        return false
+        guard let begin = self._begin, let end = self._end else { return false }
+        guard let mol = self.getParent() else { return false }
+        // We concentrate on sp2 atoms with valence up to 3 and ignore the rest (like sp1 or S,P)
+        // As this is called from PerceiveBondOrders, GetHyb() may still be undefined. 
+        if (begin.getHyb() == 1 && begin.getExplicitDegree()>3) || (end.getHyb() == 1 && end.getExplicitDegree()>3) {
+            return true
+        }
+
+        if let beginNeighbors = begin.getNbrAtomIterator(), let endNeighbors = end.getNbrAtomIterator() {
+            for bgnNeighbor in beginNeighbors {
+                if bgnNeighbor != end {
+                    for endNeighbor in endNeighbors {
+                        if endNeighbor != begin {
+                            let torsion = abs(mol.getTorsion(bgnNeighbor, begin, end, endNeighbor))
+                            // >12&&<168 not enough
+                            if ( torsion > 15.0  && torsion < 160.0 ) {
+                                    // Geometry does not match a double bond
+                                    return false
+                                }
+                        }
+                    }
+                }
+            }
+        }
+        return true
     }
 
 }

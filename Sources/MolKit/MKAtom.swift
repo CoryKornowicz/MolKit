@@ -242,6 +242,16 @@ class MKAtom: MKBase {
 
     func getCoordinates() -> SIMD3<Double> { return self._c}
     
+    func getNbrAtomIterator() -> MKIterator<MKAtom>? {
+        guard let neigh = self._vbond?.map({ $0.getNbrAtom(self) }) else { return nil }
+        return MKIterator<MKAtom>(neigh)
+    }
+    
+    func getBondIterator() -> MKIterator<MKBond>? {
+        guard let bonds = self._vbond else { return nil }
+        return MKIterator<MKBond>(bonds)
+    }
+    
     func clearCoordPtr() {
         self._c = simd_double3(0.0,0.0,0.0)
     }
@@ -545,8 +555,10 @@ class MKAtom: MKBase {
         if !self.isInRing() {
             return count
         }
-
-        for ring in mol.getSSSR() {
+        
+        guard let rings = mol.getSSSR() else { return count }
+        
+        for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) {
                 count+=1
             }
@@ -565,10 +577,12 @@ class MKAtom: MKBase {
         if !self.isInRing() {
             return 0
         }
-
-        for ring in mol.getSSSR() {
+        
+        guard let rings = mol.getSSSR() else { return 0 }
+        
+        for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) {
-                return ring.size()
+                return UInt(ring.size())
             }
         }
         return 0
@@ -691,8 +705,9 @@ class MKAtom: MKBase {
             return false
         }
 
-        let rings = mol.getSSSR()
-        for ring in rings {
+        guard let rings = mol.getSSSR() else { return false }
+        
+        for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) && ring.pathSize() == size {
                 return true
             }

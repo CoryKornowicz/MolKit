@@ -5,7 +5,7 @@ import Foundation
 class MKRing: MKBase {
 
 
-    func size() -> UInt {
+    func size() -> Int {
         return 0
     }
 
@@ -18,5 +18,7 @@ class MKRing: MKBase {
     func pathSize() -> Int {
         return 0
     }
+    
+    func isMember(_ bond: MKBond) -> Bool { return false }
 
 } 

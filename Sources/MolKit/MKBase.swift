@@ -29,6 +29,24 @@ enum MKBaseID {
     }
 }
 
+/// Concrete Iterators implement various traversal algorithms. These classes
+/// store the current traversal position at all times.
+class MKIterator<T>: IteratorProtocol, Sequence {
+
+    private let collection: [T]
+    private var index = 0
+
+    init(_ collection: [T]) {
+        self.collection = collection
+    }
+
+    func next() -> T? {
+        defer { index += 1 }
+        return index < collection.count ? collection[index] : nil
+    }
+}
+
+
 class MKBase: NSObject {
     
     private var _vdata: [MKGenericData]? = nil

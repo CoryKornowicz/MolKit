@@ -21,6 +21,14 @@ extension SIMD3 {
         return acos(dp) * 180.0 / Double.pi
     }
     
+    // Generate a random unit vector uniformly distributed over the unit sphere
+    static func randomUnitVector() -> SIMD3<Double> {
+        let x: Double = Double.random(in: -1.0...1.0)
+        let y: Double = Double.random(in: -1.0...1.0)
+        let z: Double = Double.random(in: -1.0...1.0)
+        let v: SIMD3<Double> = SIMD3<Double>(x, y, z)
+        return simd_normalize(v)
+    }
 }
     
 func isNearZero<U: FloatingPoint>(_ x: U, _ epsilon: U) -> Bool {

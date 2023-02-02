@@ -126,8 +126,8 @@ class MKMol: MKBase {
         return 0.0
     }
 
-    func getSSSR() -> [MKRing] {
-        return []
+    func getSSSR() -> [MKRing]? {
+        return nil
     }
 
 }
