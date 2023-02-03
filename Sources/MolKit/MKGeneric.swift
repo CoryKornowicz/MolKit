@@ -240,5 +240,50 @@ class MKPairData<T>: MKGenericData {
 
 }
 
+class MKSetData: MKGenericData {
 
+    var _vdata: [MKGenericData] = [MKGenericData]()
+
+    init() {
+        super.init("SetData", MKGenericDataType.SetData, .any)
+    }
+
+    func addData(_ data: MKGenericData) {
+        self._vdata.append(data)
+    }
+
+    func removeData(_ data: MKGenericData) {
+        self._vdata.removeAll(where: { $0 == data })
+    }
+
+    static func == (lhs: MKSetData, rhs: MKSetData) -> Bool {
+        return lhs._vdata == rhs._vdata && lhs == rhs
+    }
+
+}
+
+class MKVirtualBond: MKGenericData {
+    
+    var _begin: UInt = 0
+    var _end: UInt = 0 
+    var _order: UInt = 0
+    var _stereo: Int = 0
+
+    init() {
+        super.init("VirtualBond", MKGenericDataType.VirtualBondData, .perceived)
+    }
+
+    init(_ begin: UInt, _ end: UInt, _ order: UInt, _ stereo: Int) {
+        super.init("VirtualBond", MKGenericDataType.VirtualBondData, .perceived)
+        self._begin = begin
+        self._end = end
+        self._order = order
+        self._stereo = stereo
+    }
+
+    static func == (lhs: MKVirtualBond, rhs: MKVirtualBond) -> Bool {
+        return lhs._begin == rhs._begin && lhs._end == rhs._end && lhs._order == rhs._order && lhs._stereo == rhs._stereo && lhs == rhs
+    }
+
+}
 
