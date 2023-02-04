@@ -33,16 +33,16 @@ public class MKSpaceGroup<Scalar: ExpressibleByFloatLiteral & FloatingPoint & Bi
         return MKIterator(transforms)
     }
     
-    static func getSpaceGroup(_ id: Int) -> MKSpaceGroup {
-        
+    static func getSpaceGroup(_ id: Int) -> MKSpaceGroup? {
+        return nil
     }
     
-    static func getSpaceGroup(_ name: String) -> MKSpaceGroup {
-        
+    static func getSpaceGroup(_ name: String) -> MKSpaceGroup? {
+        return nil
     }
     
-    static func findGroup(_ spg: MKSpaceGroup) -> MKSpaceGroup {
-        
+    static func findGroup(_ spg: MKSpaceGroup) -> MKSpaceGroup? {
+        return nil
     }
     
     func registerSpaceGroup() { }
@@ -100,7 +100,7 @@ extension MKSpaceGroup {
         var _sgs: Set<MKSpaceGroup> = Set<MKSpaceGroup>()
         
         init() {
-//             Read the file and load data 
+//             Read the file and load data
         }
         
         func getSize() -> Int {

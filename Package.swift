@@ -22,10 +22,24 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "MolKit",
-            dependencies: [.product(name: "Algorithms", package: "swift-algorithms"), "Surge"]),
+            dependencies: [.product(name: "Algorithms", package: "swift-algorithms"), "Surge"],
+            resources: [
+                    // Apply platform-specific rules.
+                    // For example, images might be optimized per specific platform rule.
+                    // If path is a directory, the rule is applied recursively.
+                    // By default, a file will be copied if no rule applies.
+                    // Process file in Sources/MolKit/Data/*
+                    .copy("Data"),
+                  ]),
         .testTarget(
             name: "MolKitTests",
-            dependencies: ["MolKit"]),
+            dependencies: ["MolKit"],
+            resources: [
+                    // Copy Tests/ExampleTests/Resources directories as-is.
+                    // Use to retain directory structure.
+                    // Will be at top level in bundle.
+                    .copy("Data"),
+                  ]),
     ]
 )
 

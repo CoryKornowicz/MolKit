@@ -10,11 +10,20 @@ import XCTest
 
 final class DataAvailabilityTests: XCTestCase {
     
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct
-        // results.
-        XCTAssertEqual(MolKit().text, "Hello, World!")
+    func testFindSpaceGroup() throws {
+        
+        // Define bundle path to Data folder
+        let path = Bundle.module.url(forResource: "space-groups", withExtension: "txt", subdirectory: "Data")
+        let data = try String(contentsOf: path!)
+        XCTAssert(!data.isEmpty)
+    }
+    
+    
+    func testFindAllDataFiles() throws {
+        
+        // Define bundle path to Data folder
+        let path = Bundle.module.paths(forResourcesOfType: "txt", inDirectory: "Data")
+        XCTAssert(path.count > 0)
     }
     
 }

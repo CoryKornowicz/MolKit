@@ -335,7 +335,7 @@ public class MKUnitCell<Scalar: ExpressibleByFloatLiteral & FloatingPoint & Bina
     var _lattice: LatticeType = .Undefined
     
     public init() {
-        super.init()
+        super.init("UnitCell", MKGenericDataType.UnitCell, .fileformatInput)
     }
     
     public func setData(a: Double, b: Double, c: Double, alpha: Double, beta: Double, gamme: Double) {

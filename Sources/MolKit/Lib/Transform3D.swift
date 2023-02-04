@@ -79,6 +79,7 @@ class MKTransform3D<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFl
                     default:
                         continue
                     }
+                    first = false
                 }
                 j+=1
             }
