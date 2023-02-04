@@ -6,8 +6,9 @@
 //
 
 import Foundation
+import Surge
 
-enum MKGenericDataType: UInt {
+public enum MKGenericDataType: UInt {
     //! Unknown data type (default)
     case UndefinedData =      0
 
@@ -128,7 +129,7 @@ enum DataOrigin {
 }
 
 
-class MKGenericData: NSObject {
+public class MKGenericData: NSObject {
 
     private var _attr: String
     private var _type: MKGenericDataType
@@ -173,7 +174,7 @@ class MKGenericData: NSObject {
     
 }
 
-class MKCommentData: MKGenericData {
+public class MKCommentData: MKGenericData {
     
     var data: String = ""
 
@@ -192,7 +193,7 @@ class MKCommentData: MKGenericData {
 
 }
 
-class MKExternalBond: MKGenericData {
+public class MKExternalBond: MKGenericData {
     
     var idx = 0
     var atom: MKAtom? = nil
@@ -211,7 +212,7 @@ class MKExternalBond: MKGenericData {
     
 }
 
-class MKExternalBondData: MKGenericData {
+public class MKExternalBondData: MKGenericData {
     
     var vexbonds: [MKExternalBond] = [MKExternalBond]()
 
@@ -225,7 +226,7 @@ class MKExternalBondData: MKGenericData {
 
 }
 
-class MKPairData<T>: MKGenericData {
+public class MKPairData<T>: MKGenericData {
 
     var value: T? = nil
 
@@ -240,7 +241,7 @@ class MKPairData<T>: MKGenericData {
 
 }
 
-class MKSetData: MKGenericData {
+public class MKSetData: MKGenericData {
 
     var _vdata: [MKGenericData] = [MKGenericData]()
 
@@ -262,7 +263,7 @@ class MKSetData: MKGenericData {
 
 }
 
-class MKVirtualBond: MKGenericData {
+public class MKVirtualBond: MKGenericData {
     
     var _begin: UInt = 0
     var _end: UInt = 0 
@@ -287,3 +288,79 @@ class MKVirtualBond: MKGenericData {
 
 }
 
+public class MKRingData: MKGenericData {
+
+    var _vr: [MKRing] = [MKRing]()
+
+    init() {
+        super.init("RingData", MKGenericDataType.RingData, .perceived)
+    }
+
+    func addRing(_ ring: MKRing) {
+        self._vr.append(ring)
+    }
+
+    func removeRing(_ ring: MKRing) {
+        self._vr.removeAll(where: { $0 == ring })
+    }
+
+    func getRingIterator() -> MKIterator<MKRing> {
+        return MKIterator<MKRing>(self._vr)
+    }
+
+    static func == (lhs: MKRingData, rhs: MKRingData) -> Bool {
+        return lhs._vr == rhs._vr && lhs == rhs
+    }
+
+}
+
+public enum LatticeType {
+    case Undefined
+    case Triclinic
+    case Monoclinic
+    case Orthorhombic
+    case Tetragonal
+    case Rhombohedral
+    case Hexagonal
+    case Cubic
+} 
+
+public class MKUnitCell<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFloatingPoint>: MKGenericData {
+
+    var _mOrtho = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)
+    var _mOrient = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)
+    var _offset = Vector<Scalar>.init(dimensions: 3, repeatedValue: 0.0)
+    var _spaceGroupName: String = ""
+    var _spaceGroup: MKSpaceGroup<Scalar>? = nil
+    var _lattice: LatticeType = .Undefined
+    
+    public init() {
+        super.init()
+    }
+    
+    public func setData(a: Double, b: Double, c: Double, alpha: Double, beta: Double, gamme: Double) {
+        
+    }
+    
+    public func setData(v1: Vector<Scalar>, v2: Vector<Scalar>, v3: Vector<Scalar>) {
+        
+    }
+
+    public func setData(m: Matrix<Scalar>) {
+        
+    }
+    
+    public func setOffset(_ v: Vector<Scalar>) {
+        
+    }
+    
+    public func setSpaceGroup(_ spg: MKSpaceGroup<Scalar>) {
+        self._spaceGroup = spg
+    }
+    
+    func fillUnitCell(_ mol: MKMol) {
+        return
+    }
+
+
+}

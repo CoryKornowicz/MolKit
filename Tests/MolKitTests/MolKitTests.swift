@@ -30,5 +30,5 @@ final class MolKitTests: XCTestCase {
     func testMKElementsGetExactMass() throws {
         XCTAssertEqual(MKElements.getExactMass(5, 10), 10.012937000)
     }
-    
+
 }

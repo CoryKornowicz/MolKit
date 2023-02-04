@@ -37,7 +37,7 @@ public let SHELL: [Int] = [0,2,2,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,18,18,18,18
                            18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,8,8,18,18,18,18,
                            18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18]
 
-class MKAtom: MKBase {
+public class MKAtom: MKBase {
     
     private var _parent: MKBase? = nil
     private var _residue: MKResidue? = nil                         //!< parent residue (if applicable)
@@ -64,7 +64,7 @@ class MKAtom: MKBase {
     
     private var Visit: Bool? = nil
     
-    override init() {
+    public override init() {
         super.init()
         self._parent = nil
         self.clear()

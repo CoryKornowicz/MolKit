@@ -42,12 +42,35 @@ class MKMol: MKBase {
     private var _autoFormalCharge: Bool = false
 
     private var _title: String = ""
-    private var _vatom: [MKAtom]? = nil
+    private var _vatom: [MKAtom]? = []
+    private var _vatomIds: [MKAtom]? = []
+    private var _vbond: [MKBond]? = []
+    private var _vbondIds: [MKBond]? = []
+    private var _dimension: UInt16 = 0
+    private var _totalCharge: Int = 0
+    private var _totalSpin: UInt = 0
+    private var _c: Array<SIMD3<Double>> = []
+    private var _vconf: Array<SIMD3<Double>> = []
+    private var _energy: Double = 0.0
+    private var _natoms: UInt = 0
+    private var _nbonds: UInt = 0
+    private var _residue: [MKResidue]? = []
+    private var _internals: [MKInternalCoord]? = []
+    private var _mod: UInt16 = 0 
+
     
     init(atoms: [MKAtom]) {
         self._vatom = atoms
     }
     
+    func getTitle() -> String {
+        return self._title
+    }
+
+    func setTitle(_ title: String) {
+        self._title = title
+    }
+
     func getAtom(_ id: Int) -> MKAtom {
         guard let atoms = self._vatom else { return MKAtom() }
         return atoms[id]
@@ -57,15 +80,21 @@ class MKMol: MKBase {
         return self._vatom!
     }
 
+    func getAtomIterator() -> MKIterator<MKAtom>? {
+        guard let atoms = self._vatom else { return nil }
+        return MKIterator<MKAtom>(atoms)
+    }
+
     func newAtom() -> MKAtom {
         return MKAtom()
     }
 
-    func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
-
     func numAtoms() -> Int {
         return (self._vatom != nil) ? self._vatom!.count : 0
     }
+
+    func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
+
 
     func automaticPartialCharge() -> Bool {
         return false
@@ -122,8 +151,12 @@ class MKMol: MKBase {
         return false
     }
 
+    func getAngle(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom) -> Double {
+        return a.getAngle(b, c)
+    }
+
     func getTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom) -> Double {
-        return 0.0
+        return 0.0 
     }
 
     func getSSSR() -> [MKRing]? {

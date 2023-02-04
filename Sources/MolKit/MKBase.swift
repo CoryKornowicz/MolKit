@@ -15,7 +15,7 @@ func generateUUID() -> Int {
     return uuidUInt
 }
 
-enum MKBaseID {
+public enum MKBaseID {
     case NoId
     case _id(Int)
 
@@ -31,7 +31,7 @@ enum MKBaseID {
 
 /// Concrete Iterators implement various traversal algorithms. These classes
 /// store the current traversal position at all times.
-class MKIterator<T>: IteratorProtocol, Sequence {
+public class MKIterator<T>: IteratorProtocol, Sequence {
 
     private let collection: [T]
     private var index = 0
@@ -40,14 +40,14 @@ class MKIterator<T>: IteratorProtocol, Sequence {
         self.collection = collection
     }
 
-    func next() -> T? {
+    public func next() -> T? {
         defer { index += 1 }
         return index < collection.count ? collection[index] : nil
     }
 }
 
 
-class MKBase: NSObject {
+public class MKBase: NSObject {
     
     private var _vdata: [MKGenericData]? = nil
     private var _flags: UInt = 0
