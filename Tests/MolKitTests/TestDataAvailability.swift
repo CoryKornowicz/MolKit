@@ -15,6 +15,7 @@ final class DataAvailabilityTests: XCTestCase {
         // Define bundle path to Data folder
         let path = Bundle.module.url(forResource: "space-groups", withExtension: "txt", subdirectory: "Data")
         let data = try String(contentsOf: path!)
+        
         XCTAssert(!data.isEmpty)
     }
     

@@ -1,9 +1,10 @@
 
 
 import Foundation 
-import Surge 
+import Surge
+import Accelerate
 
-class MKTransform3D<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFloatingPoint> {
+class MKTransform3D<Scalar> where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
     
     var _m: Matrix<Scalar> = Matrix<Scalar>.init(rows: 3, columns: 3, repeatedValue: 0.0)
     var _v: Vector<Scalar> = Vector<Scalar>.init(dimensions: 3, repeatedValue: 0.0)
@@ -41,7 +42,7 @@ class MKTransform3D<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFl
             
             if i != 0 { outString += "," }
             
-            n = Int(floor(v[i] * 12.0 + 0.1))
+            n = Int(floorf((v[i] as! Float) * 12.0 + 0.1))
             j = 0
             while (m[i,j] == 0) {
                 j+=1
@@ -103,22 +104,27 @@ class MKTransform3D<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFl
 
 }
 
-extension MKTransform3D {
+extension MKTransform3D where Scalar == Float {
+    
+
+    static func * (_ m: MKTransform3D<Float>, _ v: Vector<Float>) -> Vector<Float> {
+        return m._m * v + m._v
+    }
+    
+    static func * (_ m: MKTransform3D<Float>, _ v: MKTransform3D<Float>) -> MKTransform3D<Float> {
+        return MKTransform3D<Float>(m: m._m * v._m, v: v._v)
+    }
+    
+}
+
+extension MKTransform3D where Scalar == Double {
     
     static func * (_ m: MKTransform3D<Double>, _ v: Vector<Double>) -> Vector<Double> {
         return m._m * v + m._v
     }
     
-    static func * (_ m: MKTransform3D<Float>, _ v: Vector<Float>) -> Vector<Float> {
-        return m._m * v + m._v
-    }
-    
     static func * (_ m: MKTransform3D<Double>, _ v: MKTransform3D<Double>) -> MKTransform3D<Double> {
         return MKTransform3D<Double>(m: m._m * v._m, v: v._v)
-    }
-    
-    static func * (_ m: MKTransform3D<Float>, _ v: MKTransform3D<Float>) -> MKTransform3D<Float> {
-        return MKTransform3D<Float>(m: m._m * v._m, v: v._v)
     }
     
 }

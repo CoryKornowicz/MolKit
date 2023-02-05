@@ -7,14 +7,23 @@
 
 import Foundation
 
-protocol MKGlobalDataBase {
+public class MKGlobalDataBase {
     
-    var _filename: String { get }
-    var _subdir: String { get }
+    var _filename: String
+    var _subdir: String
+    
+    init(fileName: String, subDir: String) {
+        self._filename = fileName
+        self._subdir = subDir
+    }
+    
+    func getSize() -> Int {
+        return 0
+    }
         
-    func getSize() -> Int
-        
-    func parseLine(_ line: String)
+//    Need to override implementation
+    func readFile() { return }
+    
 }
 
 

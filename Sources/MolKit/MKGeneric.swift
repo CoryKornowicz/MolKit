@@ -325,7 +325,7 @@ public enum LatticeType {
     case Cubic
 } 
 
-public class MKUnitCell<Scalar: ExpressibleByFloatLiteral & FloatingPoint & BinaryFloatingPoint>: MKGenericData {
+public class MKUnitCell<Scalar>: MKGenericData where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
 
     var _mOrtho = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)
     var _mOrient = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)

@@ -3,12 +3,12 @@ import XCTest
 
 final class MolKitTests: XCTestCase {
     
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct
-        // results.
-        XCTAssertEqual(MolKit().text, "Hello, World!")
-    }
+//    func testExample() throws {
+//        // This is an example of a functional test case.
+//        // Use XCTAssert and related functions to verify your tests produce the correct
+//        // results.
+//        XCTAssert(MolKit != nil)
+//    }
 
     // Test MKAtom Class 
 
@@ -30,5 +30,14 @@ final class MolKitTests: XCTestCase {
     func testMKElementsGetExactMass() throws {
         XCTAssertEqual(MKElements.getExactMass(5, 10), 10.012937000)
     }
-
+    
+    // Test MKGlobalDataBase subclasses
+    
+    
+    func testMKSpaceGroups() throws {
+        let spacegroups = _SpaceGroups
+        XCTAssert(spacegroups.getSize() > 0)
+    }
+    
+    
 }

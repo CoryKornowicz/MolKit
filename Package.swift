@@ -5,6 +5,10 @@ import PackageDescription
 
 let package = Package(
     name: "MolKit",
+    platforms: [
+        .macOS(.v12),
+        .iOS(.v16)
+    ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
@@ -15,6 +19,7 @@ let package = Package(
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-collections", from: "1.0.4"),
         .package(url: "https://github.com/Jounce/Surge.git", .upToNextMajor(from: "2.3.2"))
     ],
     targets: [
@@ -22,7 +27,7 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "MolKit",
-            dependencies: [.product(name: "Algorithms", package: "swift-algorithms"), "Surge"],
+            dependencies: [.product(name: "Algorithms", package: "swift-algorithms"), "Surge", .product(name: "Collections", package: "swift-collections")],
             resources: [
                     // Apply platform-specific rules.
                     // For example, images might be optimized per specific platform rule.
