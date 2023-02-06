@@ -53,10 +53,12 @@ extension String {
         return String(self[start ..< end])
     }
     
-    typealias Scalar = BinaryFloatingPoint & FloatingPoint
-    
     func toScalar() -> (any Scalar)? {
         return NumberFormatter().number(from: self)?.doubleValue as? (any Scalar)
+    }
+    
+    func toDouble() -> Double? {
+        return NumberFormatter().number(from: self)?.doubleValue
     }
 
 }

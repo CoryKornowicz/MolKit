@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Surge
 import simd
 
 public let OB_SSSR_MOL: UInt = 1<<1
@@ -32,8 +33,10 @@ public let OB_PERIODIC_MOL: UInt = 1<<23
 
 public let OB_CURRENT_CONFORMER	= -1
 
-enum HydrogenType {
-    case AllHydrogen, PolarHydrogen, NonPolarHydrogen 
+enum HydrogenType: Int {
+    case AllHydrogen = 0
+    case PolarHydrogen = 1
+    case NonPolarHydrogen = 2
 }
 
 class MKMol: MKBase {
@@ -107,37 +110,76 @@ class MKMol: MKBase {
         return []
     }
     
-    func hasPartialChargesPerceived() -> Bool {
+    func has2D(_ not3D: Bool = false) -> Bool {
         return false
     }
     
-    func hasAtomTypesPerceived() -> Bool {
-        return false 
+    func has3D() -> Bool {
+        return false
+    }
+    
+    func hasNonZeroCoords() -> Bool {
+        return false
     }
     
     func hasAromaticPerceived() -> Bool {
-        return false
+        return self.hasFlag(OB_AROMATIC_MOL)
     }
-
-    func hasChainsPerceived() -> Bool {
-        return false
+    
+    func hasSSSRPerceived() -> Bool {
+        return self.hasFlag(OB_SSSR_MOL)
+    }
+    
+    func hasLSSRPerceived() -> Bool {
+        return self.hasFlag(OB_LSSR_MOL)
+    }
+    
+    func hasRingAtomsAndBondsPerceived() -> Bool {
+        return self.hasFlag(OB_RINGFLAGS_MOL)
+    }
+    
+    func hasAtomTypesPerceived() -> Bool {
+        return self.hasFlag(OB_ATOMTYPES_MOL)
+    }
+    
+    func hasRingTypesPerceived() -> Bool {
+        return self.hasFlag(OB_RINGTYPES_MOL)
+    }
+    
+    func hasChiralityPerceived() -> Bool {
+        return self.hasFlag(OB_CHIRALITY_MOL)
+    }
+    
+    func hasPartialChargesPerceived() -> Bool {
+        return self.hasFlag(OB_PCHARGE_MOL)
     }
     
     func hasHybridizationPerceived() -> Bool {
-        return false
+        return self.hasFlag(OB_HYBRID_MOL)
     }
-
-    func hasRingAtomsAndBondsPerceived() -> Bool {
-        return false
-    }
-
+    
     func hasClosureBondsPerceived() -> Bool {
-        return false
+        return self.hasFlag(OB_CLOSURE_MOL)
     }
 
-    func hasSSSRPerceived() -> Bool {
-        return false
+    func hasChainsPerceived() -> Bool {
+        return self.hasFlag(OB_CHAINS_MOL)
     }
+    
+    func hasHydrogensAdded() -> Bool {
+        return self.hasFlag(OB_H_ADDED_MOL)
+    }
+    
+    func isReaction() -> Bool {
+        return self.hasFlag(OB_REACTION_MOL)
+    }
+    
+    func isEmpty() -> Bool {
+        return self._natoms == 0
+    }
+    
+    
+    
 
     func findRingAtomsAndBonds() {
         
@@ -155,12 +197,32 @@ class MKMol: MKBase {
         return a.getAngle(b, c)
     }
 
+    func getTorsion(_ a: Int, _ b: Int, _ c: Int, _ d: Int) -> Double {
+        guard let i = self._vatom?[a-1], let j = self._vatom?[b-1], let k = self._vatom?[c-1], let m = self._vatom?[d-1] else { return 0.0 }
+        return self.getTorsion(i,j,k,m)
+    }
+    
     func getTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom) -> Double {
-        return 0.0 
+        
+        if !self.isPeriodic() {
+            return calculateTorsionAngle(a.getVector(), b.getVector(), c.getVector(), d.getVector())
+        }else {
+            return 0.0
+        }
+        
     }
 
     func getSSSR() -> [MKRing]? {
         return nil
     }
 
+    func setPeriodicMol(_ value: Bool = true) {
+        if value {
+            self.setFlag(OB_PERIODIC_MOL)
+        } else {
+            self.unsetFlag(OB_PERIODIC_MOL)
+        }
+    }
+    
+    
 }

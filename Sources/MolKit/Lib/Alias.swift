@@ -2,4 +2,6 @@
 
 import Foundation
 
-typealias Pair<T: Any, U: Any> = (T, U)
+public typealias Pair<T: Any, U: Any> = (T, U)
+
+public typealias Scalar = BinaryFloatingPoint & FloatingPoint

@@ -1,6 +1,7 @@
 
 
 import Foundation
+import Surge
 import simd
 
 enum MKAtomFlag: UInt {
@@ -108,7 +109,7 @@ class MKBond: MKBase {
         return self._begin! != atom ? self._begin!.getIdx() : self._end!.getIdx()
     }
 
-    func setLength(_ fixed: MKAtom, _ length: Double) {
+    func setLength(_ fixed: MKAtom, _ len: Double) {
 
         guard let mol: MKMol = fixed.getParent() else {
             return
@@ -122,21 +123,21 @@ class MKBond: MKBase {
         var children: [Int] = mol.findChildren(a, b)
         children.append(b)
 
-        var v1: SIMD3<Double> = self.getNbrAtom(fixed).getVector()
-        let v2: SIMD3<Double> = fixed.getVector()
-        var v3 = v1 - v2 
+        var v1: Vector<Double> = self.getNbrAtom(fixed).getVector()
+        let v2: Vector<Double> = fixed.getVector()
+        var v3: Vector<Double> = v1 - v2
 
-        if (isNearZero(simd_length(v3), 1e-6)) {
+        if (isNearZero(length(v3), 1e-6)) {
             // set v3 to a random unit vector
             print("Warning: bond length is near zero")
-            v3 = SIMD3<Double>.randomUnitVector()
+            v3 = Vector<Double>.randomNormal(count: 3)
         } else {
-            v3 = simd_normalize(v3)
+            v3 = normalize(v3)
         }
 
-        v3 *= length
+        v3 *= len
         v3 += v2
-        let v4: SIMD3<Double> = v3 - v1
+        let v4: Vector<Double> = v3 - v1
 
         for i in children {
             v1 = mol.getAtom(i).getVector()
@@ -214,7 +215,7 @@ class MKBond: MKBase {
       //! \return The current length of this bond in Angstroms
     func getLength() -> Double {
         if (!self.isPeriodic()) {
-            return simd_distance(self._begin!.getVector(), self._end!.getVector())
+            return dist(self._begin!.getVector(), self._end!.getVector())
         } else {
             return 0.0
 //            TODO: implement

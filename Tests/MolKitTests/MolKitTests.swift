@@ -35,7 +35,8 @@ final class MolKitTests: XCTestCase {
     
     
     func testMKSpaceGroups() throws {
-        let spacegroups = _SpaceGroups
+        let spacegroups = MolKit._SpaceGroups
+        print(spacegroups.getSize())
         XCTAssert(spacegroups.getSize() > 0)
     }
     

@@ -1,6 +1,7 @@
 
 
-import Foundation 
+import Foundation
+import Surge
 import simd
 
 class MKBuilder {
@@ -9,8 +10,8 @@ class MKBuilder {
 
     private init() {}
 
-    func getNewBondVector(_ atom: MKAtom, _ length: Double) -> SIMD3<Double> {
-        return SIMD3<Double>(0, 0, 0)
+    func getNewBondVector(_ atom: MKAtom, _ length: Double) -> Vector<Double> {
+        return Vector<Double>([0, 0, 0])
     }
 
 }

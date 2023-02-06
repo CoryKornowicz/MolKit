@@ -325,13 +325,13 @@ public enum LatticeType {
     case Cubic
 } 
 
-public class MKUnitCell<Scalar>: MKGenericData where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
+public class MKUnitCell: MKGenericData {
 
-    var _mOrtho = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)
-    var _mOrient = Matrix<Scalar>(rows: 3, columns: 3, repeatedValue: 0.0)
-    var _offset = Vector<Scalar>.init(dimensions: 3, repeatedValue: 0.0)
+    var _mOrtho = Matrix<Double>(rows: 3, columns: 3, repeatedValue: 0.0)
+    var _mOrient = Matrix<Double>(rows: 3, columns: 3, repeatedValue: 0.0)
+    var _offset = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
     var _spaceGroupName: String = ""
-    var _spaceGroup: MKSpaceGroup<Scalar>? = nil
+    var _spaceGroup: MKSpaceGroup? = nil
     var _lattice: LatticeType = .Undefined
     
     public init() {
@@ -342,19 +342,19 @@ public class MKUnitCell<Scalar>: MKGenericData where Scalar: FloatingPoint, Scal
         
     }
     
-    public func setData(v1: Vector<Scalar>, v2: Vector<Scalar>, v3: Vector<Scalar>) {
+    public func setData(v1: Vector<Double>, v2: Vector<Double>, v3: Vector<Double>) {
         
     }
 
-    public func setData(m: Matrix<Scalar>) {
+    public func setData(m: Matrix<Double>) {
         
     }
     
-    public func setOffset(_ v: Vector<Scalar>) {
+    public func setOffset(_ v: Vector<Double>) {
         
     }
     
-    public func setSpaceGroup(_ spg: MKSpaceGroup<Scalar>) {
+    func setSpaceGroup(_ spg: MKSpaceGroup) {
         self._spaceGroup = spg
     }
     

@@ -4,17 +4,17 @@ import Foundation
 import Surge
 import Accelerate
 
-class MKTransform3D<Scalar> where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
+class MKTransform3D {
     
-    var _m: Matrix<Scalar> = Matrix<Scalar>.init(rows: 3, columns: 3, repeatedValue: 0.0)
-    var _v: Vector<Scalar> = Vector<Scalar>.init(dimensions: 3, repeatedValue: 0.0)
+    var _m: Matrix<Double> = Matrix.init(rows: 3, columns: 3, repeatedValue: 0.0)
+    var _v: Vector<Double> = Vector.init(dimensions: 3, repeatedValue: 0.0)
 
     public init() {
-        self._m = Matrix<Scalar>.init(rows: 3, columns: 3, repeatedValue: 0.0)
-        self._v = Vector<Scalar>.init(dimensions: 3, repeatedValue: 0.0)
+        self._m = Matrix<Double>.init(rows: 3, columns: 3, repeatedValue: 0.0)
+        self._v = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
     }
 
-    public init(m: Matrix<Scalar>, v: Vector<Scalar>) {
+    public init(m: Matrix<Double>, v: Vector<Double>) {
         assert({ m.rows == 3 && m.columns == 3 }(), "Matrix is not 3x3")
         assert({ v.dimensions == 3 }(), "Vector does not 3 dimensions")
         
@@ -42,7 +42,7 @@ class MKTransform3D<Scalar> where Scalar: FloatingPoint, Scalar: ExpressibleByFl
             
             if i != 0 { outString += "," }
             
-            n = Int(floorf((v[i] as! Float) * 12.0 + 0.1))
+            n = Int(floorl(v[i] * 12.0 + 0.1))
             j = 0
             while (m[i,j] == 0) {
                 j+=1
@@ -102,29 +102,12 @@ class MKTransform3D<Scalar> where Scalar: FloatingPoint, Scalar: ExpressibleByFl
         return outString
     }
 
-}
-
-extension MKTransform3D where Scalar == Float {
-    
-
-    static func * (_ m: MKTransform3D<Float>, _ v: Vector<Float>) -> Vector<Float> {
+    static func * (_ m: MKTransform3D, _ v: Vector<Double>) -> Vector<Double> {
         return m._m * v + m._v
     }
     
-    static func * (_ m: MKTransform3D<Float>, _ v: MKTransform3D<Float>) -> MKTransform3D<Float> {
-        return MKTransform3D<Float>(m: m._m * v._m, v: v._v)
+    static func * (_ m: MKTransform3D, _ v: MKTransform3D) -> MKTransform3D {
+        return MKTransform3D(m: m._m * v._m, v: v._v)
     }
-    
 }
 
-extension MKTransform3D where Scalar == Double {
-    
-    static func * (_ m: MKTransform3D<Double>, _ v: Vector<Double>) -> Vector<Double> {
-        return m._m * v + m._v
-    }
-    
-    static func * (_ m: MKTransform3D<Double>, _ v: MKTransform3D<Double>) -> MKTransform3D<Double> {
-        return MKTransform3D<Double>(m: m._m * v._m, v: v._v)
-    }
-    
-}

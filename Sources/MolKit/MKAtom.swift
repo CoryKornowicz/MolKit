@@ -7,7 +7,7 @@
 
 import Foundation
 import Algorithms
-import simd
+import Surge
 
 //ATOM Property Macros (flags)
 //! Atom is in a 4-membered ring
@@ -50,7 +50,7 @@ public class MKAtom: MKBase {
     
     private var _type: String = ""                                 //!< atomic type
     
-    private var _c: SIMD3<Double> = simd_double3(0.0,0.0,0.0)     //!< coordinate array in double*
+    private var _c: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
     
     // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
     private var _hyb: Int = 0                                     //!< hybridization
@@ -227,18 +227,18 @@ public class MKAtom: MKBase {
         }
     }
 
-    func setVector(_ vec3: SIMD3<Double>) {
+    func setVector(_ vec3: Vector<Double>) {
         self._c = vec3
     }
 
     func setVector(_ x: Double, _ y: Double, _ z: Double) {
-        self._c = simd_double3(x,y,z)
+        self._c = Vector<Double>.init(scalars: [x,y,z])
     }
 
     // Keeping both for redundancy and semantics : possible remove later
-    func getVector() -> SIMD3<Double> { return self._c }
+    func getVector() -> Vector<Double> { return self._c }
 
-    func getCoordinates() -> SIMD3<Double> { return self._c}
+    func getCoordinates() -> Vector<Double> { return self._c}
     
     func getNbrAtomIterator() -> MKIterator<MKAtom>? {
         guard let neigh = self._vbond?.map({ $0.getNbrAtom(self) }) else { return nil }
@@ -251,7 +251,7 @@ public class MKAtom: MKBase {
     }
     
     func clearCoordPtr() {
-        self._c = simd_double3(0.0,0.0,0.0)
+        self._c = Vector<Double>.init(scalars: [0.0,0.0,0.0])
     }
 
     func getX() -> Double {
@@ -321,7 +321,7 @@ public class MKAtom: MKBase {
     // //! \return the distance to the supplied OBAtom
     func getDistance(_ atom: MKAtom) -> Double {
         if !self.isPeriodic() {
-            return simd_distance(self.getVector(), atom.getVector())
+            return distSq(self.getVector(), atom.getVector())
         } else {
             // TODO: 
             // OBUnitCell *box = (OBUnitCell*)GetParent()->GetData(OBGenericDataType::UnitCell);
@@ -332,8 +332,8 @@ public class MKAtom: MKBase {
 
     // //! \return the distance to the coordinates of the supplied vector3
     // //! \since version 2.4
-    func getDistance(_ v: SIMD3<Double>) -> Double {
-        return simd_distance(self._c, v)
+    func getDistance(_ v: Vector<Double>) -> Double {
+        return dist(self._c, v)
     }
 
     // //! \return the angle defined by this atom -> b (vertex) -> c
@@ -345,8 +345,8 @@ public class MKAtom: MKBase {
     // //! \return the angle defined by this atom -> b (vertex) -> c
     func getAngle(_ b: MKAtom, _ c: MKAtom) -> Double {
 
-        let v1: SIMD3<Double> = self.getVector() - b.getVector()
-        let v2: SIMD3<Double> = c.getVector() - b.getVector()
+        let v1: Vector<Double> = self.getVector() - b.getVector()
+        let v2: Vector<Double> = c.getVector() - b.getVector()
 
         // TODO: 
         // if self.isPeriodic() {
@@ -355,11 +355,11 @@ public class MKAtom: MKBase {
         //     v2 = box->MinimumImageCartesian(v2);
         // }
 
-        if (isNearZero(simd_length(v1), 1.0e-3) || isNearZero(simd_length(v2), 1.0e-3)) {
+        if (isNearZero(length(v1), 1.0e-3) || isNearZero(length(v2), 1.0e-3)) {
             return(0.0)
         }
 
-        return SIMD3<Double>.vector_angle(v1, v2)
+        return vector_angle(v1, v2)
     }
     
     //! \name Addition of residue/bond info. for an atom
@@ -423,7 +423,7 @@ public class MKAtom: MKBase {
     // //! \name Builder utilities
     // //@{
     // MARK: Apparently not used?? 
-    func getNewBondVector(_ length: Double) -> SIMD3<Double> {
+    func getNewBondVector(_ length: Double) -> Vector<Double> {
         return MKBuilder.sharedInstance.getNewBondVector(self, length)
     } 
 
@@ -489,12 +489,12 @@ public class MKAtom: MKBase {
         return true
     }
 
-    static func applyRotMatToBond(_ mol: MKMol, _ m: simd_double3x3, _ atom1: MKAtom, _ atom2: MKAtom) {
+    static func applyRotMatToBond(_ mol: MKMol, _ m: Matrix<Double>, _ atom1: MKAtom, _ atom2: MKAtom) {
         var children = mol.findChildren(atom1.getIdx(), atom2.getIdx())
         children.append(atom2.getIdx())
         
         for i in children {
-            var v: SIMD3<Double> = mol.getAtom(i).getVector()
+            var v: Vector<Double> = mol.getAtom(i).getVector()
             v -= atom1.getVector()
             v = v * m
             v += atom1.getVector()
@@ -1257,7 +1257,7 @@ public class MKAtom: MKBase {
         self._vbond?.removeAll()
         self._residue = nil;
         self._id = ._id(generateUUID())
-        self._c = simd_double3(0.0,0.0,0.0)
+        self._c = Vector<Double>.init(scalars: [0.0,0.0,0.0])
     }
     
     deinit {

@@ -5,13 +5,13 @@ import OrderedCollections
 import simd
 import Surge
 
-public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
+class MKSpaceGroup: Hashable {
     
     var HEXAGONAL_ORIGIN: UInt = 10
     var m_Hall: String = ""
     var m_id: UInt16 = 0
     var m_OriginAlternative: UInt16 = 0
-    var m_transforms: [MKTransform3D<Scalar>] = []
+    var m_transforms: [MKTransform3D] = []
     private var m_HM: String = ""
     
     init() { }
@@ -41,7 +41,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
 
     func isValid() -> Bool {
         if self.m_transforms.count == 0 { return false }
-        var T: OrderedDictionary<String, MKTransform3D<Scalar>> = [:]
+        var T: OrderedDictionary<String, MKTransform3D> = [:]
         
         for transform in self.m_transforms {
             if T.index(forKey: transform.describeAsString()) != T.count - 1 {
@@ -56,7 +56,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
         for j in T {
             hasInverse = false
             for k in T {
-                let s = ((j.value as! MKTransform3D<GlobalPointType>) * (k.value as! MKTransform3D<GlobalPointType>)).describeAsString()
+                let s = (j.value * k.value).describeAsString()
                 if (T.index(forKey: s) == nil) {
                     print("Invalid transform: \(j.key) * \(k.key) = \(s)")
                     return false
@@ -74,8 +74,8 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
     }
     
     func addTransform(_ transform: String) {
-        var mat: Matrix<Scalar> = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
-        var vec: Vector<Scalar> = Vector(dimensions: 3, repeatedValue: 0.0)
+        var mat: Matrix<Double> = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
+        var vec: Vector<Double> = Vector(dimensions: 3, repeatedValue: 0.0)
         
         if transform.firstIndex(of: ",") != nil {
             let s1 = transform.removeWhiteSpaceAndUnderscore()
@@ -90,7 +90,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
                 while (j < currentComponent.length) {
                     switch (currentComponent[j]) {
                     case "0", ".":
-                        guard let val = currentComponent.substring(toIndex: j).toScalar() as? Scalar else { break }
+                        guard let val = currentComponent.substring(toIndex: j).toDouble() else { break }
                         switch i {
                         case 0:
                             vec[0] = val
@@ -105,8 +105,8 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
                         if (neg) { vec[i] = -vec[i] }
                     case "1", "2", "3", "4", "5", "6", "7", "8", "9":
                         if (j+2 < currentComponent.length && currentComponent[j+1] == "/") {
-                            guard let comp = currentComponent[j].toScalar() as? Scalar else { break }
-                            guard let denom = currentComponent[j+2].toScalar() as? Scalar else { break }
+                            guard let comp = currentComponent[j].toDouble() else { break }
+                            guard let denom = currentComponent[j+2].toDouble() else { break }
                             switch (i) {
                             case 0:
                                 vec[0] = (comp - 0.0) / (denom - 0.0)
@@ -140,18 +140,18 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
         } else if transform.firstIndex(of: " ") != nil {
             /* supposing the string is a list of at least 12 float values. If there are
                 16, the last four are 0., 0., 0. and 1. and are not needed */
-            mat[0,0] = transform[0].toScalar() as! Scalar
-            mat[0,1] = transform[1].toScalar() as! Scalar
-            mat[0,2] = transform[2].toScalar() as! Scalar
-            vec[0] = transform[3].toScalar() as! Scalar
-            mat[1,0] = transform[4].toScalar() as! Scalar
-            mat[1,1] = transform[5].toScalar() as! Scalar
-            mat[1,2] = transform[6].toScalar() as! Scalar
-            vec[1] = transform[7].toScalar() as! Scalar
-            mat[2,0] = transform[8].toScalar() as! Scalar
-            mat[2,1] = transform[9].toScalar() as! Scalar
-            mat[2,2] = transform[10].toScalar() as! Scalar
-            vec[2] = transform[11].toScalar() as! Scalar
+            mat[0,0] = transform[0].toDouble() ?? 0.0
+            mat[0,1] = transform[1].toDouble() ?? 0.0
+            mat[0,2] = transform[2].toDouble() ?? 0.0
+            vec[0] = transform[3].toDouble() ?? 0.0
+            mat[1,0] = transform[4].toDouble() ?? 0.0
+            mat[1,1] = transform[5].toDouble() ?? 0.0
+            mat[1,2] = transform[6].toDouble() ?? 0.0
+            vec[1] = transform[7].toDouble() ?? 0.0
+            mat[2,0] = transform[8].toDouble() ?? 0.0
+            mat[2,1] = transform[9].toDouble() ?? 0.0
+            mat[2,2] = transform[10].toDouble() ?? 0.0
+            vec[2] = transform[11].toDouble() ?? 0.0
         }
         
         for i in 0..<3 {
@@ -163,7 +163,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
             }
         }
         
-        let candidate: MKTransform3D<Scalar> = MKTransform3D<Scalar>(m: mat, v: vec)
+        let candidate: MKTransform3D = MKTransform3D(m: mat, v: vec)
         let candidateSignature = candidate.describeAsString()
         var found: Bool = false
         for transform in self.m_transforms {
@@ -176,13 +176,12 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
         }
     }
     
-    func transform(_ v: Vector<GlobalPointType>) -> [Vector<GlobalPointType>]? {
-        let prec: GlobalPointType = 2e-5
-        var res: [Vector<GlobalPointType>] = []
+    func transform(_ v: Vector<Double>) -> [Vector<Double>]? {
+        let prec: Double = 2e-5
+        var res: [Vector<Double>] = []
         for m_transform in m_transforms {
-            guard let transform = m_transform as? MKTransform3D<GlobalPointType> else { continue }
-            var vec: Vector<GlobalPointType> = Vector<GlobalPointType>.init(dimensions: 3, repeatedValue: 0.0)
-            vec = transform * v
+            var vec: Vector<Double> = Vector.init(dimensions: 3, repeatedValue: 0.0)
+            vec = m_transform * v
             if vec[0] < 0 { vec[0] += 1.0 }
             if vec[0] >= 1.0 { vec[0] -= 1.0 }
             if vec[1] < 0 { vec[1] += 1.0 }
@@ -192,7 +191,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
             // Duplicate check
             var duplicate: Bool = false
             for re in res {
-                if vec.distance(re) < prec {
+                if dist(vec, re) < prec {
                     duplicate = true
                     break
                 }
@@ -203,7 +202,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
         return res
     }
     
-    func makeTransformIterator() -> MKIterator<MKTransform3D<Scalar>> {
+    func makeTransformIterator() -> MKIterator<MKTransform3D> {
         return MKIterator(self.m_transforms)
     }
 
@@ -214,7 +213,7 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
         hasher.combine(self.m_OriginAlternative)
     }
     
-    public static func == (lhs: MKSpaceGroup<Scalar>, rhs: MKSpaceGroup<Scalar>) -> Bool {
+    public static func == (lhs: MKSpaceGroup, rhs: MKSpaceGroup) -> Bool {
         
         let lhs_transforms = lhs.m_transforms
         let rhs_transforms = rhs.m_transforms
@@ -245,18 +244,6 @@ public class MKSpaceGroup<Scalar>: Hashable where Scalar: FloatingPoint, Scalar:
 
 }
 
-
-extension Vector where Scalar == GlobalPointType {
-    
-    func distance(_ to: Vector<Scalar>) -> Scalar {
-        let from_vec: SIMD3<GlobalPointType> = SIMD3<GlobalPointType>.init(x: self[0], y: self[1], z: self[2])
-        let to_vec: SIMD3<GlobalPointType> = SIMD3<GlobalPointType>.init(x: to[0], y: to[1], z: to[2])
-        return simd_distance(from_vec, to_vec)
-    }
-    
-}
-
-
 public enum MKSpaceGroupParseStep: Int {
     case SPACE_GROUP_ID = 0
     case SPACE_GROUP_HALL = 1
@@ -264,11 +251,11 @@ public enum MKSpaceGroupParseStep: Int {
     case SPACE_GROUP_TRANSFORM = 3
 }
 
-public class MKSpaceGroups<Scalar>: MKGlobalDataBase where Scalar: FloatingPoint, Scalar: ExpressibleByFloatLiteral {
+class MKSpaceGroups: MKGlobalDataBase {
     
-    var _sgbn: OrderedDictionary<String, MKSpaceGroup<Scalar>> = OrderedDictionary<String, MKSpaceGroup<Scalar>>()
-    var _sgbi: Array<[MKSpaceGroup<Scalar>]> = Array<[MKSpaceGroup<Scalar>]>.init(repeating: [], count: 230)
-    var _sgs: OrderedSet<MKSpaceGroup<Scalar>> = OrderedSet<MKSpaceGroup<Scalar>>()
+    var _sgbn: OrderedDictionary<String, MKSpaceGroup> = OrderedDictionary<String, MKSpaceGroup>()
+    var _sgbi: Array<[MKSpaceGroup]> = Array<[MKSpaceGroup]>.init(repeating: [], count: 230)
+    var _sgs: OrderedSet<MKSpaceGroup> = OrderedSet<MKSpaceGroup>()
     
     init() {
 //             Read the file and load data
@@ -283,14 +270,14 @@ public class MKSpaceGroups<Scalar>: MKGlobalDataBase where Scalar: FloatingPoint
         guard let filePath = Bundle.module.url(forResource: self._filename, withExtension: "txt", subdirectory: self._subdir) else { return }
         
         var readState: MKSpaceGroupParseStep = .SPACE_GROUP_ID
-        var spacegroup: MKSpaceGroup<Scalar>? = nil
+        var spacegroup: MKSpaceGroup? = nil
         var HMs: String = ""
         
         filePath.foreachRow { rowContents, rowNum in
             switch readState {
             case .SPACE_GROUP_ID:
 //                print("reading state : \(rowContents)")
-                spacegroup = MKSpaceGroup<Scalar>()
+                spacegroup = MKSpaceGroup()
                 do {
                     spacegroup!.m_id = try UInt16(rowContents, format: .number)
                 } catch {
@@ -352,15 +339,15 @@ public class MKSpaceGroups<Scalar>: MKGlobalDataBase where Scalar: FloatingPoint
     }
     
     
-    func getSpaceGroup(_ id: Int) -> MKSpaceGroup<Scalar>? {
+    func getSpaceGroup(_ id: Int) -> MKSpaceGroup? {
         return (id > 0 && id <= 230) ? self._sgbi[id - 1].first : nil
     }
     
-    func getSpaceGroup(_ name: String) -> MKSpaceGroup<Scalar>? {
+    func getSpaceGroup(_ name: String) -> MKSpaceGroup? {
         
         // This needs to be more forgiving
         // First, try it without removing the white space
-        var match: MKSpaceGroup<Scalar>? = self._sgbn[name] != nil ? self._sgbn[name] : nil
+        var match: MKSpaceGroup? = self._sgbn[name] != nil ? self._sgbn[name] : nil
         if match != nil { return match }
         
         let nameTrimmed = name.removeWhiteSpaceAndUnderscore()
@@ -384,9 +371,9 @@ public class MKSpaceGroups<Scalar>: MKGlobalDataBase where Scalar: FloatingPoint
         return match
     }
     
-    func findGroup(_ spg: MKSpaceGroup<Scalar>) -> MKSpaceGroup<Scalar>? {
+    func findGroup(_ spg: MKSpaceGroup) -> MKSpaceGroup? {
         
-        var foundGroup: MKSpaceGroup<Scalar>? = nil
+        var foundGroup: MKSpaceGroup? = nil
         
         if spg.m_Hall.length > 0 {
             foundGroup = self._sgbn[spg.m_Hall]
@@ -470,14 +457,14 @@ public class MKSpaceGroups<Scalar>: MKGlobalDataBase where Scalar: FloatingPoint
         return nil
     }
     
-    func registerSpaceGroup(_ spg: MKSpaceGroup<Scalar>, _ hmName: String) {
+    func registerSpaceGroup(_ spg: MKSpaceGroup, _ hmName: String) {
         self.registerSpaceGroup(spg)
         if hmName.length > 0 && self._sgbn[hmName] == nil {
             self._sgbn[hmName] = spg
         }
     }
     
-    func registerSpaceGroup(_ spg: MKSpaceGroup<Scalar>) {
+    func registerSpaceGroup(_ spg: MKSpaceGroup) {
 //        print(spg)
         self._sgs.append(spg)
         if spg.m_id > 0 && spg.m_id <= 230 {
