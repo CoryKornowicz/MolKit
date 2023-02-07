@@ -70,6 +70,30 @@ public class MKAtom: MKBase {
         self.clear()
     }
     
+    func duplicate(_ other: MKAtom) {
+        self._hyb = other._hyb
+        self._ele = other._ele
+        self._imph = other._imph
+        self._isotope = other._isotope
+        self._fcharge = other._fcharge
+        self._pcharge = other._pcharge
+        self._spinmultiplicity = other._spinmultiplicity
+        self._type = other._type
+        self._c = other.getVector()
+        self._flags = other._flags
+        self._residue = nil
+        self._id = other._id
+
+        self._vdata?.removeAll()
+        
+        guard let otherData = other._vdata else { return }
+        
+        for data in MKIterator<MKGenericData>(otherData) {
+            self.setData(data)
+        }
+        
+    }
+
     func setIdx(_ idx: Int) {
         self._idx = idx
     }

@@ -49,8 +49,8 @@ public class MKIterator<T>: IteratorProtocol, Sequence {
 
 public class MKBase: NSObject {
     
-    private var _vdata: [MKGenericData]? = nil
-    private var _flags: UInt = 0
+    var _vdata: [MKGenericData]? = nil
+    var _flags: UInt = 0
 
     public override init() {
         super.init()
@@ -178,7 +178,7 @@ public class MKBase: NSObject {
         if self._vdata == nil {
             self._vdata = [MKGenericData]()
         }
-        self._vdata?.append(d)
+        self._vdata!.append(d)
     }
     
     //! Delete any data matching the given OBGenericDataType

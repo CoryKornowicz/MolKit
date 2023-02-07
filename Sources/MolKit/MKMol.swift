@@ -91,6 +91,10 @@ class MKMol: MKBase {
     func newAtom() -> MKAtom {
         return MKAtom()
     }
+    
+    func deleteAtom(_ atom: MKAtom) {
+        
+    }
 
     func numAtoms() -> Int {
         return (self._vatom != nil) ? self._vatom!.count : 0
