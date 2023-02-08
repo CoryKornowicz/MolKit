@@ -50,8 +50,9 @@ public class MKAtom: MKBase {
     
     private var _type: String = ""                                 //!< atomic type
     
+    // TODO: private var _v: [Vector<Double>] a true vector of 3 coordinates while _c could __technically__ handle more than 3 dimensions
     private var _c: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
-    
+    private var _cidx: UInt16 = 0                                  //!< coordinate index 
     // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
     private var _hyb: Int = 0                                     //!< hybridization
     
@@ -96,6 +97,7 @@ public class MKAtom: MKBase {
 
     func setIdx(_ idx: Int) {
         self._idx = idx
+        self._cidx = UInt16((idx - 1) * 3)
     }
     
     func getIdx() -> Int {
@@ -263,6 +265,13 @@ public class MKAtom: MKBase {
     func getVector() -> Vector<Double> { return self._c }
 
     func getCoordinates() -> Vector<Double> { return self._c}
+
+    func getCoordinateIdx() -> UInt16 { return self._cidx }
+
+    func setCoordPtr( _ ptr: Vector<Double>) {
+        self._c = ptr
+        self._cidx = UInt16((self.getIdx() - 1) * 3)
+    }
     
     func getNbrAtomIterator() -> MKIterator<MKAtom>? {
         guard let neigh = self._vbond?.map({ $0.getNbrAtom(self) }) else { return nil }
@@ -276,6 +285,7 @@ public class MKAtom: MKBase {
     
     func clearCoordPtr() {
         self._c = Vector<Double>.init(scalars: [0.0,0.0,0.0])
+        self._cidx = 0
     }
 
     func getX() -> Double {

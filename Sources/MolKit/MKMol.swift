@@ -216,6 +216,19 @@ class MKMol: MKBase {
         
     }
 
+    func setTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom, _ angle: Double) {
+
+        let tor: [Int] = []
+
+//        tor.append(contentsOf: a.getCoordinateIdx())
+//        tor.append(contentsOf: b.getCoordinateIdx())
+//        tor.append(contentsOf: c.getCoordinateIdx())
+//        tor.append(contentsOf: d.getCoordinateIdx())
+//
+//        let children = self.findChildren(idxA: b.getIdx(), idx2: c.getIdx())
+
+    }
+
     func getSSSR() -> [MKRing]? {
         return nil
     }
@@ -227,6 +240,7 @@ class MKMol: MKBase {
             self.unsetFlag(OB_PERIODIC_MOL)
         }
     }
+    
     
     
 }
