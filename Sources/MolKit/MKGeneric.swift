@@ -732,3 +732,387 @@ public class MKUnitCell: MKGenericData {
     
 }
 
+//! \brief Used to hold data on conformers or geometry optimization steps
+//!
+//! Supplements the support for multiple coordinate sets in MKMol, e.g.,
+public class MKConformerData: MKGenericData {
+    var vDimension: [Int] = []
+    var vEnergies: [Double] = []
+    var vForces: [[Vector<Double>]] = []
+    var vVelocity: [[Vector<Double>]] = []
+    var vDisplace: [[Vector<Double>]] = []
+    var vData: [String] = []
+
+    public init() {
+        super.init("Conformers", .ConformerData, .local)
+    }
+}
+
+//! \brief Used to hold the point-group and/or space-group symmetry
+//! \todo Add support for translation between symbol notations.
+//!       Add symmetry perception routines.
+
+public class MKSymmetryData: MKGenericData {
+
+    var _spaceGroup: String = ""
+    var _pointGroup: String = ""
+
+    public init() {
+        super.init("Symmetry", .SymmetryData, .local)
+    }
+
+}
+
+//! \brief Used to hold the torsion data for a single rotatable bond
+//! and all four atoms around it
+
+public class MKTorsion {
+
+    private var _bc: Pair<MKAtom?, MKAtom?> = (nil, nil)
+    private var _ads: [Triple<MKAtom?, MKAtom?, Double?>] = []
+
+    public init() {    }
+
+    public init(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom) {
+        self._ads.append(Triple(a, d, 0.0))
+        self._bc = (b, c)
+    }
+    
+    func clear() {
+        self._ads.removeAll()
+        self._bc = (nil, nil)
+    }
+    
+    func empty() -> Bool {
+        return self._bc.0 == nil && self._bc.1 == nil
+    }
+    
+    /*!
+     **\brief adds a new torsion to the OBTorsion object
+     */
+    func addTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom) -> Bool {
+        if !self.empty() && (b != self._bc.0 || c != self._bc.1) {
+            return false
+        }
+
+        if self.empty() {
+            self._bc.0 = b
+            self._bc.1 = c
+        }
+
+        let ad = Triple(a, d, 0.0)
+        self._ads.append(ad)
+        
+        return true
+    }
+
+    /*!
+     **\brief adds a new torsion to the OBTorsion object
+     */
+    func addTorsion(_ atoms: Quad<MKAtom, MKAtom, MKAtom, MKAtom>) -> Bool {
+        if !self.empty() && (atoms.1 != self._bc.0 || atoms.2 != self._bc.1) {
+            return false
+        }
+
+        if self.empty() {
+            self._bc.0 = atoms.1
+            self._bc.1 = atoms.2
+        }
+
+        let ad = Triple(atoms.0, atoms.3, 0.0)
+        self._ads.append(ad)
+
+        return true
+    }
+    
+    /*!
+     **\brief Sets the angle of a torsion in OBTorsion
+     **\param radians the value to assign to the torsion
+     **\param index the index into the torsion of the OBTorsion
+     **\return boolean success
+     */
+    func setAngle(_ radians: Double, _ index: Int) -> Bool {
+        if index >= self._ads.count {
+            return false
+        }
+        self._ads[index].2 = radians
+        return true
+    }
+
+    /*!
+     **\brief Obtains the angle of a torsion in OBTorsion
+     **\param radians the value of the angle is set here
+     **\param index the index into the torsion of the OBTorsion
+     **\return boolean success
+     */
+    func getAngle(_ radians: inout Double, _ index: Int) -> Bool {
+        if index >= self._ads.count {
+            return false
+        }
+        radians = self._ads[index].2 ?? 0.0
+        return true
+    }
+
+    //! Gets the bond index of the central bond
+    //! \return int bond index
+    func getBondIdx() -> Int {
+        guard let first = self._bc.0, let second = self._bc.1 else { return 0 }
+//        MARK: Potential error thrown here if bond does not exist between atom pair
+        return Int(first.getBond(second)!.getIdx())
+    }
+
+    public func getSize() -> Int {
+        return self._ads.count
+    }
+
+    public func getTorsions() -> [Quad<MKAtom?, MKAtom?, MKAtom?, MKAtom?>] {
+        var abcd: Quad<MKAtom?, MKAtom?, MKAtom?, MKAtom?> = (nil, nil, nil, nil)
+
+        abcd.1 = self._bc.0
+        abcd.2 = self._bc.1
+
+        var torsions: [Quad<MKAtom?, MKAtom?, MKAtom?, MKAtom?>] = []
+
+        for ad in self._ads {
+            abcd.0 = ad.0
+            abcd.3 = ad.1
+            torsions.append(abcd)
+        }
+
+        return torsions
+    }
+
+    //! Gets the two central atoms of ABCD torsion
+    //!   \return pair<OBAtom*,OBAtom*>
+    public func getBC() -> Pair<MKAtom?, MKAtom?> {
+        return self._bc
+    }
+
+    //! Gets the vector of distal atoms of ABCD torsion
+    //! \return vector of A,D atom pointers and a double
+    public func getADs() -> [Triple<MKAtom?, MKAtom?, Double?>] {
+        return self._ads
+    }
+
+    /*!
+     **\brief determines if torsion has only protons on either the a or d end
+     **\return boolean
+     */
+    public func isProtonRotor() -> Bool {
+        var Aprotor: Bool = true
+        var Dprotor: Bool = true
+
+        for ad in self._ads {
+            if ad.0?.getAtomicNum() != 1 {
+                Aprotor = false
+            }
+            if ad.1?.getAtomicNum() != 1 {
+                Dprotor = false
+            }
+        }
+
+        return Aprotor || Dprotor
+    }
+}
+
+public class MKTorsionData: MKGenericData {
+
+    var _torsions: [MKTorsion] = []
+
+    public init() {
+        super.init("TorsionData", .TorsionData, .local)
+    }
+
+    public func clear() {
+        self._torsions.removeAll()
+    }
+
+    public func getSize() -> Int {
+        return self._torsions.count
+    }
+
+    /*!
+    **\brief Fills a vector with the indices of the atoms in torsions (ordered abcd)
+    **\param torsions reference to the vector of abcd atom sets
+    **\return boolean success
+    */
+    func fillTorsionArray(_ tors: inout [[UInt]]) -> Bool {
+        if self._torsions.isEmpty {
+            return false
+        }
+
+        var tmpquads: [Quad<MKAtom?, MKAtom?, MKAtom?, MKAtom?>] = []
+        var quads: [Quad<MKAtom?, MKAtom?, MKAtom?, MKAtom?>] = []
+
+        for torsion in self._torsions {
+            tmpquads = torsion.getTorsions()
+            for thisQuad in tmpquads {
+                quads.append(thisQuad)
+            }
+        }
+
+        //fill array of torsion atoms
+        
+        tors.removeAll()
+        tors = Array(repeating: [0, 0, 0, 0], count: quads.count)
+
+        var ct: Int = 0
+
+        for thisQuad in quads {
+            tors[ct][0] = UInt(thisQuad.0!.getIdx() - 1)
+            tors[ct][1] = UInt(thisQuad.1!.getIdx() - 1)
+            tors[ct][2] = UInt(thisQuad.2!.getIdx() - 1)
+            tors[ct][3] = UInt(thisQuad.3!.getIdx() - 1)
+            ct += 1
+        }
+
+        return true
+    }
+}
+
+public class MKAngle: Equatable {
+
+    var _vertex: MKAtom?
+    var _radians: Double = 0.0
+    var _termini: Pair<MKAtom?, MKAtom?> = (nil, nil)
+
+    public init() {
+        self._vertex = nil
+        self._radians = 0.0
+        self._termini = (nil, nil)
+    }
+
+    public init(_ vertex: MKAtom?, _ a: MKAtom?, _ b: MKAtom?) {
+        self._vertex = vertex
+        self._termini.0 = a
+        self._termini.1 = b
+        self.sortByIndex()
+    }
+
+    public func getAtoms() -> Triple<MKAtom?, MKAtom?, MKAtom?> {
+        return (self._vertex, self._termini.0, self._termini.1)
+    }
+
+    /*!
+    **\brief sorts atoms in angle by order of indices
+    */
+    public func sortByIndex() {
+        if self._termini.0!.getIdx() > self._termini.1!.getIdx() {
+            let tmp = self._termini.0
+            self._termini.0 = self._termini.1
+            self._termini.1 = tmp
+        }
+    }
+
+
+    public func clear() {
+        self._vertex = nil
+        self._radians = 0.0
+        self._termini = (nil, nil)
+    }
+
+    //! Gets the OBAngle angle value
+    //! \return angle in radians
+    public func getAngle() -> Double {
+        return self._radians
+    }
+
+    //! Sets the OBAngle to @p radians
+    //! \param angle in radians
+    public func setAngle(_ angle: Double) {
+        self._radians = angle
+    }
+
+    public func setAtoms(_ vertex: MKAtom?, _ a: MKAtom?, _ b: MKAtom?) {
+        self._vertex = vertex
+        self._termini.0 = a
+        self._termini.1 = b
+        self.sortByIndex()
+    }
+
+    public func setAtoms(_ atoms: Triple<MKAtom?, MKAtom?, MKAtom?>) {
+        self._vertex = atoms.0
+        self._termini.0 = atoms.1
+        self._termini.1 = atoms.2
+        self.sortByIndex()
+    }
+
+    public static func == (lhs: MKAngle, rhs: MKAngle) -> Bool {
+        return lhs._vertex == rhs._vertex && lhs._termini.0 == rhs._termini.0 && lhs._termini.1 == rhs._termini.1
+    }
+
+}
+
+public class MKAngleData: MKGenericData {
+    
+    var _angles: [MKAngle] = []
+    
+    public init() {
+        super.init("AngleData", .AngleData, .local)
+    }
+    
+    //! Gets the number of angles stored
+    //! \return integer count of the number of angles
+    public func getSize() -> Int {
+        return self._angles.count
+    }
+    
+    public func clear() {
+        self._angles.removeAll()
+    }
+    
+    public func setData(_ angleData: MKAngle) {
+        self._angles.append(angleData)
+    }
+    
+    /*!
+    **\brief Fills an array with the indices of the atoms in the angle (vertex first)
+    **\param angles pointer to the pointer to an array of angles atom indices
+    **\param size the current number of rows in the array
+    **\return int The number of angles
+    */
+    public func fillAngleArray(_ angles: inout [[Int]], _ sizeInput: UInt) -> UInt {
+        var size = sizeInput
+        if self._angles.count > size {
+            angles.removeAll()
+            angles = Array(repeating: [0, 0, 0], count: self._angles.count)
+            size = UInt(self._angles.count)
+        }
+
+        var angleIdx: Int = 0
+
+        for angle in self._angles {
+            angles[angleIdx][0] = angle._vertex!.getIdx()
+            angles[angleIdx][1] = angle._termini.0!.getIdx()
+            angles[angleIdx][2] = angle._termini.1!.getIdx()
+            angleIdx += 1
+        }
+
+        return UInt(self._angles.count)
+    }
+    
+    /*!
+    **\brief Fills an array with the indices of the atoms in the angle (vertex first)
+    **\param angles pointer to the pointer to an array of angles atom indices
+    **\return True if successful
+    */
+    public func fillAngleArray(_ angles: inout [[UInt]]) -> Bool {
+        if self._angles.isEmpty {
+            return false
+        }
+        var ct: Int = 0
+
+        angles.removeAll()
+        angles = Array(repeating: [0, 0, 0], count: self._angles.count)
+
+        for angle in self._angles {
+            angles[ct][0] = UInt(angle._vertex!.getIdx() - 1)
+            angles[ct][1] = UInt(angle._termini.0!.getIdx() - 1)
+            angles[ct][2] = UInt(angle._termini.1!.getIdx() - 1)
+            ct += 1
+        }
+
+        return true 
+    }
+    
+}

@@ -52,7 +52,7 @@ class MKMol: MKBase {
     private var _dimension: UInt16 = 0
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
-    private var _c: Array<Vector<Double>> = []
+    private var _c: Array<Double> = []
     private var _vconf: Array<Vector<Double>> = []
     private var _energy: Double = 0.0
     private var _residue: [MKResidue]? = []
@@ -249,22 +249,95 @@ class MKMol: MKBase {
         if !self.isPeriodic() {
             return calculateTorsionAngle(a.getVector(), b.getVector(), c.getVector(), d.getVector())
         }else {
-            return 0.0
+            let v1 = a.getVector()
+            var v2 = b.getVector()
+            var v3 = c.getVector()
+            var v4 = d.getVector()
+
+            guard let box = self.getData(.UnitCell) as? MKUnitCell else { return 0.0 }
+            v2 = box.unwrapCartesianNear(v2, v1)
+            v3 = box.unwrapCartesianNear(v3, v2)
+            v4 = box.unwrapCartesianNear(v4, v3)
+            return calculateTorsionAngle(v1, v2, v3, v4)
         }
         
     }
 
+//    Angle needs to be in radians
     func setTorsion(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom, _ d: MKAtom, _ angle: Double) {
+        
+        var tors: [Int] = []
+        var m: [Double] = []
+        m.reserveCapacity(9)
+        
+        
+        tors.append(Int(a.getCoordinateIdx()))
+        tors.append(Int(b.getCoordinateIdx()))
+        tors.append(Int(c.getCoordinateIdx()))
+        tors.append(Int(d.getCoordinateIdx()))
+        
+        var children = self.findChildren(b.getIdx(), c.getIdx())
+        
+        for j in 0..<children.count {
+            children[j] = (children[j] - 1) * 3
+        }
+        
+//        in radians!
+        //calculate the torsion angle
+        // TODO: fix this calculation for periodic systems
+        let radang = calculateTorsionAngle(a.getVector(), b.getVector(), c.getVector(), d.getVector()).degreesToRadians
+        // now we have the torsion angle (radang) - set up the rot matrix
+        
+        //find the difference between current and requested
+        let rotang = angle - radang
+        
+        let sn = sin(rotang)
+        let cs = cos(rotang)
+        
+        let t = 1 - cs
+        
+        let v2x = self._c[tors[1]] - self._c[tors[2]]
+        let v2y = self._c[tors[1]+1] - self._c[tors[2]+1]
+        let v2z = self._c[tors[1]+2] - self._c[tors[2]+2]
 
-        let tor: [Int] = []
+        let mag = sqrt(v2x * v2x + v2y * v2y + v2z * v2z)
+        let x = v2x / mag
+        let y = v2y / mag
+        let z = v2z / mag
 
-//        tor.append(contentsOf: a.getCoordinateIdx())
-//        tor.append(contentsOf: b.getCoordinateIdx())
-//        tor.append(contentsOf: c.getCoordinateIdx())
-//        tor.append(contentsOf: d.getCoordinateIdx())
-//
-//        let children = self.findChildren(idxA: b.getIdx(), idx2: c.getIdx())
+        m[0] = t * x * x + cs
+        m[1] = t * x * y + sn * z
+        m[2] = t * x * z - sn * y
+        m[3] = t * x * y - sn * z
+        m[4] = t * y * y + cs
+        m[5] = t * y * z + sn * x
+        m[6] = t * x * z + sn * y
+        m[7] = t * y * z - sn * x
+        m[8] = t * z * z + cs
 
+        //
+        //now the matrix is set - time to rotate the atoms
+        //
+
+        let tx = self._c[tors[1]]
+        let ty = self._c[tors[1]+1]
+        let tz = self._c[tors[1]+2]
+
+        for j in children {
+            self._c[j] -= tx
+            self._c[j+1] -= ty
+            self._c[j+2] -= tz
+            let x = self._c[j] * m[0] + self._c[j+1] * m[1] + self._c[j+2] * m[2]
+            let y = self._c[j] * m[3] + self._c[j+1] * m[4] + self._c[j+2] * m[5]
+            let z = self._c[j] * m[6] + self._c[j+1] * m[7] + self._c[j+2] * m[8]
+            self._c[j] = x
+            self._c[j+1] = y
+            self._c[j+2] = z
+            self._c[j] += tx
+            self._c[j+1] += ty
+            self._c[j+2] += tz
+        }
+        
     }
 
     func getSSSR() -> [MKRing]? {
