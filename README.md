@@ -3,12 +3,15 @@
 A Swift-version of a cheminformatics library, shamelessly based off of OpenBabel to make adoption feel intuitive. 
 To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Swift wrappers, so might as well write it in pure Swift then.  
 
+## WARNING  
+
+Currently in very very early development, and not even close to being usable. Once the base molecule class is working, then things will become interesting. Shortly after will arrive the basic file parsers, and then the fun stuff.
+
 ## Installation
 
 ### Swift Package Manager
 
-
-__Count Lines of Code for OpenBabel__   
+__Count Lines of Code for OpenBabel__  
 37454 text files.  
 852 unique files.
 36639 files ignored.  

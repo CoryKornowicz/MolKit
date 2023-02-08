@@ -57,6 +57,16 @@ public class MKBase: NSObject {
         self._vdata = []
         self._flags = 0
     }
+    
+    public init(_ base: MKBase) {
+        super.init()
+        self.clone(base)
+    }
+    
+    public func clone(_ base: MKBase) {
+        self._vdata = base._vdata
+        self._flags = base._flags
+    }
 
     func clear() { 
         self._vdata = []

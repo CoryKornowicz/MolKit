@@ -51,8 +51,9 @@ public class MKAtom: MKBase {
     private var _type: String = ""                                 //!< atomic type
     
     // TODO: private var _v: [Vector<Double>] a true vector of 3 coordinates while _c could __technically__ handle more than 3 dimensions
-    private var _c: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
-    private var _cidx: UInt16 = 0                                  //!< coordinate index 
+    private var _c: [Double] = []     //!< coordinate array in double*
+    private var _v: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
+    private var _cidx: UInt = 0                                  //!< coordinate index 
     // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
     private var _hyb: Int = 0                                     //!< hybridization
     
@@ -80,7 +81,7 @@ public class MKAtom: MKBase {
         self._pcharge = other._pcharge
         self._spinmultiplicity = other._spinmultiplicity
         self._type = other._type
-        self._c = other.getVector()
+        self._v = other.getVector()
         self._flags = other._flags
         self._residue = nil
         self._id = other._id
@@ -97,7 +98,7 @@ public class MKAtom: MKBase {
 
     func setIdx(_ idx: Int) {
         self._idx = idx
-        self._cidx = UInt16((idx - 1) * 3)
+        self._cidx = UInt((idx - 1) * 3)
     }
     
     func getIdx() -> Int {
@@ -252,25 +253,52 @@ public class MKAtom: MKBase {
             return self._pcharge
         }
     }
+    
+    func setVector() {
+        if !self._c.isEmpty {
+            self._v[0] = self._c[Int(self._cidx)]
+            self._v[1] = self._c[Int(self._cidx)+1]
+            self._v[2] = self._c[Int(self._cidx)+2]
+        }
+    }
 
     func setVector(_ vec3: Vector<Double>) {
-        self._c = vec3
+        if self._c.isEmpty {
+            self._v = vec3
+        } else {
+            self._c[Int(self._cidx)] = vec3[0]
+            self._c[Int(self._cidx)+1] = vec3[1]
+            self._c[Int(self._cidx)+2] = vec3[2]
+        }
     }
 
     func setVector(_ x: Double, _ y: Double, _ z: Double) {
-        self._c = Vector<Double>.init(scalars: [x,y,z])
+        if self._c.isEmpty {
+            self._v = Vector<Double>.init(scalars: [x,y,z])
+        } else {
+            self._c[Int(self._cidx)] = x
+            self._c[Int(self._cidx)+1] = y
+            self._c[Int(self._cidx)+2] = z
+        }
     }
 
-    // Keeping both for redundancy and semantics : possible remove later
-    func getVector() -> Vector<Double> { return self._c }
+    func getVector() -> Vector<Double> {
+        if self._c.isEmpty {
+            return self._v
+        }
+        return Vector.init(dimensions: 3) { dim in self._c[Int(self._cidx) + dim] }
+    }
 
-    func getCoordinates() -> Vector<Double> { return self._c}
+    func getCoordinate() -> Double? {
+        if !self._c.isEmpty { return self._c[Int(self._cidx)] }
+        return nil
+    }
 
-    func getCoordinateIdx() -> UInt16 { return self._cidx }
+    func getCoordinateIdx() -> UInt { return self._cidx }
 
-    func setCoordPtr( _ ptr: Vector<Double>) {
+    func setCoordPtr( _ ptr: [Double]) {
         self._c = ptr
-        self._cidx = UInt16((self.getIdx() - 1) * 3)
+        self._cidx = UInt((self.getIdx() - 1) * 3)
     }
     
     func getNbrAtomIterator() -> MKIterator<MKAtom>? {
@@ -284,20 +312,23 @@ public class MKAtom: MKBase {
     }
     
     func clearCoordPtr() {
-        self._c = Vector<Double>.init(scalars: [0.0,0.0,0.0])
+        self._c = []
         self._cidx = 0
     }
 
     func getX() -> Double {
-        return self._c[0]
+        if !self._c.isEmpty { return self._c[0] }
+        return self._v[0]
     }
     
     func getY() -> Double {
-        return self._c[1]
+        if !self._c.isEmpty { return self._c[1] }
+        return self._v[1]
     }
     
     func getZ() -> Double {
-        return self._c[2]
+        if !self._c.isEmpty { return self._c[2] }
+        return self._v[2]
     }
     
     func setResidue(_ res: MKResidue) {
@@ -355,19 +386,17 @@ public class MKAtom: MKBase {
     // //! \return the distance to the supplied OBAtom
     func getDistance(_ atom: MKAtom) -> Double {
         if !self.isPeriodic() {
-            return distSq(self.getVector(), atom.getVector())
+            return length((self.getVector() - atom.getVector()))
         } else {
-            // TODO: 
-            // OBUnitCell *box = (OBUnitCell*)GetParent()->GetData(OBGenericDataType::UnitCell);
-            // return (box->MinimumImageCartesian(this->GetVector() - b->GetVector())).length();
-            return 0.0
+            guard let data: MKUnitCell = self.getParent()?.getData(.UnitCell) as? MKUnitCell else { return 0.0 }
+            return length(data.minimumImageCartesian((self.getVector() - atom.getVector())))
         }
     }
 
     // //! \return the distance to the coordinates of the supplied vector3
     // //! \since version 2.4
     func getDistance(_ v: Vector<Double>) -> Double {
-        return dist(self._c, v)
+        return length((self.getVector() - v))
     }
 
     // //! \return the angle defined by this atom -> b (vertex) -> c
@@ -378,16 +407,15 @@ public class MKAtom: MKBase {
 
     // //! \return the angle defined by this atom -> b (vertex) -> c
     func getAngle(_ b: MKAtom, _ c: MKAtom) -> Double {
-
-        let v1: Vector<Double> = self.getVector() - b.getVector()
-        let v2: Vector<Double> = c.getVector() - b.getVector()
-
-        // TODO: 
-        // if self.isPeriodic() {
-        //     OBUnitCell *box = (OBUnitCell*)GetParent()->GetData(OBGenericDataType::UnitCell);
-        //     v1 = box->MinimumImageCartesian(v1);
-        //     v2 = box->MinimumImageCartesian(v2);
-        // }
+        
+        var v1: Vector<Double> = self.getVector() - b.getVector()
+        var v2: Vector<Double> = c.getVector() - b.getVector()
+        
+        if self.isPeriodic() {
+            guard let data: MKUnitCell = self.getParent()?.getData(.UnitCell) as? MKUnitCell else { return 0.0 }
+            v1 = data.minimumImageCartesian(v1)
+            v2 = data.minimumImageCartesian(v2)
+        }
 
         if (isNearZero(length(v1), 1.0e-3) || isNearZero(length(v2), 1.0e-3)) {
             return(0.0)
@@ -484,7 +512,7 @@ public class MKAtom: MKBase {
         var mol: MKMol? = self.getParent()
         
         if mol == nil {
-            mol = MKMol(atoms: [self])
+            mol = MKMol(self)
             self.setParent(mol!)
         }
 
@@ -1289,10 +1317,13 @@ public class MKAtom: MKBase {
         self._type = ""
         self._pcharge = 0.0
         self._vbond?.removeAll()
+        self._vbond?.reserveCapacity(4)
         self._residue = nil;
         self._id = ._id(generateUUID())
-        self._c = Vector<Double>.init(scalars: [0.0,0.0,0.0])
+        self._c = []
+        self._v = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
     }
+    
     
     deinit {
         if let res = self._residue {

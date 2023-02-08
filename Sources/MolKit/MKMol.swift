@@ -52,19 +52,57 @@ class MKMol: MKBase {
     private var _dimension: UInt16 = 0
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
-    private var _c: Array<SIMD3<Double>> = []
-    private var _vconf: Array<SIMD3<Double>> = []
+    private var _c: Array<Vector<Double>> = []
+    private var _vconf: Array<Vector<Double>> = []
     private var _energy: Double = 0.0
-    private var _natoms: UInt = 0
-    private var _nbonds: UInt = 0
     private var _residue: [MKResidue]? = []
     private var _internals: [MKInternalCoord]? = []
     private var _mod: UInt16 = 0 
 
-    
-    init(atoms: [MKAtom]) {
-        self._vatom = atoms
+
+    private var _natoms: UInt {
+        return UInt(_vatom?.count ?? 0)
     }
+    
+    private var _nbonds: UInt {
+        return UInt(_vbond?.count ?? 0)
+    }
+
+    public override init() {
+        super.init()
+        _mod = 0;
+        _totalCharge = 0
+        _dimension = 3
+        _vatom = []
+        _vatomIds = []
+        _vbond = []
+        _vbondIds = []
+        _title = ""
+        _c = []
+        _vconf = []
+        _autoPartialCharge = true
+        _autoFormalCharge = true
+        _energy = 0.0
+    }
+    
+    public override init(_ base: MKBase) {
+        super.init(base)
+        _mod = 0;
+        _totalCharge = 0
+        _dimension = 3
+        _vatom = []
+        _vatomIds = []
+        _vbond = []
+        _vbondIds = []
+        _title = ""
+        _c = []
+        _vconf = []
+        _autoPartialCharge = true
+        _autoFormalCharge = true
+        _energy = 0.0
+    }
+    
+    
     
     func getTitle() -> String {
         return self._title
