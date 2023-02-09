@@ -140,9 +140,9 @@ class MKBond: MKBase {
         let v4: Vector<Double> = v3 - v1
 
         for i in children {
-            v1 = mol.getAtom(i).getVector()
+            v1 = mol.getAtom(i)!.getVector()
             v1 += v4 
-            mol.getAtom(i).setVector(v1)
+            mol.getAtom(i)!.setVector(v1)
         }
     }
 

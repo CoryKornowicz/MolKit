@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OrderedCollections
 import Surge
 
 public enum MKGenericDataType: UInt {
@@ -171,6 +172,12 @@ public class MKGenericData: NSObject {
     static func == (lhs: MKGenericData, rhs: MKGenericData) -> Bool {
         return lhs.attr == rhs.attr && lhs.type == rhs.type && lhs.source == rhs.source
     }
+    
+    func setOrigin(_ origin: DataOrigin) {
+        self.source = origin
+    }
+    
+    
     
 }
 
@@ -436,7 +443,8 @@ public class MKUnitCell: MKGenericData {
             return
         }
 
-        guard let atoms = mol.getAtomIterator() else {
+        let atoms = mol.getAtomIterator()
+        if mol.numAtoms() == 0 {
             print("Warning no atoms in molecule in fillUnitCell")
             return
         }
@@ -931,6 +939,10 @@ public class MKTorsionData: MKGenericData {
         return self._torsions.count
     }
 
+    public func setData(_ t: MKTorsion) {
+        self._torsions.append(t)
+    }
+    
     /*!
     **\brief Fills a vector with the indices of the atoms in torsions (ordered abcd)
     **\param torsions reference to the vector of abcd atom sets
@@ -1113,6 +1125,49 @@ public class MKAngleData: MKGenericData {
         }
 
         return true 
+    }
+    
+}
+
+
+public class MKSerialNums: MKGenericData {
+    
+    var _serialMap: OrderedDictionary<String, MKAtom> = [:]
+    
+    public init() {
+        super.init("mkSerialNums", .SerialNums, .local)
+    }
+    
+    public func setData(_ sm: OrderedDictionary<String, MKAtom>) {
+        self._serialMap = sm
+    }
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+public class MKPcharge: MKGenericData {
+    
+    var _partialCharge: Array<Double> = []
+    
+    public init() {
+        super.init("MKPcharge", .ChargeData, .local)
+    }
+    
+    func addPartialCharge(_ q: Array<Double>) {
+        self._partialCharge.append(contentsOf: q)
+    }
+    
+    func getPartialCharge() -> Array<Double> {
+        return self._partialCharge
     }
     
 }

@@ -380,7 +380,7 @@ public class MKAtom: MKBase {
     //! \return the distance to the atom defined by OBMol::GetAtom()
     func getDistance(_ index: Int) -> Double {
         guard let mol = self.getParent() else { return 0.0 }
-        return self.getDistance(mol.getAtom(index))
+        return self.getDistance(mol.getAtom(index)!)
     }
 
     // //! \return the distance to the supplied OBAtom
@@ -402,7 +402,7 @@ public class MKAtom: MKBase {
     // //! \return the angle defined by this atom -> b (vertex) -> c
     func getAngle(_ b: Int, _ c: Int) -> Double {
         guard let mol = self.getParent() else { return 0.0 }
-        return self.getAngle(mol.getAtom(b), mol.getAtom(c))
+        return self.getAngle(mol.getAtom(b)!, mol.getAtom(c)!)
     }
 
     // //! \return the angle defined by this atom -> b (vertex) -> c
@@ -556,11 +556,11 @@ public class MKAtom: MKBase {
         children.append(atom2.getIdx())
         
         for i in children {
-            var v: Vector<Double> = mol.getAtom(i).getVector()
+            var v: Vector<Double> = mol.getAtom(i)!.getVector()
             v -= atom1.getVector()
             v = v * m
             v += atom1.getVector()
-            mol.getAtom(i).setVector(v)
+            mol.getAtom(i)!.setVector(v)
         }
         
     }

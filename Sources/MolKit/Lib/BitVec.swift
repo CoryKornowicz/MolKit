@@ -374,7 +374,7 @@ public class MKBitVec: Equatable {
 //     Operator Overloads
     
     
-    static public func &= (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+    static public func &= (lhs: inout MKBitVec, rhs: MKBitVec) {
         let min = lhs._size < rhs._size ? lhs._size : rhs._size
         for i in 0..<min {
             lhs._set[i] &= rhs._set[i]
@@ -382,10 +382,9 @@ public class MKBitVec: Equatable {
         for i in 0..<lhs._size {
             lhs._set[i] = 0
         }
-        return lhs
     }
     
-    static public func |= (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+    static public func |= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))
         }
@@ -393,10 +392,9 @@ public class MKBitVec: Equatable {
         for i in 0..<rhs.getSize() {
             lhs._set[i] |= rhs._set[i]
         }
-        return lhs
     }
     
-    static public func ^= (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+    static public func ^= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))
         }
@@ -404,39 +402,43 @@ public class MKBitVec: Equatable {
         for i in 0..<rhs.getSize() {
             lhs._set[i] ^= rhs._set[i]
         }
-        return lhs
     }
     
-    public static func -= (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+    public static func -= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))
         }
-        let temp: MKBitVec = lhs ^= rhs
-        return lhs &= temp
+        let temp: MKBitVec = lhs ^ rhs
+        lhs &= temp
     }
 
-    public static func += (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+    public static func += (lhs: inout MKBitVec, rhs: MKBitVec) {
         lhs._set.append(contentsOf: rhs._set)
-        return lhs
     }
 
     public static func | (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
-        return lhs |= rhs
+        var temp = lhs
+        temp |= rhs
+        return temp
     }
     
     public static func & (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
-        return lhs &= rhs
+        var temp = lhs
+        temp &= rhs
+        return temp
     }
 
     public static func ^ (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
-        return lhs ^= rhs
+        var temp = lhs
+        temp ^= rhs
+        return temp
     }
 
-    public static func - (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
-        let temp = lhs ^ rhs
-        return temp &= lhs
+    public static func - (lhs: inout MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        var temp = lhs ^ rhs
+        temp &= lhs
+        return temp
     }
-    
     
     public static func == (lhs: MKBitVec, rhs: MKBitVec) -> Bool {
         var i = 0

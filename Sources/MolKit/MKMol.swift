@@ -45,10 +45,10 @@ class MKMol: MKBase {
     private var _autoFormalCharge: Bool = false
 
     private var _title: String = ""
-    private var _vatom: [MKAtom]? = []
-    private var _vatomIds: [MKAtom]? = []
-    private var _vbond: [MKBond]? = []
-    private var _vbondIds: [MKBond]? = []
+    private var _vatom: [MKAtom] = []
+    private var _vatomIds: [MKAtom] = []
+    private var _vbond: [MKBond] = []
+    private var _vbondIds: [MKBond] = []
     private var _dimension: UInt16 = 0
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
@@ -60,12 +60,12 @@ class MKMol: MKBase {
     private var _mod: UInt16 = 0 
 
 
-    private var _natoms: UInt {
-        return UInt(_vatom?.count ?? 0)
+    private var _natoms: Int {
+        return _vatom.count
     }
     
-    private var _nbonds: UInt {
-        return UInt(_vbond?.count ?? 0)
+    private var _nbonds: Int {
+        return _vbond.count
     }
 
     public override init() {
@@ -102,7 +102,12 @@ class MKMol: MKBase {
         _energy = 0.0
     }
     
-    
+    public func reserveAtoms(_ n: Int) {
+        if n > 0 && (self._mod != 0) {
+            self._vatom.reserveCapacity(n)
+            self._vatomIds.reserveCapacity(n)
+        }
+    }
     
     func getTitle() -> String {
         return self._title
@@ -112,18 +117,21 @@ class MKMol: MKBase {
         self._title = title
     }
 
-    func getAtom(_ id: Int) -> MKAtom {
-        guard let atoms = self._vatom else { return MKAtom() }
-        return atoms[id]
+    func getAtom(_ id: Int) -> MKAtom? {
+        if id > self._natoms { return nil }
+        return self._vatom[id]
     }
     
     func getAtoms() -> [MKAtom] {
-        return self._vatom!
+        return self._vatom
     }
 
-    func getAtomIterator() -> MKIterator<MKAtom>? {
-        guard let atoms = self._vatom else { return nil }
-        return MKIterator<MKAtom>(atoms)
+    func getAtomIterator() -> MKIterator<MKAtom> {
+        return MKIterator<MKAtom>(self._vatom)
+    }
+    
+    func getBondIterator() -> MKIterator<MKBond> {
+        return MKIterator<MKBond>(self._vbond)
     }
 
     func newAtom() -> MKAtom {
@@ -135,7 +143,7 @@ class MKMol: MKBase {
     }
 
     func numAtoms() -> Int {
-        return (self._vatom != nil) ? self._vatom!.count : 0
+        return self._vatom.count
     }
 
     func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
@@ -145,13 +153,34 @@ class MKMol: MKBase {
         return false
     }
 
-    func beginModify() {}
-    func endModify() {}
-    
-    func findChildren(_ idxA: Int, _ idx2: Int) -> [Int] {
-        return []
+    func beginModify() {
+        
+        //suck coordinates from _c into _v for each atom
+        if (self._mod == 0) && !self.isEmpty() {
+            for atom in self._vatom {
+                atom.setVector()
+                atom.clearCoordPtr()
+            }
+            
+            self._c = []
+            self._vconf.removeAll()
+            
+            //Destroy rotamer list if necessary
+//            if ((OBRotamerList *)GetData(OBGenericDataType::RotamerList))
+//              {
+//                delete (OBRotamerList *)GetData(OBGenericDataType::RotamerList);
+//                DeleteData(OBGenericDataType::RotamerList);
+//              }
+        }
+        
+        self._mod += 1 
     }
     
+    func endModify() {}
+
+
+    //    MARK: HAS/IS Functions
+
     func has2D(_ not3D: Bool = false) -> Bool {
         return false
     }
@@ -220,9 +249,92 @@ class MKMol: MKBase {
         return self._natoms == 0
     }
     
+    func isPeriodic() -> Bool {
+        return self.hasFlag(OB_PERIODIC_MOL)
+    }
     
+//    MARK: FIND Functions
     
+    func findChildren(_ idxA: Int, _ idx2: Int) -> [Int] {
+        return []
+    }
+    
+    func findAngles() {
+        if self.hasData(.AngleData) {
+            return
+        }
+        
+        let newAngleData: MKAngleData = MKAngleData()
+        newAngleData.setOrigin(.perceived)
+        self.setData(newAngleData)
+                
+        for atom in self.getAtomIterator() {
+            
+            if atom.getAtomicNum() == 1 { // Hydrogen
+                continue
+            }
+            
+            guard let neigh = atom.getNbrAtomIterator() else { continue }
+            
+            for neighA in neigh {
+                for neighB in neigh {
+                    if neighA != neighB {
+//                        MARK: Why does this not fill in the real angle? Maybe add a member function \
+//                        to MKAngle to automagically calculate the angle?
+                        let angle = MKAngle()
+                        angle.setAtoms(atom, neighA, neighB)
+                        newAngleData.setData(angle)
+                    }
+                }
+            }
+            
+        }
+    }
+    
+    func findTorsions() {
+        if self.hasData(.TorsionData) {
+            return
+        }
+        
+        let newTorsionData: MKTorsionData = MKTorsionData()
+        newTorsionData.setOrigin(.perceived)
+        self.setData(newTorsionData)
 
+        for bond in self.getBondIterator() {
+            let b = bond.getBeginAtom()
+            let c = bond.getEndAtom()
+            let torsion = MKTorsion()
+            
+            if b.getAtomicNum() == 1 || c.getAtomicNum() == 1 {
+                continue
+            }
+            
+            guard let bNeigh = b.getNbrAtomIterator() else { continue }
+            
+            for a in bNeigh {
+                if a == c {
+                    continue
+                }
+                
+                guard let cNeigh = c.getNbrAtomIterator() else { continue }
+                
+                for d in cNeigh {
+                    if d == b || d == a {
+                        continue
+                    }
+                    
+                    
+                    _ = torsion.addTorsion(a, b, c, d)
+                }
+            }
+            //add torsion to torsionData
+            if torsion.getSize() > 0{
+                newTorsionData.setData(torsion)
+            }
+        }
+    }
+    
+    
     func findRingAtomsAndBonds() {
         
     }
@@ -230,17 +342,20 @@ class MKMol: MKBase {
     func findSSSR() {
         
     }
-
-    func isPeriodic() -> Bool {
-        return false
-    }
+    
+  
+    
+//    MARK: Island of Misfit Toys
 
     func getAngle(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom) -> Double {
         return a.getAngle(b, c)
     }
 
     func getTorsion(_ a: Int, _ b: Int, _ c: Int, _ d: Int) -> Double {
-        guard let i = self._vatom?[a-1], let j = self._vatom?[b-1], let k = self._vatom?[c-1], let m = self._vatom?[d-1] else { return 0.0 }
+        let i = self._vatom[a-1]
+        let j = self._vatom[b-1]
+        let k = self._vatom[c-1]
+        let m = self._vatom[d-1]
         return self.getTorsion(i,j,k,m)
     }
     
@@ -351,6 +466,51 @@ class MKMol: MKBase {
             self.unsetFlag(OB_PERIODIC_MOL)
         }
     }
+    
+    func contigFragList(_ cfl: inout Array<Array<Int>>) {
+       
+        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var frag: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        
+
+        while used.countBits() < self.numAtoms() {
+            curr.clear()
+            frag.clear()
+            for atom in self.getAtomIterator() {
+                if !used.bitIsSet(atom.getIdx()) {
+                    curr.setBitOn(UInt32(atom.getIdx()))
+                    break
+                }
+            }
+            frag |= curr
+            while !curr.isEmpty() {
+                next.clear()
+                for j in curr.nextBit(-1)..<curr.endBit() {
+                    guard let atom = self.getAtom(j) else { continue }
+                    for bond in atom.getBondIterator()! {
+                        if !used.bitIsSet(bond.getNbrAtomIdx(atom)) {
+                            next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                        }
+                    }
+                }
+                used |= curr
+                used |= next
+                frag |= next
+                curr = next
+            }
+            var tmp: [Int] = []
+            frag.toVecInt(&tmp)
+            cfl.append(tmp)
+        }
+
+        cfl.sort(by: { (a, b) -> Bool in
+            return a.count < b.count
+        })
+
+    }
+    
     
     
     
