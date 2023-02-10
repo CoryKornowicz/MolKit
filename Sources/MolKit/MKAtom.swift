@@ -552,7 +552,9 @@ public class MKAtom: MKBase {
     }
 
     static func applyRotMatToBond(_ mol: MKMol, _ m: Matrix<Double>, _ atom1: MKAtom, _ atom2: MKAtom) {
-        var children = mol.findChildren(atom1.getIdx(), atom2.getIdx())
+        
+        var children: [Int] = []
+        mol.findChildren(atom1.getIdx(), atom2.getIdx(), &children)
         children.append(atom2.getIdx())
         
         for i in children {

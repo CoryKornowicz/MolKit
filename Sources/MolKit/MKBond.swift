@@ -120,7 +120,8 @@ class MKBond: MKBase {
 
         if a == b { return }
 
-        var children: [Int] = mol.findChildren(a, b)
+        var children: [Int] = []
+        mol.findChildren(a, b, &children)
         children.append(b)
 
         var v1: Vector<Double> = self.getNbrAtom(fixed).getVector()

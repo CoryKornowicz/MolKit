@@ -394,6 +394,13 @@ public class MKBitVec: Equatable {
         }
     }
     
+    static public func |= (lhs: inout MKBitVec, rhs: Int) {
+        if lhs._size <= 0 {
+            _ = lhs.resizeWords(1)
+        }
+        lhs._set[0] |= UInt32(rhs)
+    }
+    
     static public func ^= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))

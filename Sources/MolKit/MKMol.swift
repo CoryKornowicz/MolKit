@@ -255,8 +255,71 @@ class MKMol: MKBase {
     
 //    MARK: FIND Functions
     
-    func findChildren(_ idxA: Int, _ idx2: Int) -> [Int] {
-        return []
+    //! locates all atoms for which there exists a path to 'end'
+    //! without going through 'bgn'
+    //! children must not include 'end'
+    func findChildren(_ bgn: MKAtom, _ end: MKAtom, _ children: inout [MKAtom]) {
+        
+        var used: MKBitVec = MKBitVec()
+        var curr: MKBitVec = MKBitVec()
+        var next: MKBitVec = MKBitVec()
+
+        used |= bgn.getIdx()
+        used |= end.getIdx()
+        curr |= end.getIdx()
+        children.removeAll()
+        
+        // MARK: Potentially bad code but unsure how to convert for (;;) loop
+        while true {
+            next.clear()
+            for i in curr.nextBit(-1)..<curr.endBit() {
+                guard let atom = self.getAtom(i) else { break }
+                guard let neighA = atom.getNbrAtomIterator() else { continue }
+                for nbr in neighA {
+                    if !used[nbr.getIdx()] {
+                        children.append(nbr)
+                        next |= nbr.getIdx()
+                        used |= nbr.getIdx()
+                    }
+                }
+                
+            }
+            if next.isEmpty() { break }
+            curr = next
+        }
+    }
+
+    //! locates all atoms for which there exists a path to 'second'
+    //! without going through 'first'
+    //! children must not include 'second'
+    func findChildren(_ first: Int, _ second: Int, _ children: inout [Int]) {
+
+        var used: MKBitVec = MKBitVec()
+        var curr: MKBitVec = MKBitVec()
+        let next: MKBitVec = MKBitVec()
+        
+        used.setBitOn(UInt32(first))
+        used.setBitOn(UInt32(second))
+        curr.setBitOn(UInt32(second))
+
+        while !curr.isEmpty() {
+            next.clear()
+            for i in curr.nextBit(-1)..<curr.endBit() {
+                guard let atom = self.getAtom(i) else { break }
+                guard let bondA = atom.getBondIterator() else { continue }
+                for bond in bondA {
+                    if !used[bond.getNbrAtomIdx(atom)] {
+                        next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                    }
+                }
+            }
+            used |= next
+            curr = next
+        }
+        
+        used.setBitOff(UInt32(first))
+        used.setBitOff(UInt32(second))
+        used.toVecInt(&children)
     }
     
     func findAngles() {
@@ -334,7 +397,43 @@ class MKMol: MKBase {
         }
     }
     
-    
+    func findLargestFragment(_ lf: inout MKBitVec) {
+        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var frag: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        
+        lf.clear()
+        while used.countBits() < numAtoms() {
+            for atom in self.getAtomIterator() {
+                if !used.bitIsSet(atom.getIdx()) {
+                    curr.setBitOn(UInt32(atom.getIdx()))
+                    break
+                }
+            }
+            frag |= curr
+            while !curr.isEmpty() {
+                for j in curr.nextBit(-1)..<curr.endBit() {
+                    guard let atom = self.getAtom(j) else { continue }
+                    guard let bonds = atom.getBondIterator() else { continue }
+                    for bond in bonds {
+                        if !used.bitIsSet(bond.getNbrAtomIdx(atom)) {
+                            next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                        }
+                    }
+                }
+                used |= curr
+                used |= next
+                frag |= next
+                curr = next
+            }
+            if lf.isEmpty() || lf.countBits() < frag.countBits() {
+                lf = frag
+            }
+        }
+
+    }
+
     func findRingAtomsAndBonds() {
         
     }
@@ -391,7 +490,8 @@ class MKMol: MKBase {
         tors.append(Int(c.getCoordinateIdx()))
         tors.append(Int(d.getCoordinateIdx()))
         
-        var children = self.findChildren(b.getIdx(), c.getIdx())
+        var children: [Int] = []
+        self.findChildren(b.getIdx(), c.getIdx(), &children)
         
         for j in 0..<children.count {
             children[j] = (children[j] - 1) * 3
@@ -471,7 +571,7 @@ class MKMol: MKBase {
        
         var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
         var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
         var frag: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
         
 
@@ -511,7 +611,86 @@ class MKMol: MKBase {
 
     }
     
-    
-    
+    /*! \brief Calculates the graph theoretical distance (GTD) of each atom.
+    *
+    * Creates a vector (indexed from zero) containing, for each atom
+    * in the molecule, the number of bonds plus one to the most
+    * distant non-H atom.
+    *
+    * For example, for the molecule H3CC(=O)Cl the GTD value for C1
+    * would be 3, as the most distant non-H atom (either Cl or O) is
+    * 2 bonds away.
+    *
+    * Since the GTD measures the distance to non-H atoms, the GTD values
+    * for terminal H atoms tend to be larger than for non-H terminal atoms.
+    * In the example above, the GTD values for the H atoms are all 4.
+    */
+    func getGTDVector( _ gtd: inout [Double]) {
+        //calculates the graph theoretical distance for every atom
+        //and puts it into gtd
+        gtd = [Double](repeating: 0.0, count: self.numAtoms())
+
+        var gtdcount: Int = 0
+
+        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+
+        next.clear()
+
+        for atom in self.getAtomIterator() {
+            gtdcount = 0
+            used.clear()
+            curr.clear()
+            used.setBitOn(UInt32(atom.getIdx()))
+            curr.setBitOn(UInt32(atom.getIdx()))
+
+            while !curr.isEmpty() {
+                next.clear()
+                for natom in curr.nextBit(-1)..<curr.endBit() {
+                    guard let atom1 = self.getAtom(natom) else { continue }
+                    for bond in atom1.getBondIterator()! {
+                        if !used.bitIsSet(bond.getNbrAtomIdx(atom1)) && !curr.bitIsSet(bond.getNbrAtomIdx(atom1)) {
+                            if bond.getNbrAtom(atom1).getAtomicNum() != 1 { // Hydrogen
+                                next.setBitOn(UInt32(bond.getNbrAtomIdx(atom1)))
+                            }
+                        }
+                    }
+                }
+                used |= next
+                curr = next
+                gtdcount += 1
+            }
+            gtd[atom.getIdx() - 1] = Double(gtdcount)
+        }
+    }
+
+    /*!
+    **\brief Calculates a set of graph invariant indexes using
+    ** the graph theoretical distance, number of connected heavy atoms,
+    ** aromatic boolean, ring boolean, atomic number, and
+    ** summation of bond orders connected to the atom.
+    ** Vector is indexed from zero
+    */    
+    func getGIVector(_ vid: inout [UInt]) {
+        
+        vid = [UInt](repeating: 0, count: self.numAtoms() + 1)
+
+        var v: [Double] = []
+        self.getGTDVector(&v)
+
+        var i: Int = 0
+
+        for atom in self.getAtomIterator() {
+            vid[i] = UInt(v[i])
+            vid[i] += UInt(atom.getHeavyDegree() * 100)
+            vid[i] += UInt((atom.isAromatic() ? 1 : 0) * 1000)
+            vid[i] += UInt((atom.isInRing() ? 1 : 0) * 10000)
+            vid[i] += UInt(atom.getAtomicNum() * 100000)
+            vid[i] += UInt(atom.getImplicitHCount() * 10000000)
+            i += 1
+        }
+    }
+     
     
 }
