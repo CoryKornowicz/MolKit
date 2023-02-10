@@ -39,6 +39,16 @@ enum HydrogenType: Int {
     case NonPolarHydrogen = 2
 }
 
+let NumElements = 118 + 2
+let alphabetical: [Int] = [ 89, 47, 13, 95, 18, 33, 85, 79, 5, 56, 4, 107, 83, 97, 35, 6, 20, 48,
+                            58, 98, 17, 96, 112, 27, 24, 55, 29, NumElements-1,
+                            105, 110, 66, 68, 99, 63, 9, 26, 114, 100, 87, 31,
+                            64, 32, 1, 2, 72, 80, 67, 108, 53, 49, 77, 19, 36, 57, 3, 103, 71, 116, 115, 101,
+                            12, 25, 42, 109, 7, 11, 41, 60, 10, 113, 28, 102, 93, 8, 118, 76, 15, 91, 82, 46,
+                            61, 84, 59, 78, 94, 88, 37, 75, 104, 111, 45, 86, 44, 16, 51, 21, 34, 106, 14,
+                            62, 50, 38, NumElements, 73, 65, 43, 52, 90, 22, 81, 69, 117, 92, 23, 74, 54, 39, 70,
+                            30, 40 ]
+
 class MKMol: MKBase {
     
     private var _autoPartialCharge: Bool = false
@@ -55,7 +65,7 @@ class MKMol: MKBase {
     private var _c: Array<Double> = []
     private var _vconf: Array<Vector<Double>> = []
     private var _energy: Double = 0.0
-    private var _residue: [MKResidue]? = []
+    private var _residue: [MKResidue] = []
     private var _internals: [MKInternalCoord]? = []
     private var _mod: UInt16 = 0 
 
@@ -117,12 +127,24 @@ class MKMol: MKBase {
         self._title = title
     }
 
-    func getAtom(_ id: Int) -> MKAtom? {
-        if id > self._natoms { return nil }
-        return self._vatom[id]
+    //! Returns a pointer to the atom after a safety check
+    //! 0 < idx <= NumAtoms
+    func getAtom(_ idx: Int) -> MKAtom? {
+        if idx > self._natoms || idx < 1 { return nil }
+        return self._vatom[idx - 1]
     }
     
-    func getAtoms() -> [MKAtom] {
+    func getAtomById(_ id: Int) -> MKAtom? {
+        if id >= self._vatomIds.count { return nil }
+        return self._vatomIds[id]
+    }
+
+    func getFirstAtom() -> MKAtom? {
+        if self._natoms == 0 { return nil }
+        return self._vatom[0]
+    }
+
+    func getAllAtoms() -> [MKAtom] {
         return self._vatom
     }
 
@@ -134,16 +156,349 @@ class MKMol: MKBase {
         return MKIterator<MKBond>(self._vbond)
     }
 
+    //! Returns a pointer to the bond after a safety check
+    //! 0 <= idx < NumBonds
+    func getBond(_ idx: Int) -> MKBond? {
+        if idx >= self._nbonds || idx < 0 { return nil }
+        return self._vbond[idx]
+    }
+
+    func getBondById(_ id: Int) -> MKBond? {
+        if id >= self._vbondIds.count { return nil }
+        return self._vbondIds[id]
+    }
+
+    func getBond(_ bgn: MKAtom, _ end: MKAtom) -> MKBond? {
+        if bgn == end { return nil }
+        guard let nbrBonds = bgn.getBondIterator() else { return nil }
+        for bond in nbrBonds {
+            if bond.getNbrAtom(bgn) == end {
+                return bond
+            }
+        }
+        return nil
+    }
+
+    func getBond(_ bgn: Int, _ end: Int) -> MKBond? {
+        if bgn == end { return nil }
+        guard let bgnAtom = self.getAtom(bgn) else { return nil }
+        guard let endAtom = self.getAtom(end) else { return nil }
+        return self.getBond(bgnAtom, endAtom)
+    }
+
+    func numHeavyAtoms() -> Int {
+        var count: Int = 0
+        for atom in self.getAtomIterator() {
+            if atom.getAtomicNum() != 1 {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    func getResidue(_ idx: Int) -> MKResidue? {
+        if idx >= self._residue.count || idx < 0 { return nil }
+        return self._residue[idx]
+    }
+
     func newAtom() -> MKAtom {
         return MKAtom()
     }
     
+    func getInternalCoord() -> [MKInternalCoord]? {
+        return nil
+    }
+
+    //! Implements <a href="http://qsar.sourceforge.net/dicts/blue-obelisk/index.xhtml#findSmallestSetOfSmallestRings">blue-obelisk:findSmallestSetOfSmallestRings</a>.
+    func getSSSR() -> [MKRing] {
+        if !self.hasSSSRPerceived() {
+            self.findSSSR()
+        }
+
+        var ringData = MKRingData() 
+        if !self.hasData("SSSR") {
+            ringData.setAttribute("SSSR")
+            self.setData(ringData)
+        }
+
+        ringData = self.getData("SSSR") as! MKRingData
+        ringData.setOrigin(.perceived)
+        return ringData.getData()
+    }
+
+    func getLSSR() -> [MKRing] {
+        if !self.hasLSSRPerceived() {
+            self.findLSSR()
+        }
+
+        var ringData = MKRingData() 
+        if !self.hasData("LSSR") {
+            ringData.setAttribute("LSSR")
+            self.setData(ringData)
+        }
+
+        ringData = self.getData("LSSR") as! MKRingData
+        ringData.setOrigin(.perceived)
+        return ringData.getData()
+    }
+
+
+    // TODO: Merge these two into one base function with a boolean parameter
+    func getMolWt(_ implicitH: Bool) -> Double {
+        var molWt: Double = 0.0
+        let hMass = MKElements.getMass(1)
+
+        for atom in self.getAtomIterator() {
+            molWt += atom.getAtomicMass()
+            if implicitH {
+                molWt += Double(atom.getImplicitHCount()) * hMass
+            }
+        }
+        return molWt
+    }
+
+    func getExactMass(_ implicitH: Bool) -> Double {
+        var molWt: Double = 0.0
+        let hMass = MKElements.getMass(1)
+
+        for atom in self.getAtomIterator() {
+            molWt += atom.getExactMass()
+            if implicitH {
+                molWt += Double(atom.getImplicitHCount()) * hMass
+            }
+        }
+        return molWt
+    }
+
+    //! Stochoimetric formula in spaced format e.g. C 4 H 6 O 1
+    //! No pair data is stored. Normally use without parameters: GetSpacedFormula()
+    //! \since version 2.1
+    func getSpacedFormula(_ ones: Int, _ sp: String, _ implicitH: Bool) -> String {
+        //Default ones=0, sp=" ".
+        //Using ones=1 and sp="" will give unspaced formula (and no pair data entry)
+        // These are the atomic numbers of the elements in alphabetical order, plus
+        // pseudo atomic numbers for D, T isotopes.
+        var atomicCount = [Int](repeating: 0, count: NumElements)
+        var formula = ""
+
+        var useImplicitH = (self.numBonds() != 0 || self.numAtoms() == 1)
+        // Do not use implicit hydrogens if explicitly required not to
+        if !implicitH {
+            useImplicitH = false
+        }
+
+        let hasHvyAtoms = self.numHeavyAtoms() > 0
+
+        for atom: MKAtom in self.getAtomIterator() {
+            var anum: Int = atom.getAtomicNum()
+            if anum == 0 {
+                continue
+            }
+
+            if anum > (NumElements - 2) {
+                print("Skipping unknown element with atomic number \(anum)")
+                continue
+            }
+
+            let isHiso: Bool = anum == 1 && atom.getIsotope() >= 2
+
+            if useImplicitH {
+                if anum == 1 && !isHiso && hasHvyAtoms {
+                    continue // skip explicit hydrogens except D,T
+                }
+
+                if anum == 1 {
+                    if isHiso && hasHvyAtoms {
+                        atomicCount[0] -= 1 //one of the implicit hydrogens is now explicit
+                    }
+                } else {
+                    atomicCount[0] += Int(atom.getImplicitHCount() + atom.explicitHydrogenCount())
+                }
+            }
+            
+            if isHiso {
+                anum = NumElements + Int(atom.getIsotope()) - 3 //pseudo AtNo for D, T
+            }
+            atomicCount[anum - 1] += 1
+        }
+
+        if atomicCount[5] != 0 { // Carbon (i.e. 6 - 1 = 5)
+            if atomicCount[5] > ones {
+                formula += "C" + sp + String(atomicCount[5]) + sp
+            } else if atomicCount[5] == 1 {
+                formula += "C"
+            }
+
+            atomicCount[5] = 0 // So we don't output C twice
+
+            // only output H if there's also carbon -- otherwise do it alphabetical
+            if atomicCount[0] != 0 { // Hydrogen (i.e., 1 - 1 = 0)
+                if atomicCount[0] > ones {
+                    formula += "H" + sp + String(atomicCount[0]) + sp
+                } else if atomicCount[0] == 1 {
+                    formula += "H"
+                }
+
+                atomicCount[0] = 0
+            }
+        }
+
+        for j in 0..<NumElements {
+            let alph = alphabetical[j] - 1
+            if atomicCount[alph] != 0 {
+                var symb: String
+                if alph == NumElements - 1 {
+                    symb = "T" //T
+                } else if alph == NumElements - 2 {
+                    symb = "D" //D
+                } else {
+                    symb = MKElements.getSymbol(alphabetical[j])
+                }
+
+                formula += symb + sp
+                if atomicCount[alph] > ones {
+                    formula += String(atomicCount[alph]) + sp
+                }
+            }
+        }
+
+        var chg = self.getTotalCharge()
+        let ch = chg > 0 ? "+" : "-"
+        chg = abs(chg)
+        while chg > 0 {
+            formula += ch + sp
+            chg -= 1
+        }
+        return formula.trimmingCharacters(in: .newlines)
+    }
+
+    //! Stochoimetric formula (e.g., C4H6O).
+    //!   This is either set by OBMol::SetFormula() or generated on-the-fly
+    //!   using the "Hill order" -- i.e., C first if present, then H if present
+    //!   all other elements in alphabetical order.
+    func getFormula() -> String {
+        if let dp = self.getData("Formula") as! MKPairData<String>? {
+            // TODO: Potential Crash here is dp value is nil, but it shouldn't be if it was created through this method...
+            return dp.getValue()!
+        }
+
+        let formula = self.getSpacedFormula(1, "", false)
+        let dp = MKPairData<String>()
+        dp.setAttribute("Formula")
+        dp.setValue(formula)
+        dp.setOrigin(.perceived)
+        self.setData(dp)
+        return formula
+    }
+
+    func setFormula(_ formula: String) {
+        if let dp = self.getData("Formula") as! MKPairData<String>? {
+            dp.setValue(formula)
+            dp.setOrigin(.fileformatInput)
+        } else {
+            let dp = MKPairData<String>()
+            dp.setAttribute("Formula")
+            dp.setValue(formula)
+            dp.setOrigin(.fileformatInput)
+            self.setData(dp)
+        } 
+    }
+
+
+    func setTotalCharge(_ charge: Int) {
+        self.setFlag(OB_TCHARGE_MOL)
+        self._totalCharge = charge
+    }
+
+    //! Returns the total molecular charge -- if it has not previously been set
+    //!  it is calculated from the atomic formal charge information.
+    //!  (This may or may not be correct!)
+    //!  If you set atomic charges with OBAtom::SetFormalCharge()
+    //!   you really should set the molecular charge with OBMol::SetTotalCharge()
+    func getTotalCharge() -> Int {
+        if self.hasFlag(OB_TCHARGE_MOL) {
+            return self._totalCharge
+        } else {
+            print("GetTotalCharge -- calculated from formal charges")
+            var charge = 0
+            for atom: MKAtom in self.getAtomIterator() {
+                charge += atom.getFormalCharge()
+            }
+            // Addition from original code, to avoid repeating this calculation
+            self.setFlag(OB_TCHARGE_MOL)
+            self._totalCharge = charge
+            //
+            return charge
+        }
+    }
+
+    func setTotalSpinMultiplicity(_ spin: UInt) {
+        self.setFlag(OB_TSPIN_MOL)
+        self._totalSpinMultiplicity = spin
+    }
+
+    func setInteralCoord(_ int_coord: [MKInternalCoord]) {
+        // The original implementation adds a nullptr to the start of the internal coordinate array
+        // TODO: Let's see what happens if we only stick to number of atoms 
+
+        if int_coord.count != self.numAtoms() {
+            print("Error: Internal coordinate array size does not match number of atoms")
+            return
+        }
+
+        self._internalCoord = int_coord
+    }
+
+
+    //! Returns the total spin multiplicity -- if it has not previously been set
+    //!  It is calculated from the atomic spin multiplicity information
+    //!  assuming the high-spin case (i.e. it simply sums the number of unpaired
+    //!  electrons assuming no further pairing of spins.
+    //!  if it fails (gives singlet for odd number of electronic systems),
+    //!  then assign wrt parity of the total electrons.
+    func getTotalSpinMultiplicity() -> UInt {
+        if self.hasFlag(OB_TSPIN_MOL) {
+            return self._totalSpinMultiplicity
+        } else {
+            print("GetTotalSpinMultiplicity -- calculating from atomic spins assuming high spin case") 
+            var unpairedElectrons = 0
+            var charge = self.getTotalCharge()
+            for atom: MKAtom in self.getAtomIterator() {
+                if atom.getSpinMultiplicity() > 1 {
+                    unpairedElectrons += Int(atom.getSpinMultiplicity() - 1)
+                }
+                charge += atom.getAtomicNum()
+            }
+            // Deviate from original by setting the flag here as well
+            if charge % 2 != unpairedElectrons % 2 {
+                self.setFlag(OB_TSPIN_MOL)
+                self._totalSpinMultiplicity = UInt(abs(charge) % 2 + 1)
+                return self._totalSpinMultiplicity
+            } else {
+                self.setFlag(OB_TSPIN_MOL)
+                self._totalSpinMultiplicity = UInt(unpairedElectrons + 1)
+                return self._totalSpinMultiplicity
+            }
+
+        }
+    }
+
+
+    static public func += (lhs: inout MKMolecule, rhs: MKMolecule) {
+        // TODO: IMPLEMENT
+    } 
+
+
     func deleteAtom(_ atom: MKAtom) {
         
     }
 
     func numAtoms() -> Int {
         return self._vatom.count
+    }
+    
+    func numBonds() -> Int {
+        return self._vbond.count
     }
 
     func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
@@ -442,7 +797,11 @@ class MKMol: MKBase {
         
     }
     
-  
+    func findLSSR() {
+        
+    }
+    
+    
     
 //    MARK: Island of Misfit Toys
 
@@ -553,10 +912,6 @@ class MKMol: MKBase {
             self._c[j+2] += tz
         }
         
-    }
-
-    func getSSSR() -> [MKRing]? {
-        return nil
     }
 
     func setPeriodicMol(_ value: Bool = true) {
@@ -691,6 +1046,10 @@ class MKMol: MKBase {
             i += 1
         }
     }
-     
+    
+    
+
+
+
     
 }

@@ -177,7 +177,9 @@ public class MKGenericData: NSObject {
         self.source = origin
     }
     
-    
+    func setAttribute(_ attr: String) {
+        self.attr = attr
+    }
     
 }
 
@@ -244,6 +246,14 @@ public class MKPairData<T>: MKGenericData {
     init(_ t: T) {
         super.init("PairData", MKGenericDataType.PairData, .any)
         self.value = t
+    }
+
+    func setValue(_ t: T) {
+        self.value = t
+    }
+
+    func getValue() -> T? {
+        return self.value
     }
 
 }
@@ -313,6 +323,10 @@ public class MKRingData: MKGenericData {
 
     func getRingIterator() -> MKIterator<MKRing> {
         return MKIterator<MKRing>(self._vr)
+    }
+
+    func getData() -> [MKRing] {
+        return self._vr
     }
 
     static func == (lhs: MKRingData, rhs: MKRingData) -> Bool {

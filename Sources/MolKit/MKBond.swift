@@ -229,7 +229,7 @@ class MKBond: MKBase {
     func findSmallestRing() -> MKRing? {
         
         guard let mol = self.getParent() else { return nil }
-        guard let ring_list: [MKRing] = mol.getSSSR() else { return nil }
+        let ring_list: [MKRing] = mol.getSSSR()
         
         var min_size: Int = .max
         var min_ring: MKRing? = nil

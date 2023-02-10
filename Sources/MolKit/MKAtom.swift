@@ -241,7 +241,7 @@ public class MKAtom: MKBase {
                 return self._pcharge
             }
             if !mol.hasPartialChargesPerceived() {
-                for atom in mol.getAtoms() {
+                for atom in mol.getAtomIterator() {
                     atom.setPartialCharge(0.0)
                 }
                 MKPhModel.sharedInstance.assignSeedPartialCharge(mol)
@@ -618,7 +618,7 @@ public class MKAtom: MKBase {
             return count
         }
         
-        guard let rings = mol.getSSSR() else { return count }
+        let rings = mol.getSSSR()
         
         for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) {
@@ -640,7 +640,7 @@ public class MKAtom: MKBase {
             return 0
         }
         
-        guard let rings = mol.getSSSR() else { return 0 }
+        let rings = mol.getSSSR()
         
         for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) {
@@ -767,7 +767,7 @@ public class MKAtom: MKBase {
             return false
         }
 
-        guard let rings = mol.getSSSR() else { return false }
+        let rings = mol.getSSSR()
         
         for ring in MKIterator<MKRing>(rings) {
             if ring.isInRing(self.getIdx()) && ring.pathSize() == size {
