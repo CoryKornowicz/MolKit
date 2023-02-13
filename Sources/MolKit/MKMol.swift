@@ -483,15 +483,45 @@ class MKMol: MKBase {
         }
     }
 
+    // Cannot override default assignment operator in Swift, maybe that is not bad thing?
 
     static public func += (lhs: inout MKMolecule, rhs: MKMolecule) {
         // TODO: IMPLEMENT
+        // After implementing StereoBase and Peception class 
     } 
 
+    func clear() -> Bool {
+        // Destroy Atom list 
+        self._atomList.removeAll()
+        // Destroy Bond list
+        self._bondList.removeAll()
+        // Destroy AtomID list
+        self._atomIDList.removeAll()
+        // Destroy BondID list
+        self._bondIDList.removeAll()
+        // Delete Residues
+        self._residueList.removeAll()
+        // Clear multi-conformer data
+        self._vconf.removeAll()
+        //Clear flags except OB_PATTERN_STRUCTURE which is left the same
+        self._flags &= OB_PATTERN_STRUCTURE
+
+        self._c = Array(repeating: 0.0, count: 3)
+        self._mod = 0
+    }
+
+    // Swift has ARC and does not need a manual dealloc for these
+    // private func destroyAtom(_ atom: MKAtom) { }
+    // private func destroyBond(_ bond: MKBond) { }
 
     func deleteAtom(_ atom: MKAtom) {
         
     }
+
+    func deleteBond(_ bond: MKBond) {
+        
+    }
+
 
     func numAtoms() -> Int {
         return self._vatom.count
@@ -509,6 +539,8 @@ class MKMol: MKBase {
     }
 
     func beginModify() {
+
+    }
         
         //suck coordinates from _c into _v for each atom
         if (self._mod == 0) && !self.isEmpty() {
