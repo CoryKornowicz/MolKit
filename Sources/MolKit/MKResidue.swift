@@ -466,7 +466,7 @@ class MKResidue: MKBase {
 
     //! \return The number of heavy atoms in this residue
     func getNumHvyAtoms() -> Int {
-        // TODO: IMPLEMENT
+        return self._atoms.map({ $0.getAtomicNum() != 1 ? 1 : 0 }).reduce(0, +)
     }
 
     //! \return The ID of the chain which includes this residue
@@ -501,7 +501,23 @@ class MKResidue: MKBase {
     //! \return all bonds in this residue. @p exterior includes bonds to atoms
     //!  outside this residue (default is true)
     func getBonds(_ exterior: Bool = true) -> [MKBond] {
-        // TODO: IMPLEMENT
+        var idxs: MKBitVec = MKBitVec()
+        var bonds: [MKBond] = [MKBond]()
+        for atom in self._atoms {
+            for bond in atom.getBonds() {
+                if !idxs.bitIsSet(bond.getIdx()) {
+                    if !exterior {
+                        if bond.getNbrAtom(atom).getResidue() == self {
+                            bonds.append(bond)
+                        }
+                    } else {
+                        bonds.append(bond)
+                    }
+                    idxs.setBitOn(bond.getIdx())
+                }
+            }
+        }
+        return bonds
     }
 
     //! \return the atom ID (character code) for the supplied atom or ""
