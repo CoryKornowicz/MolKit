@@ -200,10 +200,6 @@ class MKMol: MKBase {
         if idx >= self._residue.count || idx < 0 { return nil }
         return self._residue[idx]
     }
-
-    func newAtom() -> MKAtom {
-        return MKAtom()
-    }
     
     func getInternalCoord() -> [MKInternalCoord]? {
         return nil
@@ -513,6 +509,7 @@ class MKMol: MKBase {
     // Swift has ARC and does not need a manual dealloc for these
     // private func destroyAtom(_ atom: MKAtom) { }
     // private func destroyBond(_ bond: MKBond) { }
+    // private func destroyResidue(_ residue: MKResidue) { }
 
     func deleteAtom(_ atom: MKAtom) {
         
@@ -539,9 +536,7 @@ class MKMol: MKBase {
     }
 
     func beginModify() {
-
-    }
-        
+        // This should probably be retired as a more Swifty approach is adopted
         //suck coordinates from _c into _v for each atom
         if (self._mod == 0) && !self.isEmpty() {
             for atom in self._vatom {
@@ -563,8 +558,99 @@ class MKMol: MKBase {
         self._mod += 1 
     }
     
-    func endModify() {}
+    func endModify(_ nukePercievedData: Bool) {
+        if self._mod == 0 {
+            print("_mod is negative - EndModify() called too many times")
+            return 
+        }
 
+        self._mod -= 1
+
+        if nukePercievedData {
+        // wipe all but whether it has aromaticity perceived, is a reaction, or has periodic boundaries enabled
+            self._flags &= (OB_AROMATIC_MOL|OB_REACTION_MOL|OB_PERIODIC_MOL)
+        }
+
+        // TODO: Does it really need to have an extra _c array? Why couldn't the normal _v array suffice? 
+        // Does this verbosity matter with Swift in a performance sense, and how can we streamline this?
+
+        self._c = []
+        if self.isEmpty() {
+            return
+        }
+
+        //if atoms present convert coords into array
+        var idx = 0
+        var c = []
+        for atom in self._vatom {
+            atom.setIdx(idx+1)
+            c.append(atom.getVector())
+            atom.setCoordPtr(c[idx])
+            idx += 1
+        }
+
+        self._vconf.append(c)
+
+        // Always remove angle and torsion data, since they will interfere with the iterators
+        // PR#2812013
+        self.deleteData(.AngleData)
+        self.deleteData(.TorsionData)
+    }
+
+    func newAtom() -> MKAtom {
+        return self.newAtom(self._vatomIds.count)
+    }
+
+
+    //! \brief Instantiate a New Atom and add it to the molecule
+    //!
+    //! Checks bond_queue for any bonds that should be made to the new atom
+    //! and updates atom indexes.
+    func newAtom(_ id: UInt) -> MKAtom {
+        
+        // Begin Modify is commented out here in original code, taken as should be called beforehand 
+
+        if id >= self._vatomIds.count {
+            self._vatomIds.reserveCapacity(self._vatomIds.count+1)
+            self._vatomIds.removeAll()
+        }
+        
+        let atom = MKAtom()
+        atom.setIdx(self._natoms+1)
+        atom.setParent(self)
+
+        self._vatomIds[id] = atom
+        atom.setId(id)
+        
+        self._vatom.append(atom)
+
+        if self.hasData(.VirtualBondData) {
+            /*add bonds that have been queued*/
+
+            guard var bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData) else { continue }
+
+            for bond: MKVirtualBond in bondQueue {
+                if bond.getBgn() > self._natoms || bond.getEnd() > self._natoms {
+                    continue
+                }
+                if atom.getIdx() == bond.getbgn() || atom.getIdx() == bond.getEnd() {
+                    self.addBond(bond.getBgn(), bond.getEnd(), bond.getOrder())
+                }
+            }
+
+            self.deleteData(v: bondQueue)
+        }   
+
+        // End Modify 
+        return atom 
+    }
+
+    func newResidue() -> MKResidue {
+        var newRes = MKResidue()
+        newRes.setIdx(self._residue.count)
+        self._residue.append(newRes)
+        return newRes
+    }
 
     //    MARK: HAS/IS Functions
 

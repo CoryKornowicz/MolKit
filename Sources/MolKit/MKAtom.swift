@@ -331,7 +331,7 @@ public class MKAtom: MKBase {
         return self._v[2]
     }
     
-    func setResidue(_ res: MKResidue) {
+    func setResidue(_ res: MKResidue?) {
         self._residue = res
     }
 

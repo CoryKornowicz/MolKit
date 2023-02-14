@@ -303,6 +303,22 @@ public class MKVirtualBond: MKGenericData {
         return lhs._begin == rhs._begin && lhs._end == rhs._end && lhs._order == rhs._order && lhs._stereo == rhs._stereo && lhs == rhs
     }
 
+    func getBgn() -> UInt {
+        return self._begin
+    }
+
+    func getEnd() -> UInt {
+        return self._end
+    }
+
+    func getOrder() -> UInt {
+        return self._order
+    }
+
+    func getStereo() -> Int {
+        return self._stereo
+    }
+
 }
 
 public class MKRingData: MKGenericData {
