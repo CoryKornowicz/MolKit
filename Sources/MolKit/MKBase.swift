@@ -69,6 +69,14 @@ public class MKBase: NSObject {
         self._flags &= ~flag
     }
     
+    func set_or_unsetFlag(_ flag: UInt, _ value: Bool) {
+        if value {
+            self.setFlag(flag)
+        } else {
+            self.unsetFlag(flag)
+        }
+    }
+    
     func hasFlag(_ flag: UInt) -> Bool {
         return (self._flags & flag) != 0
     }

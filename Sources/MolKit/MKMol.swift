@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Collections
 import Surge
 import simd
 
@@ -77,6 +78,9 @@ class MKMol: MKBase {
     private var _nbonds: Int {
         return _vbond.count
     }
+    
+    private func incrementMod() { self._mod += 1 }
+    private func decrementMod() { self._mod -= 1 }
 
     public override init() {
         super.init()
@@ -753,9 +757,205 @@ class MKMol: MKBase {
     func stripSalts(_ threshold: UInt) -> Bool {
         var cfl = Array<Array<Int>>()
         self.contigFragList(&cfl)
-        return false 
+
+        if cfl.isEmpty || cfl.count == 1 {
+            return false
+        }
+
+        let maxElem = cfl.max { $0.count < $1.count }
+        
+        var delatoms: [MKAtom] = []
+        var atomIndices: Set<Int> = []
+        
+        for i in cfl {
+            if (i.count < threshold) || (threshold == 0 && i != maxElem) {
+                for j in i {
+                    if atomIndices.firstIndex(of: j) == atomIndices.endIndex { // MARK: Does this transfer well from C++
+                        delatoms.append(self.getAtom(j)!) // MARK: Force unwrap here could be detrimental
+                        atomIndices.insert(j)
+                    }
+                }
+            }
+        }
+        
+        if !delatoms.isEmpty {
+            //      int tmpflags = _flags & (~(OB_SSSR_MOL));
+            self.beginModify()
+            for atom in delatoms {
+                self.deleteAtom(atom)
+            }
+            self.endModify(false)
+            //      _flags = tmpflags;  // Gave crash when SmartsPattern::Match()
+            // was called susequently
+            // Hans De Winter; 03-nov-2010
+        }
+        
+        return true
+    }
+    
+    // Convenience function used by the DeleteHydrogens methods
+    private func isSuppressibleHydrogen(_ atom: MKAtom) -> Bool {
+        return atom.getIsotope() == 0 && atom.getHeavyDegree() == 1 && atom.getFormalCharge() == 0 && (atom.getData("Atom Class") == nil)
+    }
+    
+    func deletePolarHydrogens() -> Bool {
+        var delatoms: [MKAtom] = []
+        
+        for atom in self.getAtomIterator() {
+            if atom.isPolarHydrogen() && self.isSuppressibleHydrogen(atom) {
+                delatoms.append(atom)
+            }
+        }
+        
+        if delatoms.isEmpty {
+            return true
+        }
+        
+        self.incrementMod()
+        
+        for atom in delatoms {
+            self.deleteAtom(atom)
+        }
+        
+        self.decrementMod()
+        
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+    }
+    
+    func deleteNonPolarHydrogens() -> Bool {
+        var delatoms: [MKAtom] = []
+        
+        for atom in self.getAtomIterator() {
+            if atom.isNonPolarHydrogen() && self.isSuppressibleHydrogen(atom) {
+                delatoms.append(atom)
+            }
+        }
+        
+        if delatoms.isEmpty {
+            return true
+        }
+        
+        self.incrementMod()
+        
+        for atom in delatoms {
+            self.deleteAtom(atom)
+        }
+        
+        self.decrementMod()
+        
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+    }
+    
+    func deleteHydrogens() -> Bool {
+        var delatoms: [MKAtom] = []
+        
+        for atom in self.getAtomIterator() {
+            if atom.getAtomicNum() == 1 && self.isSuppressibleHydrogen(atom) {
+                delatoms.append(atom)
+            }
+        }
+        
+        self.setHydrogensAdded(false)
+        
+        if delatoms.isEmpty {
+            return true
+        }
+        
+        /* decide whether these flags need to be reset
+           _flags &= (~(OB_ATOMTYPES_MOL));
+           _flags &= (~(OB_HYBRID_MOL));
+           _flags &= (~(OB_PCHARGE_MOL));
+           _flags &= (~(OB_IMPVAL_MOL));
+        */
+        
+        self.incrementMod()
+        
+        // This has the potential to be slow -- we still need methods to delete a set of atoms
+        //  and to delete a set of bonds
+        for atom in delatoms {
+//            Get neighbor atom, should only have one since it is a hydrogen atom
+            guard let nbr = atom.getNbrAtomIterator() else {
+                self.deleteAtom(atom)
+                continue
+            }
+            
+            for nb in nbr {
+                nb.setImplicitHCount(nb.getImplicitHCount() + 1)
+            }
+            
+            self.deleteAtom(atom)
+        }
+        
+        self.decrementMod()
+        
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+
     }
 
+    func deleteHydrogens(_ atom: MKAtom) -> Bool {
+        var delatoms: [MKAtom] = []
+        
+        guard let nbrs = atom.getNbrAtomIterator() else { return false }
+        
+        for nb in nbrs {
+            if nb.getAtomicNum() == 1 && self.isSuppressibleHydrogen(nb) {
+                delatoms.append(nb)
+            }
+        }
+        
+        if delatoms.isEmpty {
+            return true
+        }
+        
+        self.incrementMod()
+        
+        for atom in delatoms {
+            _ = self.deleteHydrogen(atom)
+        }
+        
+        self.decrementMod()
+        self.setHydrogensAdded(false)
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+    }
+    
+    //deletes the hydrogen atom passed to the function
+    func deleteHydrogen(_ atom: MKAtom) -> Bool {
+        if atom.getAtomicNum() != 1 { return false }
+        
+        let atomIdx = atom.getIdx()
+        
+        //find bonds to delete
+        guard let bonds = atom.getBondIterator() else { return false } // Probably want to continue to delete atom
+        self.incrementMod()
+        for bond in bonds {
+            self.deleteBond(bond)
+        }
+        self.decrementMod()
+        
+        if atomIdx != self.numAtoms() {
+            let idx = atom.getCoordinateIdx()
+            let size = self.numAtoms() - atom.getIdx()
+//            Resize the _vconf arrays to not include this atom 
+            for i in 0..<self._vconf.count {
+                self._vconf[i].removeSubrange(idx..<idx+3)
+            }
+        }
+        
+        // Deleting hydrogens does not invalidate the stereo objects
+        // - however, any explicit refs to the hydrogen atom must be
+        //   converted to implicit refs
+        
+        
+    }
+    
     //    MARK: HAS/IS Functions
 
     func has2D(_ not3D: Bool = false) -> Bool {
@@ -829,6 +1029,112 @@ class MKMol: MKBase {
     func isPeriodic() -> Bool {
         return self.hasFlag(OB_PERIODIC_MOL)
     }
+    
+//    MARK: Set Functions
+
+    //! Set the heat of formation for this molecule (in kcal/mol)
+    func setEnergy(_ energy: Double) {
+        self._energy = energy
+    }
+
+    //! Set the dimension of this molecule (i.e., 0, 1 , 2, 3)
+    func setDimension(_ dim: UInt16) {
+        self._dimension = dim
+    }
+
+    //! Set the flag for determining automatic formal charges with pH (default=true)
+    func setAutomaticFormalCharge(_ b: Bool) {
+        self._autoFormalCharge = b
+    }
+
+    //! Set the flag for determining partial charges automatically (default=true)
+    func setAutomaticPartialCharge(_ b: Bool) {
+        self._autoPartialCharge = b
+    }
+
+    //! Mark that aromaticity has been perceived for this molecule (see OBAromaticTyper)
+    func setAromaticPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_AROMATIC_MOL, value)
+    }
+    
+    //! Mark that Smallest Set of Smallest Rings has been run (see OBRing class)
+    func setSSSRPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_SSSR_MOL, value)
+    }
+    
+    //! Mark that Largest Set of Smallest Rings has been run (see OBRing class)
+    func setLSSRPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_LSSR_MOL, value)
+    }
+    
+    //! Mark that rings have been perceived (see OBRing class for details)
+    func setRingAtomsAndBondsPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_RINGFLAGS_MOL, value)
+    }
+
+    //! Mark that atom types have been perceived (see OBAtomTyper for details)
+    func setAtomTypesPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_ATOMTYPES_MOL, value)
+    }
+
+    //! Mark that ring types have been perceived (see OBRingTyper for details)
+    func setRingTypesPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_RINGTYPES_MOL, value)
+    }
+
+    //! Mark that chains and residues have been perceived (see OBChainsParser)
+    func setChainsPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_CHAINS_MOL, value)
+    }
+
+    //! Mark that chirality has been perceived
+    func setChiralityPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_CHIRALITY_MOL, value)
+    }
+    
+    //! Mark that partial charges have been assigned
+    func setPartialChargesPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_PCHARGE_MOL, value)
+    }
+
+    //! Mark that hybridization of all atoms has been assigned
+    func setHybridizationPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_HYBRID_MOL, value)
+    }
+
+    //! Mark that ring closure bonds have been assigned by graph traversal
+    func setClosureBondsPerceived(_ value: Bool) {
+        self.set_or_unsetFlag(OB_CLOSURE_MOL, value)
+    }
+
+    func setHydrogensAdded(_ value: Bool) {
+        self.set_or_unsetFlag(OB_H_ADDED_MOL, value)
+    }
+
+    func setCorrectedForPH(_ value: Bool) {
+        self.set_or_unsetFlag(OB_PH_CORRECTED_MOL, value)
+    }
+
+    //! The OBMol is a pattern, not a complete molecule. Left unchanged by Clear()
+    func setSpinMultiplicityAssigned(_ value: Bool) {
+        self.set_or_unsetFlag(OB_ATOMSPIN_MOL, value)
+    }
+
+    func setIsPattenStructure(_ value: Bool) {
+        self.set_or_unsetFlag(OB_PATTERN_STRUCTURE, value)
+    }
+
+    func setIsReaction(_ value: Bool) {
+        self.set_or_unsetFlag(OB_REACTION_MOL, value)
+    }
+
+    //! Mark that distance calculations, etc., should apply periodic boundary conditions through the minimimum image convention.
+    //! Does not automatically recalculate bonding.
+    func setPeriodicMol(_ value: Bool) {
+        self.set_or_unsetFlag(OB_PERIODIC_MOL, value)
+    }
+
+    
     
 //    MARK: FIND Functions
     
@@ -1136,14 +1442,6 @@ class MKMol: MKBase {
         
     }
 
-    func setPeriodicMol(_ value: Bool = true) {
-        if value {
-            self.setFlag(OB_PERIODIC_MOL)
-        } else {
-            self.unsetFlag(OB_PERIODIC_MOL)
-        }
-    }
-    
     func contigFragList(_ cfl: inout Array<Array<Int>>) {
        
         var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
