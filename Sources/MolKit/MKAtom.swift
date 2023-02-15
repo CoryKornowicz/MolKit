@@ -441,7 +441,6 @@ public class MKAtom: MKBase {
     // //! Delete any residue associated with this atom
     func deleteResidue() {
         if (self._residue != nil) {
-            self._residue!.clear()
             self._residue = nil
         }
     }
@@ -526,7 +525,7 @@ public class MKAtom: MKBase {
         let bond: MKBond? = self._vbond?.first
 
         if neigh == nil {
-            mol!.endModify()
+            mol!.endModify(false)
             return false
         }
 
@@ -547,7 +546,7 @@ public class MKAtom: MKBase {
             mol!.addBond(self.getIdx(), mol!.numAtoms(), 1)
         }
 
-        mol!.endModify()
+        mol!.endModify(false)
         return true
     }
 
@@ -1329,7 +1328,7 @@ public class MKAtom: MKBase {
     
     deinit {
         if let res = self._residue {
-            _ = res.removeAtom(self)
+            res.removeAtom(self)
         }
     }
     

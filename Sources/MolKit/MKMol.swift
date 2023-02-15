@@ -63,7 +63,7 @@ class MKMol: MKBase {
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
     private var _c: Array<Double> = []
-    private var _vconf: Array<Vector<Double>> = []
+    private var _vconf: [[[Double]]] = [] // MARK: Not sure how I feel about this, would like to simplify into one unifying structure
     private var _energy: Double = 0.0
     private var _residue: [MKResidue] = []
     private var _internals: [MKInternalCoord]? = []
@@ -430,7 +430,7 @@ class MKMol: MKBase {
 
     func setTotalSpinMultiplicity(_ spin: UInt) {
         self.setFlag(OB_TSPIN_MOL)
-        self._totalSpinMultiplicity = spin
+        self._totalSpin = spin
     }
 
     func setInteralCoord(_ int_coord: [MKInternalCoord]) {
@@ -442,7 +442,7 @@ class MKMol: MKBase {
             return
         }
 
-        self._internalCoord = int_coord
+        self._internals = int_coord
     }
 
 
@@ -454,7 +454,7 @@ class MKMol: MKBase {
     //!  then assign wrt parity of the total electrons.
     func getTotalSpinMultiplicity() -> UInt {
         if self.hasFlag(OB_TSPIN_MOL) {
-            return self._totalSpinMultiplicity
+            return self._totalSpin
         } else {
             print("GetTotalSpinMultiplicity -- calculating from atomic spins assuming high spin case") 
             var unpairedElectrons = 0
@@ -468,12 +468,12 @@ class MKMol: MKBase {
             // Deviate from original by setting the flag here as well
             if charge % 2 != unpairedElectrons % 2 {
                 self.setFlag(OB_TSPIN_MOL)
-                self._totalSpinMultiplicity = UInt(abs(charge) % 2 + 1)
-                return self._totalSpinMultiplicity
+                self._totalSpin = UInt(abs(charge) % 2 + 1)
+                return self._totalSpin
             } else {
                 self.setFlag(OB_TSPIN_MOL)
-                self._totalSpinMultiplicity = UInt(unpairedElectrons + 1)
-                return self._totalSpinMultiplicity
+                self._totalSpin = UInt(unpairedElectrons + 1)
+                return self._totalSpin
             }
 
         }
@@ -481,22 +481,22 @@ class MKMol: MKBase {
 
     // Cannot override default assignment operator in Swift, maybe that is not bad thing?
 
-    static public func += (lhs: inout MKMolecule, rhs: MKMolecule) {
+    static public func += (lhs: inout MKMol, rhs: MKMol) {
         // TODO: IMPLEMENT
         // After implementing StereoBase and Peception class 
     } 
 
-    func clear() -> Bool {
+    override func clear() {
         // Destroy Atom list 
-        self._atomList.removeAll()
+        self._vatom.removeAll()
         // Destroy Bond list
-        self._bondList.removeAll()
+        self._vbond.removeAll()
         // Destroy AtomID list
-        self._atomIDList.removeAll()
+        self._vatomIds.removeAll()
         // Destroy BondID list
-        self._bondIDList.removeAll()
+        self._vbondIds.removeAll()
         // Delete Residues
-        self._residueList.removeAll()
+        self._residue.removeAll()
         // Clear multi-conformer data
         self._vconf.removeAll()
         //Clear flags except OB_PATTERN_STRUCTURE which is left the same
@@ -581,10 +581,10 @@ class MKMol: MKBase {
 
         //if atoms present convert coords into array
         var idx = 0
-        var c = []
+        var c: [[Double]] = []
         for atom in self._vatom {
             atom.setIdx(idx+1)
-            c.append(atom.getVector())
+            c.append(atom.getVector().scalars)
             atom.setCoordPtr(c[idx])
             idx += 1
         }
@@ -598,9 +598,8 @@ class MKMol: MKBase {
     }
 
     func newAtom() -> MKAtom {
-        return self.newAtom(self._vatomIds.count)
+        return self.newAtom(UInt(self._vatomIds.count))
     }
-
 
     //! \brief Instantiate a New Atom and add it to the molecule
     //!
@@ -612,33 +611,33 @@ class MKMol: MKBase {
 
         if id >= self._vatomIds.count {
             self._vatomIds.reserveCapacity(self._vatomIds.count+1)
-            self._vatomIds.removeAll()
+            //  Do not need to prefill the array with nils, as it is already done
         }
         
         let atom = MKAtom()
         atom.setIdx(self._natoms+1)
         atom.setParent(self)
 
-        self._vatomIds[id] = atom
-        atom.setId(id)
+        self._vatomIds[Int(id)] = atom
+        atom.setId(Int(id))
         
         self._vatom.append(atom)
 
         if self.hasData(.VirtualBondData) {
             /*add bonds that have been queued*/
 
-            guard var bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData) else { continue }
+            guard let bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData)! as? [MKVirtualBond] else { return atom }
 
             for bond: MKVirtualBond in bondQueue {
                 if bond.getBgn() > self._natoms || bond.getEnd() > self._natoms {
                     continue
                 }
-                if atom.getIdx() == bond.getbgn() || atom.getIdx() == bond.getEnd() {
-                    self.addBond(bond.getBgn(), bond.getEnd(), bond.getOrder())
+                if atom.getIdx() == bond.getBgn() || atom.getIdx() == bond.getEnd() {
+                    self.addBond(Int(bond.getBgn()), Int(bond.getEnd()), Int(bond.getOrder()))
                 }
             }
 
-            self.deleteData(v: bondQueue)
+            self.deleteData(bondQueue)
         }   
 
         // End Modify 
@@ -646,10 +645,115 @@ class MKMol: MKBase {
     }
 
     func newResidue() -> MKResidue {
-        var newRes = MKResidue()
+        let newRes = MKResidue()
         newRes.setIdx(self._residue.count)
         self._residue.append(newRes)
         return newRes
+    }
+
+    func newBond() -> MKBond {
+        return self.newBond(UInt(self._vbondIds.count))
+    }
+
+  //! \since version 2.1
+  //! \brief Instantiate a New Bond and add it to the molecule
+  //!
+  //! Sets the proper Bond index and insures this molecule is set as the parent.
+    func newBond(_ id: UInt) -> MKBond {
+        // Begin Modify is commented out here in original code, taken as should be called beforehand 
+
+        if id >= self._vbondIds.count {
+            self._vbondIds.reserveCapacity(self._vbondIds.count+1)
+            self._vbondIds.removeAll()
+        }
+
+        let bond = MKBond()
+        bond.setIdx(self._nbonds+1)
+        bond.setParent(self)
+
+        self._vbondIds[Int(id)] = bond
+        bond.setId(Int(id))
+
+        self._vbond.append(bond)
+
+        // End Modify 
+        return bond 
+    }
+
+//! \brief Add an atom to a molecule
+//!
+//! Also checks bond_queue for any bonds that should be made to the new atom
+    func addAtom(_ atom: MKAtom, _ forceNewId: Bool) -> Bool {
+        //    BeginModify();
+        // Use the existing atom Id unless either it's invalid or forceNewId has been specified
+        var id: MKBaseID
+        if forceNewId {
+            id = MKBaseID._id(self._vatomIds.count)
+        } else {
+            id = atom.getId()
+            if id == MKBaseID.NoId {
+                id = MKBaseID._id(self._vatomIds.count)
+            }
+        }
+
+        atom.setIdx(self._natoms+1)
+        atom.setParent(self)
+        if id.rawValue >= self._vatomIds.count {
+            self._vatomIds.reserveCapacity(id.rawValue+1)
+        }
+
+        atom.setId(id.rawValue)
+        self._vatomIds[id.rawValue] = atom
+
+        if self._natoms+1 >= self._vatom.count {
+            self._vatom.reserveCapacity(self._natoms+1)
+        }
+
+        self._vatom[self._natoms] = atom
+
+        if self.hasData(.VirtualBondData) {
+            /*add bonds that have been queued*/
+
+            guard let bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData)! as? [MKVirtualBond] else { return true }
+
+            for bond: MKVirtualBond in bondQueue {
+                if bond.getBgn() > self._natoms || bond.getEnd() > self._natoms {
+                    continue
+                }
+                if atom.getIdx() == bond.getBgn() || atom.getIdx() == bond.getEnd() {
+                    self.addBond(Int(bond.getBgn()), Int(bond.getEnd()), Int(bond.getOrder()))
+                }
+            }
+
+            self.deleteData(bondQueue)
+        }
+
+        // End Modify
+
+        return true
+    }
+
+    func insertAtom(_ atom: MKAtom) -> Bool {
+        self.beginModify()
+        _ = self.addAtom(atom, false)
+        self.endModify(false)
+
+        return true
+    }
+
+    func addResidue(_ residue: MKResidue) -> Bool{
+        self.beginModify()
+        residue.setIdx(self._residue.count)
+        self._residue.append(residue)
+        self.endModify(false)
+
+        return true
+    }
+
+    func stripSalts(_ threshold: UInt) -> Bool {
+        var cfl = Array<Array<Int>>()
+        self.contigFragList(&cfl)
+        return false 
     }
 
     //    MARK: HAS/IS Functions

@@ -22,7 +22,7 @@ public enum MKResidueProperty: Int {
 }
 
 //! Residue names (index into Residue[] array)
-public enum MKResidueIndex: Int {
+public enum MKResidueIndex: Int, Comparable, Equatable {
     case ALA   =  0
     case GLY   =  1
     case LEU   =  2
@@ -55,7 +55,7 @@ public enum MKResidueIndex: Int {
     case UPLUS = 29
     case I     = 30
     case _1MA  = 32
-    case _5MC  = 32
+    case _5MC  = 54 // MARK: This will be an issue when converting from raw value to enum case <-> vice versa | 32
     case OMC   = 33
     case _1MG  = 34
     case _2MG  = 35
@@ -77,6 +77,14 @@ public enum MKResidueIndex: Int {
     case COA   = 51
     case NAP   = 52
     case NDP   = 53
+    
+    public static func < (lhs: MKResidueIndex, rhs: MKResidueIndex) -> Bool {
+        return lhs.rawValue < rhs.rawValue
+    }
+    
+    public static func == (lhs: MKResidueIndex, rhs: MKResidueIndex) -> Bool {
+        return lhs.rawValue == rhs.rawValue
+    }
 }
 
 //! Residue atom properties
@@ -117,7 +125,7 @@ public enum MKAminoAcidProperty: Int {
 
 public let MAXSETNO = 40
 public let MAXELEM = 29
-public let MAXRES = 54
+public let MAXRES = 55 // MARK: Potential Error since MKResiudeIndex is +1 more since the values all need to be unique
 
 public let AA_ALA = (1<<1)
 public let AA_GLY = (1<<2)
@@ -289,7 +297,7 @@ class MKResidue: MKBase {
     [ " ", "C", "A", " " ],  /* 1*/
     [ " ", "C", " ", " " ],  /* 2*/
     [ " ", "O", " ", " " ],  /* 3*/   /* 0-3   Amino Acid Backbone    */
-    [ " ", "C", "\"", " " ], /* 4*/
+    [ " ", "C", "\\", " " ], /* 4*/
     [ " ", "O", "T", " " ],  /* 5*/
     [ " ", "S", " ", " " ],  /* 6*/
     [ " ", "P", " ", " " ],  /* 7*/   /* 4-7   Shapely Amino Backbone */
@@ -319,7 +327,7 @@ class MKResidue: MKBase {
     var _idx: Int = 0
     var _aakey: Int = 0
     var _chain: String = ""
-    var _reskey: Int = MKResidueIndex.UNK
+    var _reskey: MKResidueIndex = MKResidueIndex.UNK
     var _resnum: String = ""
     var _resname: String = ""
     var _insertioncode: String = ""
@@ -329,7 +337,7 @@ class MKResidue: MKBase {
     var _atoms: [MKAtom] = []
     var _sernum: [Int] = []
 
-    public init() {
+    public override init() {
         super.init()
     }
 
@@ -346,13 +354,13 @@ class MKResidue: MKBase {
     }
 
     func removeAtom(_ atom: MKAtom) {
-        let idx = self._atoms.index(of: atom)
-        if idx != nil {
+        
+        if let idx = self._atoms.firstIndex(of: atom) {
             self._atoms[idx].setResidue(nil)
-            self._atoms.remove(at: idx!)
-            self._atomid.remove(at: idx!)
-            self._hetatm.remove(at: idx!)
-            self._sernum.remove(at: idx!)
+            self._atoms.remove(at: idx)
+            self._atomid.remove(at: idx)
+            self._hetatm.remove(at: idx)
+            self._sernum.remove(at: idx)
         }
     }
 
@@ -360,17 +368,17 @@ class MKResidue: MKBase {
         for atom: MKAtom in self._atoms {
             atom.setResidue(nil)
         }
-        self._atoms.clear()
+        self._atoms = []
     }
 
-    func clear() { 
+    override func clear() {
         for atom in self._atoms {
             atom.setResidue(nil)
         }
-        self._atoms.clear()
-        self._atomid.clear()
-        self._hetatm.clear()
-        self._sernum.clear()
+        self._atoms = []
+        self._atomid = []
+        self._hetatm = []
+        self._sernum = []
 
         self._chain = ""
         self._reskey = MKResidueIndex.UNK
@@ -388,7 +396,7 @@ class MKResidue: MKBase {
     //! http://www.rcsb.org/pdb/file_formats/pdb/pdbguide2.2/part_36.html
     func setName(_ resName: String) {
         self._resname = resName 
-        MKResidue.setResidueKeys(self._resname, self._reskey, self._aakey)
+        MKResidue.setResidueKeys(self._resname, &self._reskey, &self._aakey)
      }
 
     //! Set the residue number (in the sequence)
@@ -423,24 +431,21 @@ class MKResidue: MKBase {
 
     //! Set the character code ID for an ATOM record for the supplied atom
     //! This does nothing if the supplied atom is not found in the residue
-    func setAtomID(_ atom: MKAtom, _ id: String) { 
-        let idx = self._atoms.index(of: atom)
-        if idx != nil {
+    func setAtomID(_ atom: MKAtom, _ id: String) {
+        if let idx = self._atoms.firstIndex(of: atom) {
             self._atomid[idx] = id
         }
     }
 
     func setHtmAtom(_ atom: MKAtom, _ hetatm: Bool) {
-        let idx = self._atoms.index(of: atom)
-        if idx != nil {
+        if let idx = self._atoms.firstIndex(of: atom) {
             self._hetatm[idx] = hetatm
         }
     }
 
     //! Set the atomic serial number for a given atom (see OBSerialNums)
     func setSerialNum(_ atom: MKAtom, _ sernum: Int) {
-        let idx = self._atoms.index(of: atom)
-        if idx != nil {
+        if let idx = self._atoms.firstIndex(of: atom) {
             self._sernum[idx] = sernum
         }
     }
@@ -452,7 +457,12 @@ class MKResidue: MKBase {
 
     //! \return The residue number (in the sequence)
     func getNum() -> Int {
-        return String(self._resnum)
+        do {
+            let num = try Int(self._resnum, format: .number)
+            return num
+        } catch {
+            return -1
+        }
     }
 
     func getNumString() -> String {
@@ -479,7 +489,12 @@ class MKResidue: MKBase {
         if self._chain.isNumber {
             return Int(self._chain)!
         } else {
-            return Int(self._chain + 1)
+            do {
+                let num = try Int(self._chain, format: .number) + 1
+                return num
+            } catch {
+                return -1
+            }
         }
     }
 
@@ -488,8 +503,8 @@ class MKResidue: MKBase {
         return self._idx
     }
 
-    //! \return The residue key (i.e., an entry in the OBResidueIndex namespace)
-    func getResKey() -> Int {
+    //! \return The residue key (i.e., an entry in the MKResidueIndex namespace)
+    func getResKey() -> MKResidueIndex {
         return self._reskey
     }
 
@@ -501,11 +516,12 @@ class MKResidue: MKBase {
     //! \return all bonds in this residue. @p exterior includes bonds to atoms
     //!  outside this residue (default is true)
     func getBonds(_ exterior: Bool = true) -> [MKBond] {
-        var idxs: MKBitVec = MKBitVec()
-        var bonds: [MKBond] = [MKBond]()
+        let idxs: MKBitVec = MKBitVec()
+        let bonds: [MKBond] = [MKBond]()
         for atom in self._atoms {
-            for bond in atom.getBonds() {
-                if !idxs.bitIsSet(bond.getIdx()) {
+            guard let bonds = atom.getBondIterator() else { continue }
+            for bond in bonds {
+                if !idxs.bitIsSet(Int(bond.getIdx())) {
                     if !exterior {
                         if bond.getNbrAtom(atom).getResidue() == self {
                             bonds.append(bond)
@@ -513,7 +529,7 @@ class MKResidue: MKBase {
                     } else {
                         bonds.append(bond)
                     }
-                    idxs.setBitOn(bond.getIdx())
+                    idxs.setBitOn(UInt32(bond.getIdx()))
                 }
             }
         }
@@ -595,10 +611,10 @@ class MKResidue: MKBase {
     }
 
     //! \return Whether atom @p a has the supplied residue atom property
-    //!  defined from the OBResidueAtomProperty namespace
-    func getAtomProperty(_ a: MKAtom, _ prop: Int) -> Bool {
+    //!  defined from the MKResidueAtomProperty namespace
+    func getAtomProperty(_ a: MKAtom, _ prop: MKResidueAtomProperty) -> Bool {
         let atomID = MKResidue.getAtomIDNumber(String(self.getAtomID(a)))
-        switch MKResidueAtomProperty(rawValue: prop) {
+        switch prop {
             case .ALPHA_CARBON: 
                 return atomID == 1
             case .AMINO_BACKBONE: 
@@ -624,11 +640,11 @@ class MKResidue: MKBase {
 
     //! \return Whether this residue has the supplied property
     //!  defined from the OBResidueProperty namespace
-    func getResidueProperty(_ prop: Int) -> Bool {
+    func getResidueProperty(_ prop: MKResidueProperty) -> Bool {
 
-        switch MKResidueProperty(rawValue: prop) {
+        switch prop {
             case .AMINO:
-                return self._reskey <= MKResidueIndex.HYP
+            return self._reskey <= MKResidueIndex.HYP
             case .AMINO_NUCLEO:
                 return self._reskey <= MKResidueIndex.PSU
             case .COENZYME:
@@ -647,8 +663,6 @@ class MKResidue: MKBase {
                 return self._reskey >= MKResidueIndex.HOH && self._reskey <= MKResidueIndex.PO4
             case .WATER:
                 return self._reskey == MKResidueIndex.HOH || self._reskey == MKResidueIndex.DOD
-            default:
-                return false
         }
     }
 
@@ -661,7 +675,7 @@ class MKResidue: MKBase {
         return false
     }
 
-    public func isResidueType(_ type: Int) -> Bool { 
+    public func isResidueType(_ type: MKResidueIndex) -> Bool { 
         return self._reskey == type
     }
 
@@ -1002,11 +1016,11 @@ class MKResidue: MKBase {
             default:
                 break
         }
-        return MKResidueIndex.UNK
+        return MKResidueIndex.UNK.rawValue
     }
 
-    private static func setResidueKeys(_ residue: String, _ reskey: inout Int, _ aakey: inout Int) {
-        reskey = MKResidue.getResidueNumber(residue)
+    private static func setResidueKeys(_ residue: String, _ reskey: inout MKResidueIndex, _ aakey: inout Int) {
+        reskey = MKResidueIndex(rawValue: MKResidue.getResidueNumber(residue))!
         switch reskey {
             case MKResidueIndex.ALA: aakey = AA_ALA
             case MKResidueIndex.ARG: aakey = AA_ARG

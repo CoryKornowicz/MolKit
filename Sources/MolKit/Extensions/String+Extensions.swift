@@ -1,3 +1,4 @@
+import Foundation
 
 extension String {
     var isNumber: Bool {
