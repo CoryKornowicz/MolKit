@@ -10,6 +10,8 @@ import Surge
 import simd
 import Accelerate
 
+public let VZero : Vector<Double> = [0.0, 0.0, 0.0]
+
 // MARK: - Float
 
 extension Float {
@@ -53,6 +55,20 @@ extension Double {
     }
 
 }
+
+// MARK: Array Extenstions
+
+//extension Array where Element == any Sequence {
+//    
+////    static func - (_ lhs: Array<Double>, _ rhs: Array<Double>) -> Array<Double> {
+////        var arr = Array(repeating: 0.0, count: lhs.count)
+////        arr = zip(lhs, rhs).compactMap({ (l, r) in
+////            l - r
+////        })
+////        return arr
+////    }
+//    
+//}
 
 // MARK: - SIMD3
 
@@ -285,3 +301,20 @@ extension Matrix where Scalar == Float {
     
 }
 
+// MARK: Extension Vector
+
+extension Vector {
+    
+    var x: Element {
+        scalars[0]
+    }
+    
+    var y: Element {
+        scalars[1]
+    }
+    
+    var z: Element {
+        scalars[2]
+    }
+    
+}

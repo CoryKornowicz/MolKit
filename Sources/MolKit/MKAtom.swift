@@ -51,7 +51,7 @@ public class MKAtom: MKBase {
     private var _type: String = ""                                 //!< atomic type
     
     // TODO: private var _v: [Vector<Double>] a true vector of 3 coordinates while _c could __technically__ handle more than 3 dimensions
-    private var _c: [Double] = []     //!< coordinate array in double*
+    private var _c: Array<Double> = []     //!< coordinate array in double*
     private var _v: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
     private var _cidx: UInt = 0                                  //!< coordinate index 
     // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
@@ -296,7 +296,7 @@ public class MKAtom: MKBase {
 
     func getCoordinateIdx() -> UInt { return self._cidx }
 
-    func setCoordPtr( _ ptr: [Double]) {
+    func setCoordPtr( _ ptr: Array<Double>) {
         self._c = ptr
         self._cidx = UInt((self.getIdx() - 1) * 3)
     }

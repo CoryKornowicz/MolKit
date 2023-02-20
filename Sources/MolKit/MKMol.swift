@@ -54,7 +54,7 @@ class MKMol: MKBase {
     
     private var _autoPartialCharge: Bool = false
     private var _autoFormalCharge: Bool = false
-
+    
     private var _title: String = ""
     private var _vatom: [MKAtom] = []
     private var _vatomIds: [MKAtom] = []
@@ -64,13 +64,13 @@ class MKMol: MKBase {
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
     private var _c: Array<Double> = []
-    private var _vconf: [[[Double]]] = [] // MARK: Not sure how I feel about this, would like to simplify into one unifying structure
+    private var _vconf: [Array<Array<Double>>] = [] // MARK: Not sure how I feel about this, would like to simplify into one unifying structure
     private var _energy: Double = 0.0
     private var _residue: [MKResidue] = []
     private var _internals: [MKInternalCoord]? = []
-    private var _mod: UInt16 = 0 
-
-
+    private var _mod: UInt16 = 0
+    
+    
     private var _natoms: Int {
         return _vatom.count
     }
@@ -81,7 +81,7 @@ class MKMol: MKBase {
     
     private func incrementMod() { self._mod += 1 }
     private func decrementMod() { self._mod -= 1 }
-
+    
     public override init() {
         super.init()
         _mod = 0;
@@ -126,11 +126,11 @@ class MKMol: MKBase {
     func getTitle() -> String {
         return self._title
     }
-
+    
     func setTitle(_ title: String) {
         self._title = title
     }
-
+    
     //! Returns a pointer to the atom after a safety check
     //! 0 < idx <= NumAtoms
     func getAtom(_ idx: Int) -> MKAtom? {
@@ -142,16 +142,16 @@ class MKMol: MKBase {
         if id >= self._vatomIds.count { return nil }
         return self._vatomIds[id]
     }
-
+    
     func getFirstAtom() -> MKAtom? {
         if self._natoms == 0 { return nil }
         return self._vatom[0]
     }
-
+    
     func getAllAtoms() -> [MKAtom] {
         return self._vatom
     }
-
+    
     func getAtomIterator() -> MKIterator<MKAtom> {
         return MKIterator<MKAtom>(self._vatom)
     }
@@ -159,19 +159,19 @@ class MKMol: MKBase {
     func getBondIterator() -> MKIterator<MKBond> {
         return MKIterator<MKBond>(self._vbond)
     }
-
+    
     //! Returns a pointer to the bond after a safety check
     //! 0 <= idx < NumBonds
     func getBond(_ idx: Int) -> MKBond? {
         if idx >= self._nbonds || idx < 0 { return nil }
         return self._vbond[idx]
     }
-
+    
     func getBondById(_ id: Int) -> MKBond? {
         if id >= self._vbondIds.count { return nil }
         return self._vbondIds[id]
     }
-
+    
     func getBond(_ bgn: MKAtom, _ end: MKAtom) -> MKBond? {
         if bgn == end { return nil }
         guard let nbrBonds = bgn.getBondIterator() else { return nil }
@@ -182,14 +182,14 @@ class MKMol: MKBase {
         }
         return nil
     }
-
+    
     func getBond(_ bgn: Int, _ end: Int) -> MKBond? {
         if bgn == end { return nil }
         guard let bgnAtom = self.getAtom(bgn) else { return nil }
         guard let endAtom = self.getAtom(end) else { return nil }
         return self.getBond(bgnAtom, endAtom)
     }
-
+    
     func numHeavyAtoms() -> Int {
         var count: Int = 0
         for atom in self.getAtomIterator() {
@@ -199,7 +199,7 @@ class MKMol: MKBase {
         }
         return count
     }
-
+    
     func getResidue(_ idx: Int) -> MKResidue? {
         if idx >= self._residue.count || idx < 0 { return nil }
         return self._residue[idx]
@@ -208,46 +208,46 @@ class MKMol: MKBase {
     func getInternalCoord() -> [MKInternalCoord]? {
         return nil
     }
-
+    
     //! Implements <a href="http://qsar.sourceforge.net/dicts/blue-obelisk/index.xhtml#findSmallestSetOfSmallestRings">blue-obelisk:findSmallestSetOfSmallestRings</a>.
     func getSSSR() -> [MKRing] {
         if !self.hasSSSRPerceived() {
             self.findSSSR()
         }
-
-        var ringData = MKRingData() 
+        
+        var ringData = MKRingData()
         if !self.hasData("SSSR") {
             ringData.setAttribute("SSSR")
             self.setData(ringData)
         }
-
+        
         ringData = self.getData("SSSR") as! MKRingData
         ringData.setOrigin(.perceived)
         return ringData.getData()
     }
-
+    
     func getLSSR() -> [MKRing] {
         if !self.hasLSSRPerceived() {
             self.findLSSR()
         }
-
-        var ringData = MKRingData() 
+        
+        var ringData = MKRingData()
         if !self.hasData("LSSR") {
             ringData.setAttribute("LSSR")
             self.setData(ringData)
         }
-
+        
         ringData = self.getData("LSSR") as! MKRingData
         ringData.setOrigin(.perceived)
         return ringData.getData()
     }
-
-
+    
+    
     // TODO: Merge these two into one base function with a boolean parameter
     func getMolWt(_ implicitH: Bool) -> Double {
         var molWt: Double = 0.0
         let hMass = MKElements.getMass(1)
-
+        
         for atom in self.getAtomIterator() {
             molWt += atom.getAtomicMass()
             if implicitH {
@@ -256,11 +256,11 @@ class MKMol: MKBase {
         }
         return molWt
     }
-
+    
     func getExactMass(_ implicitH: Bool) -> Double {
         var molWt: Double = 0.0
         let hMass = MKElements.getMass(1)
-
+        
         for atom in self.getAtomIterator() {
             molWt += atom.getExactMass()
             if implicitH {
@@ -268,6 +268,10 @@ class MKMol: MKBase {
             }
         }
         return molWt
+    }
+    
+    func numConformers() -> Int {
+        return self._vconf.isEmpty ? 0 : self._vconf.count
     }
 
     //! Stochoimetric formula in spaced format e.g. C 4 H 6 O 1
@@ -506,7 +510,7 @@ class MKMol: MKBase {
         //Clear flags except OB_PATTERN_STRUCTURE which is left the same
         self._flags &= OB_PATTERN_STRUCTURE
 
-        self._c = Array(repeating: 0.0, count: 3)
+        self._c = []
         self._mod = 0
     }
 
@@ -515,12 +519,50 @@ class MKMol: MKBase {
     // private func destroyBond(_ bond: MKBond) { }
     // private func destroyResidue(_ residue: MKResidue) { }
 
-    func deleteAtom(_ atom: MKAtom) {
+    func deleteAtom(_ atom: MKAtom, _ destroyAtom: Bool = false) -> Bool {
+        if atom.getAtomicNum() == 1 {
+            return self.deleteHydrogen(atom)
+        }
         
+        self.beginModify()
+        //don't need to do anything with coordinates b/c
+        //BeginModify() blows away coordinates
+        
+        //delete bonds to neighbors
+        if var bonds = atom.getBondIterator() {
+            for bond in bonds {
+                self.deleteBond(bond)
+            }
+        }
+        
+        self._vatomIds.remove(at: atom.getId().rawValue)
+        self._vatom.remove(at: atom.getIdx())
+        
+        //reset all the indices to the atoms
+        var _idx = 0
+        for atomi in self.getAtomIterator() {
+            atom.setIdx(_idx)
+            _idx += 1
+        }
+        
+        self.endModify(false)
+        
+        // Delete any stereo objects involving this atom
+        let id: Ref = .Ref(atom.getId().rawValue)
+        MKMol.deleteStereoOnAtom(self, id)
+        
+//        if destroyAtom {}
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
     }
 
-    func deleteBond(_ bond: MKBond) {
-        
+    func deleteResidue(_ residue: MKResidue, _ destroyResidue: Bool = false) -> Bool {
+        return false
+    }
+    
+    func deleteBond(_ bond: MKBond, _ destroyBond: Bool = false) -> Bool {
+        return false
     }
 
 
@@ -532,8 +574,13 @@ class MKMol: MKBase {
         return self._vbond.count
     }
 
-    func addBond(_ start_idx: Int, _ end_idx: Int, _ type: Int) {}
+    func addBond(_ first: Int, _ second: Int, _ order: Int, _ flags: Int = 0, insertpos: Int = -1) -> Bool {
+        return false
+    }
 
+    func addBond(_ bond: MKBond) -> Bool {
+        return false
+    }
 
     func automaticPartialCharge() -> Bool {
         return false
@@ -585,7 +632,7 @@ class MKMol: MKBase {
 
         //if atoms present convert coords into array
         var idx = 0
-        var c: [[Double]] = []
+        var c: Array<Array<Double>> = []
         for atom in self._vatom {
             atom.setIdx(idx+1)
             c.append(atom.getVector().scalars)
@@ -941,8 +988,8 @@ class MKMol: MKBase {
         self.decrementMod()
         
         if atomIdx != self.numAtoms() {
-            let idx = atom.getCoordinateIdx()
-            let size = self.numAtoms() - atom.getIdx()
+            let idx = Int(atom.getCoordinateIdx())
+//            let size = self.numAtoms() - atom.getIdx()
 //            Resize the _vconf arrays to not include this atom 
             for i in 0..<self._vconf.count {
                 self._vconf[i].removeSubrange(idx..<idx+3)
@@ -952,7 +999,269 @@ class MKMol: MKBase {
         // Deleting hydrogens does not invalidate the stereo objects
         // - however, any explicit refs to the hydrogen atom must be
         //   converted to implicit refs
+        let ref = Ref(rawValue: atom.getId().rawValue)
+        stereoRefToImplicit(self, ref!)
+//      Cast Ref back to int
+        var id = 0
+        switch ref {
+        case .Ref(let value):
+            id = value
+        default:
+            id = 0
+//            MARK: Throw error here since this should never error
+        }
         
+        self._vatomIds.remove(at: id)
+        self._vatom.remove(at: id)
+        var _idx = 1
+        //reset all the indices to the atoms
+        for atom in self._vatom {
+            atom.setIdx(_idx)
+            _idx += 1
+        }
+        
+        self.setHydrogensAdded(false)
+//        destroy atom??
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+        
+    }
+    
+    /*
+      this has become a wrapper for backward compatibility
+    */
+    
+    func addHydrogens(_ polaronly: Bool, _ correctForPH: Bool, _ pH: Double) -> Bool {
+        return self.addNewHydrogens(polaronly ? .PolarHydrogen : .AllHydrogen, correctForPH, pH)
+    }
+    
+    private func atomIsNSOP(_ atom: MKAtom) -> Bool {
+        switch atom.getAtomicNum() {
+        case MKElements.getAtomicNum("N"), MKElements.getAtomicNum("S"), MKElements.getAtomicNum("O") ,MKElements.getAtomicNum("P"):
+            return true
+        default:
+            return false
+        }
+    }
+    
+    //! \return a "corrected" bonding radius based on the hybridization.
+    //! Scales the covalent radius by 0.95 for sp2 and 0.90 for sp hybrids
+    func correctedBondRad(_ ele: Int, _ hyb: Int) -> Double {
+        let rad: Double = MKElements.getCovalentRad(ele)
+        switch (hyb) {
+            case 2:
+                return rad * 0.95
+            case 1:
+                return rad * 0.90
+            default:
+                return rad
+        }
+    }
+    
+    func addNewHydrogens(_ whichHydrogen: HydrogenType, _ correctForPH: Bool, _ pH: Double = 0.0) -> Bool {
+        
+        if !self.isCorrectedForPH() && correctForPH {
+            return self.correctForPH(pH)
+        }
+        
+        if self.hasHydrogensAdded() {
+            return true
+        }
+        
+        var hasChiralityPerceived = self.hasChiralityPerceived()
+        
+        /*
+        //
+        // This was causing bug #1892844 in avogadro. We also want to add hydrogens if the molecule has no bonds.
+        //
+        if(NumBonds()==0 && NumAtoms()!=1)
+        {
+        obErrorLog.ThrowError(__FUNCTION__,
+        "Did not run OpenBabel::AddHydrogens on molecule with no bonds", obAuditMsg);
+        return true;
+        }
+        */
+//        TODO: Add logging here of which hydrogen was used
+        
+        // Make sure we have conformers (PR#1665519)
+        if !self._vconf.isEmpty && !self.isEmpty() {
+            for atom in self.getAtomIterator() {
+                atom.setVector()
+            }
+        }
+        
+        self.setHydrogensAdded(true) // This must come after EndModify() as EndModify() wipes the flags
+        // If chirality was already perceived, remember this (to avoid wiping information
+        if hasChiralityPerceived {
+            self.setChiralityPerceived(true)
+        }
+        
+        //count up number of hydrogens to add
+        
+        var count = 0
+        var hcount = 0
+        
+        var vhadd: [Pair<MKAtom, Int>] = []
+        
+        for atom in self.getAtomIterator() {
+            if whichHydrogen == .PolarHydrogen && !self.atomIsNSOP(atom) { continue }
+            if whichHydrogen == .NonPolarHydrogen && self.atomIsNSOP(atom) { continue }
+            
+            hcount = Int(atom.getImplicitHCount())
+            atom.setImplicitHCount(0)
+            
+            if hcount != 0 {
+                vhadd.append((atom, hcount))
+                count += hcount
+            }
+        }
+        
+        if count == 0 {
+            // Make sure to clear SSSR and aromatic flags we may have tripped above
+            self._flags = (~(OB_SSSR_MOL | OB_AROMATIC_MOL))
+            return true
+        }
+                
+        //realloc memory in coordinate arrays for new hydrogens
+//        MARK: Not really a thing in Swift....
+        
+        self.incrementMod()
+        
+        let hbrad = self.correctedBondRad(1, 0)
+        
+        for k in vhadd {
+            let atom = k.0
+            let bondlen = hbrad + self.correctedBondRad(atom.getAtomicNum(), atom.getHyb())
+            
+            for _ in 0..<k.1 {
+                var badh = 0
+                for n in 0..<self.numConformers() {
+                    self.setConformer(n)
+                    if self.hasNonZeroCoords() { // MARK: Move check for coords to be per loop                                       since conformers is changing
+                        // Ensure that add hydrogens only returns finite coords
+                        //atom->GetNewBondVector(v,bondlen);
+                        let v = MKBuilder.sharedInstance.getNewBondVector(atom, bondlen)
+                        if v.x.isFinite || v.y.isFinite || v.z.isFinite { // MARK: Why are we only ensuring one??
+                            self._c[self.numAtoms()*3]       = v.x
+                            self._c[(self.numAtoms()*3) + 1] = v.y
+                            self._c[(self.numAtoms()*3) + 2] = v.z
+                        } else {
+                            self._c[self.numAtoms()*3]       = 0.0
+                            self._c[(self.numAtoms()*3) + 1] = 0.0
+                            self._c[(self.numAtoms()*3) + 2] = 0.0
+//                          MARK: Throw error here, or log error
+                            print("AddHydrogens -- no reasonable bond geometry for desired hydrogen")
+                            badh+=1
+                        }
+                    } else {
+                        self._c.reserveCapacity(self.numAtoms()+3)
+                    }
+                }
+                if badh == 0 || badh < self.numConformers() {
+                    // Add the new H atom to the appropriate residue list
+                    //but avoid doing perception by checking for existence of residue
+                    //just in case perception is trigger, make sure GetResidue is called
+                    //before adding the hydrogen to the molecule
+                    let h = self.newAtom()
+                    h.setType("H")
+                    h.setAtomicNum(1)
+                    let aname = "H"
+                    
+                    if let res = atom.getResidue() {
+                        res.addAtom(h)
+                        res.setAtomID(h, aname)
+                        //hydrogen should inherit hetatm status of heteroatom (default is false)
+                        if res.isHetAtom(atom) {
+                            res.setHtmAtom(h, true)
+                        }
+                    }
+                    
+                    let bondFlags = 0
+//                    MARK: Error catch here
+                    _ = self.addBond(atom.getIdx(), h.getIdx(), 1, bondFlags)
+                    h.setCoordPtr(self._c)
+                    implicitRefToStereo(self, .Ref(atom.getId().rawValue), .Ref(h.getId().rawValue))
+                }
+            }
+        }
+        
+        self.decrementMod()
+        
+        //reset atom type and partial charge flags
+        self._flags &= (~(OB_PCHARGE_MOL|OB_ATOMTYPES_MOL|OB_SSSR_MOL|OB_AROMATIC_MOL|OB_HYBRID_MOL))
+
+        return true
+    }
+    
+    func addPolarHydrogens() -> Bool {
+        return self.addNewHydrogens(.PolarHydrogen, false)
+    }
+    
+    func addNonPolarHydrogens() -> Bool {
+        return self.addNewHydrogens(.NonPolarHydrogen, false)
+    }
+    
+    func addHydrogens(_ atom: MKAtom) -> Bool {
+        let hcount = atom.getImplicitHCount()
+        if hcount == 0 { return true }
+        
+        atom.setImplicitHCount(0)
+        
+        let vhadd: [Pair<MKAtom, UInt>] = [(atom, hcount)]
+        
+        //realloc memory in coordinate arrays for new hydroges
+//        MARK: Not applicable to Swift...
+        self.incrementMod()
+        let hbrad = self.correctedBondRad(1, 0)
+        for k in vhadd {
+            let atom = k.0
+            let bondlen = hbrad + self.correctedBondRad(atom.getAtomicNum(), atom.getHyb())
+            for _ in 0..<k.1 {
+                for n in 0..<self.numConformers() {
+                    self.setConformer(n)
+                    let v = MKBuilder.sharedInstance.getNewBondVector(atom, bondlen)
+                    self._c[self.numAtoms()*3]       = v.x
+                    self._c[(self.numAtoms()*3) + 1] = v.y
+                    self._c[(self.numAtoms()*3) + 2] = v.z
+                }
+                let h = self.newAtom()
+                h.setType("H")
+                h.setAtomicNum(1)
+                
+                let bondFlags = 0
+//                    MARK: Error catch here
+                _ = self.addBond(atom.getIdx(), h.getIdx(), 1, bondFlags)
+                h.setCoordPtr(self._c)
+                implicitRefToStereo(self, .Ref(atom.getId().rawValue), .Ref(h.getId().rawValue))
+            }
+        }
+
+        self.decrementMod()
+        self.setConformer(0)
+        //reset atom type and partial charge flags
+        //_flags &= (~(OB_PCHARGE_MOL|OB_ATOMTYPES_MOL));
+        return true
+    }
+    
+    // Used by DeleteAtom below. Code based on StereoRefToImplicit
+    static func deleteStereoOnAtom(_ mol: MKMol, _ atomId: Ref) {
+        guard let vdata = mol.getDataVector(.StereoData) else { return }
+        for dat in vdata {
+            let dataType: MKStereo.TType = (dat as! MKStereoBase).getType()
+            if dataType != .CisTrans && dataType != .Tetrahedral {
+                print("This function should be updated to handle additional stereo types.\nSome stereochemistry objects may contain explicit refs to hydrogens which have been removed.")
+                continue
+            }
+            
+            if dataType == .CisTrans {
+                let ct = (dat as? MKCisTransStereo)
+//                let ct_cfg = ct.getConfig()
+//                TODO: IMPL
+            } else if dataType == .Tetrahedral {
+//                TODO: IMPL
+            }
+        }
         
     }
     
@@ -967,7 +1276,12 @@ class MKMol: MKBase {
     }
     
     func hasNonZeroCoords() -> Bool {
-        return false
+        for atom in self.getAtomIterator() {
+            if atom.getVector() == VZero {
+                return false
+            }
+        }
+        return true
     }
     
     func hasAromaticPerceived() -> Bool {
@@ -1028,6 +1342,10 @@ class MKMol: MKBase {
     
     func isPeriodic() -> Bool {
         return self.hasFlag(OB_PERIODIC_MOL)
+    }
+    
+    func isCorrectedForPH() -> Bool {
+        return self.hasFlag(OB_PH_CORRECTED_MOL)
     }
     
 //    MARK: Set Functions
@@ -1132,6 +1450,12 @@ class MKMol: MKBase {
     //! Does not automatically recalculate bonding.
     func setPeriodicMol(_ value: Bool) {
         self.set_or_unsetFlag(OB_PERIODIC_MOL, value)
+    }
+    
+    func setConformer(_ i: Int) {
+        if i < self._vconf.count {
+            self._c = self._vconf[i].flatMap({ $0 })
+        }
     }
 
     
@@ -1401,8 +1725,9 @@ class MKMol: MKBase {
         let v2x = self._c[tors[1]] - self._c[tors[2]]
         let v2y = self._c[tors[1]+1] - self._c[tors[2]+1]
         let v2z = self._c[tors[1]+2] - self._c[tors[2]+2]
-
-        let mag = sqrt(v2x * v2x + v2y * v2y + v2z * v2z)
+        
+        let mag = sqrt(pow(v2x, 2.0) + pow(v2y, 2.0) + pow(v2z, 2.0))
+        
         let x = v2x / mag
         let y = v2y / mag
         let z = v2z / mag
@@ -1567,9 +1892,85 @@ class MKMol: MKBase {
         }
     }
     
+    func correctForPH(_ pH: Double) -> Bool {
+        if self.isCorrectedForPH() {
+            return true
+        }
+//      MARK: Should probably wrap this in a try/catch block
+        MKPhModel.sharedInstance.correctForPH(self, pH)
+        
+        return true
+    }
+
+    //! \brief set spin multiplicity for H-deficient atoms
+      /**
+         If NoImplicitH is true then the molecule has no implicit hydrogens. Individual atoms
+         on which ForceNoH() has been called also have no implicit hydrogens.
+         If NoImplicitH is false (the default), then if there are any explicit hydrogens
+         on an atom then they constitute all the hydrogen on that atom. However, a hydrogen
+         atom with its _isotope!=0 is not considered explicit hydrogen for this purpose.
+         In addition, an atom which has had ForceImplH()called for it is never considered
+         hydrogen deficient, e.g. unbracketed atoms in SMILES.
+         Any discrepancy with the expected atom valency is interpreted as the atom being a
+         radical of some sort and iits _spinMultiplicity is set to 2 when it is one hydrogen short
+         and 3 when it is two hydrogens short and similarly for greater hydrogen deficiency.
+
+         So SMILES C[CH] is interpreted as methyl carbene, CC[H][H] as ethane, and CC[2H] as CH3CH2D.
+      **/
+    func assignSpinMultiplicity(_ noImplicitH: Bool) -> Bool {
+        // TODO: The following functions simply returns true, as it has been made
+        // redundant by changes to the handling of implicit hydrogens, and spin.
+        // This needs to be sorted out properly at some point.
+        return true
+    }
     
-
-
-
+    // Put the specified molecular charge on a single atom (which is expected for InChIFormat).
+    // Assumes all the hydrogen is explicitly included in the molecule,
+    // and that SetTotalCharge() has not been called. (This function is an alternative.)
+    // Returns false if cannot assign all the charge.
+    // Not robust in the general case, but see below for the more common simpler cases.
+    func assignTotalChargeToAtoms(_ charge: Int) -> Bool {
+        
+        var extraCharge = charge - self.getTotalCharge()
+        
+        for atom in self.getAtomIterator() {
+            let atomicNum = atom.getAtomicNum()
+            if atomicNum == 1 { continue }
+            let charge = atom.getFormalCharge()
+            let bosum = atom.getExplicitValence()
+            let totalValence = bosum + atom.getImplicitHCount()
+            let typicalValence = getTypicalValence(UInt(atomicNum), bosum, charge)
+            let diff = typicalValence - totalValence
+            if diff != 0 {
+                var c: Int
+                if extraCharge == 0 {
+                    c = diff > 0 ? -1 : +1 //e.g. CH3C(=O)O, NH4 respectively
+                } else {
+                    c = extraCharge < 0 ? -1 : 1
+                }
+                if totalValence == getTypicalValence(UInt(atomicNum), bosum, charge + c) {
+                    atom.setFormalCharge(charge + c)
+                    extraCharge -= c
+                }
+            }
+        }
+        
+        if extraCharge != 0 {
+//            MARK: Should return error here
+            print("Unable to assign all the charge to atoms")
+            return false
+        }
+        return true
+    }
+    /* These cases work ok
+       original      charge  result
+      [NH4]             +1   [NH4+]
+      -C(=O)[O]         -1   -C(=O)[O-]
+      -[CH2]            +1   -C[CH2+]
+      -[CH2]            -1   -C[CH2-]
+      [NH3]CC(=O)[O]     0   [NH3+]CC(=O)[O-]
+      S(=O)(=O)([O])[O] -2   S(=O)(=O)([O-])[O-]
+      [NH4].[Cl]         0   [NH4+].[Cl-]
+      */
     
 }

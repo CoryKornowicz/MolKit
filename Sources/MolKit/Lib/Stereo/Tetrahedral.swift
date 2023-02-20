@@ -1,0 +1,52 @@
+
+
+
+import Foundation 
+
+class MKTetrahedralStereo: MKTetraNonPlanarStereo {
+    
+    var m_cfg: Config
+
+    struct Config: ConfigNonPlanar {
+        
+        var center: Ref
+        var from_or_towrds: from_or_towrds
+        var winding: MKStereo.Winding
+        var view: MKStereo.View
+        var specified: Bool
+        var refs: Refs
+        
+        init() {
+            center = .NoRef
+            from_or_towrds = .from(.NoRef)
+            winding = .Clockwise
+            view = .ViewFrom
+            specified = true
+            refs = []
+        }
+        
+        init(center: Ref, from_or_towrds: from_or_towrds, winding: MKStereo.Winding, view: MKStereo.View, specified: Bool, refs: Refs) {
+            self.center = center
+            self.from_or_towrds = from_or_towrds
+            self.winding = winding
+            self.view = view
+            self.specified = specified
+            self.refs = refs
+        }        
+    }
+
+    override func getType() -> MKStereo.TType {
+        return MKStereo.TType.Tetrahedral
+    }
+
+    func isValid() -> Bool {
+        return false 
+    }
+    
+    override init(_ mol: MKMol) {
+        self.m_cfg = MKTetrahedralStereo.Config()
+        super.init(mol)
+    }
+
+
+}

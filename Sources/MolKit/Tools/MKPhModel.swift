@@ -13,4 +13,9 @@ class MKPhModel {
         
     }
     
+    func correctForPH(_ mol: MKMol, _ pH: Double) {
+        
+    }
+    
+    
 }
