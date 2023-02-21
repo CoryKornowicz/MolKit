@@ -11,6 +11,8 @@ public let SQRT_TWO_THIRDS: Double = 0.81649658092772603272
 public class MolKit {
 
     static let _SpaceGroups = MKSpaceGroups()
+    static let _AtomicHeatOfFormationTable = MKAtomicHeatOfFormationTable()
+    static let _TypeTable = MKTypeTable()
     
     init() {
         

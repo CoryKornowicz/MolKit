@@ -57,7 +57,7 @@ public class MKBase: NSObject {
         self._flags = 0
     }
 
-    func getFlag() -> UInt {
+    func getFlags() -> UInt {
         return self._flags
     }
     
@@ -231,7 +231,15 @@ public class MKBase: NSObject {
             }
         }
         return false
-    }   
+    }
+    
+    func cloneData(_ data: MKGenericData) {
+        if var vdata = self._vdata {
+            vdata.append(data)
+        } else {
+            self._vdata = []
+        }
+    }
 
     // func doTransformations(_ map: Dictionary<String,String>, _ conversion: OBConversion)
 

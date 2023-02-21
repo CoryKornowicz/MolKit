@@ -19,6 +19,24 @@ final class DataAvailabilityTests: XCTestCase {
         XCTAssert(!data.isEmpty)
     }
     
+    func testFindAtomHOF() throws {
+        
+        // Define bundle path to Data folder
+        let path = Bundle.module.url(forResource: "atomization-energies", withExtension: "txt", subdirectory: "Data")
+        let data = try String(contentsOf: path!)
+        
+        XCTAssert(!data.isEmpty)
+    }
+    
+    
+    func testFindTypeTable() throws {
+        
+        // Define bundle path to Data folder
+        let path = Bundle.module.url(forResource: "types", withExtension: "txt", subdirectory: "Data")
+        let data = try String(contentsOf: path!)
+        
+        XCTAssert(!data.isEmpty)
+    }
     
     func testFindAllDataFiles() throws {
         

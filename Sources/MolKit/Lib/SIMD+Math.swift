@@ -56,6 +56,22 @@ extension Double {
 
 }
 
+public func square(_ x: Double) -> Double {
+    return x * x
+}
+
+public func square(_ x: Float) -> Float {
+    return x * x
+}
+
+public func length_2(_ vec: Vector<Float>) -> Float {
+    return vec.map { val in square(val) }.reduce(0, +)
+}
+
+public func length_2(_ vec: Vector<Double>) -> Double {
+    return vec.map { val in square(val) }.reduce(0, +)
+}
+
 // MARK: Array Extenstions
 
 //extension Array where Element == any Sequence {
@@ -97,6 +113,14 @@ extension SIMD3 {
     
 func isNearZero<U: FloatingPoint>(_ x: U, _ epsilon: U) -> Bool {
     return abs(x) < epsilon
+}
+
+func isNearZero(_ x: Float) -> Bool {
+    isNearZero(x, 1.0e-6)
+}
+
+func isNearZero(_ x: Double) -> Bool {
+    isNearZero(x, 1.0e-6)
 }
 
 
@@ -267,6 +291,31 @@ extension Matrix where Scalar == Double {
         self[2, 2] = V / sinGamma
     }
     
+    mutating func rotAboutAxisByAngle(_ v: Vector<Double>, _ angle: Double) {
+        let theta = angle.degreesToRadians
+        let s = sin(theta)
+        let c = cos(theta)
+        let t = 1 - c
+        
+        let vtmp = normalize(v)
+        
+        let x = vtmp.x
+        let y = vtmp.y
+        let z = vtmp.z
+        
+        self[0, 0] = t * x * x + c
+        self[0, 1] = t * x * y + s * z
+        self[0, 2] = t * x * z - s * y
+
+        self[1, 0] = t * x * y - s * z
+        self[1, 1] = t * y * y + c
+        self[1, 2] = t * y * z + s * x
+
+        self[2, 0] = t * x * z + s * y
+        self[2, 1] = t * y * z - s * x
+        self[2, 2] = t * z * z + c
+    }
+
 }
 
 extension Matrix where Scalar == Float {
@@ -298,7 +347,221 @@ extension Matrix where Scalar == Float {
         self[2, 1] = 0
         self[2, 2] = V / sinGamma
     }
+
+    mutating func rotAboutAxisByAngle(_ v: Vector<Float>, _ angle: Float) {
+        let theta = angle.degreesToRadians
+        let s = sin(theta)
+        let c = cos(theta)
+        let t = 1 - c
+        
+        let vtmp = normalize(v)
+        
+        let x = vtmp.x
+        let y = vtmp.y
+        let z = vtmp.z
+        
+        self[0, 0] = t * x * x + c
+        self[0, 1] = t * x * y + s * z
+        self[0, 2] = t * x * z - s * y
+
+        self[1, 0] = t * x * y - s * z
+        self[1, 1] = t * y * y + c
+        self[1, 2] = t * y * z + s * x
+
+        self[2, 0] = t * x * z + s * y
+        self[2, 1] = t * y * z - s * x
+        self[2, 2] = t * z * z + c
+    }
     
+}
+
+extension Matrix {
+    
+    var diagonal: Vector<Scalar> {
+        let minStride = Swift.min(self.rows, self.columns)
+        let res = Vector.init(dimensions: minStride) { idx in
+            self[idx, idx]
+        }
+        return res
+    }
+    
+}
+
+public let MAX_SWEEPS = 50
+
+public func mk_make_rmat<Scalar: ExpressibleByFloatLiteral & FloatingPoint>(_ a: inout Matrix<Scalar>, _ rmat: inout Matrix<Scalar>) {
+    /*
+  	onorm, dnorm - hold the sum of diagonals and off diagonals to check Jacobi completion
+  	d[3] - holds the diagonals of the input vector, which transofrm to become the Eigenvalues
+  	r1, r2 - hold 1st two Eigenvectors
+  	v1,v2,v3 - hold orthogonal unit vectors derived from Eigenvectors
+  	
+  	The junction performs a Jacobi Eigenvalue/vector determination 
+  	(https://en.wikipedia.org/wiki/Jacobi_eigenvalue_algorithm) on the supplied
+  	Inertial Tensor in a, and returns a unit transform matrix rmat as a row matrix.
+  	To work, a must be diagonally symmetric (i.e a[i][j] = a[j][i])
+  	v starts out holding the unit matrix (i.e. no transform in co-ordinate frame), 
+  	and undergoes the same rotations as applied to the Inertial Tensor in the Jacobi
+  	process to arrive at the new co-ordinate frame.
+  	Finally, the eigenvalues are sorted in order that the largest principal moment aligns to the 
+  	new x-axis
+  	*/
+
+    var onorm, dnorm: Scalar
+    var b, dma, q, t, c, s: Scalar
+    var d: Vector<Scalar> = a.diagonal
+    var atemp, vtemp, dtemp: Scalar
+    var v: Matrix<Scalar> = Matrix.eye(rows: 3, columns: 3)
+    var r1: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
+    var r2: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
+    var v1: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
+    var v2: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
+    var v3: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
+    var k: Int
+    
+    sweep_loop: for l in 1...MAX_SWEEPS {
+        dnorm = 0.0
+        onorm = 0.0
+        for j in 0..<3 {
+            dnorm += abs(d[j])
+            // MARK: Potential error here if the comparator is backwards
+            for i in 0...j-1 {
+                onorm += abs(a[i, j])
+            }
+        }
+//        Test for convergence
+        if (onorm/dnorm <= 1.0e-12) {
+            break sweep_loop
+        }
+        
+        for j in 1..<3 {
+            for i in 0...j-1 {
+                b = a[i, j]
+                if abs(b) > 0.0 {
+                    dma = d[j] - d[i]
+                    if ((abs(dma) + abs(b)) <= abs(dma)) {
+                        t = b / dma
+                    } else {
+                        q = 0.5 * dma / b
+                        t = 1.0 / abs(q) + sqrt(1.0+q*q)
+                        if q < 0.0 {
+                            t = -t
+                        }
+                    }
+                    c = 1.0/sqrt(t * t + 1.0)
+                    s = t * c
+                    a[i, j] = 0.0
+                    /* Perform a Jacobi rotation on the supplied matrix*/
+                    for k in 0...i-1 {
+                        atemp = c * a[k, i] - s * a[k, j]
+                        a[k, j] = s * a[k, i] + c * a[k, j]
+                        a[k, i] = atemp 
+                    }
+                    for k in i+1...j-1 {
+                        atemp = c * a[i, k] - s * a[k, j]
+                        a[k, j] = s * a[i, k] + c * a[k, j]
+                        a[i, k] = atemp
+                    }
+                    for k in j+1..<3 {
+                        atemp = c * a[i, k] - s * a[j, k]
+                        a[j, k] = s * a[i, k] + c * a[j, k]
+                        a[i, k] = atemp
+                    }
+                    /* Rotate the reference frame */
+                    for k in 0..<3 {
+                        vtemp = c * v[k, i] - s * v[k, j]
+                        v[k, j] = s * v[k, i] + c * v[k, j]
+                        v[k, i] = vtemp
+                    }
+                    let ccdi = (c * c * d[i])
+                    let ccdj = (c * c * d[j])
+                    let ssdi = (s * s * d[i])
+                    let ssdj = (s * s * d[j])
+                    dtemp = ccdi + ssdj - (2.0 * c * s * b)
+                    d[j] = ssdi + ccdj + (2.0 * c * s * b)
+                    d[i] = dtemp
+                }// end if
+            } // end for i
+        }// end for j
+    }// end for l
+    
+    /* Now sort the eigenvalues and eigenvectors*/
+
+    for j in 0..<3-1 {
+        k = j
+        dtemp = d[k]
+        for i in j+1..<3 {
+            if d[i] < dtemp {
+                k = i
+                dtemp = d[k]
+            }
+        }
+
+        if k > j {
+            d[k] = d[j]
+            d[j] = dtemp
+            for i in 0..<3 {
+                dtemp = v[i, k]
+                v[i, k] = v[i, j]
+                v[i, j] = dtemp
+            }
+        }
+    }
+
+    /* Transfer the 1st two eigenvectors into r1 and r2*/
+    r1[0] = v[0, 0]
+    r1[1] = v[1, 0]
+    r1[2] = v[2, 0]
+    r2[0] = v[0, 1]
+    r2[1] = v[1, 1]
+    r2[2] = v[2, 1]
+    
+    /* Generate the 3rd unit vector for the new coordinate frame by cross product of r1 and r2*/
+    v3[0] =  (r1[1] * r2[2])
+    v3[0] -= (r1[2] * r2[1])
+    v3[1] = (-r1[0] * r2[2])
+    v3[1] += (r1[2] * r2[0])
+    v3[2] =  (r1[0] * r2[1])
+    v3[2] -= (r1[1] * r2[0])
+    
+    /* Ensure it is normalised |v3|=1 */
+    s = sqrt(v3[0]*v3[0] + v3[1]*v3[1] + v3[2]*v3[2])
+    v3[0] /= s
+    v3[1] /= s
+    v3[2] /= s
+    
+    /* Generate the 2nd unit vector for the new co-ordinate frame by cross product of v3 and r1*/
+    v2[0] =  v3[1]*r1[2] - v3[2]*r1[1]
+    v2[1] = -v3[0]*r1[2] + v3[2]*r1[0]
+    v2[2] =  v3[0]*r1[1] - v3[1]*r1[0]
+
+    /* Ensure it is normalised |v2|=1 */
+    s = sqrt(v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2])
+    v2[0] /= s
+    v2[1] /= s
+    v2[2] /= s
+
+    /* Generate the 1st unit vector for the new co-ordinate frame by cross product of v2 and v3*/
+    v1[0] =  v2[1]*v3[2] - v2[2]*v3[1]
+    v1[1] = -v2[0]*v3[2] + v2[2]*v3[0]
+    v1[2] =  v2[0]*v3[1] - v2[1]*v3[0]
+
+    /* Ensure it is normalised |v1|=1 */
+    s = sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
+    v1[0] /= s
+    v1[1] /= s
+    v1[2] /= s
+    /* Transfer to the row matrix form for the result*/ 
+    rmat[0, 0] = v1[0]
+    rmat[0, 1] = v1[1]
+    rmat[0, 2] = v1[2]
+    rmat[1, 0] = v2[0]
+    rmat[1, 1] = v2[1]
+    rmat[1, 2] = v2[2]
+    rmat[2, 0] = v3[0]
+    rmat[2, 1] = v3[1]
+    rmat[2, 2] = v3[2]
+
 }
 
 // MARK: Extension Vector

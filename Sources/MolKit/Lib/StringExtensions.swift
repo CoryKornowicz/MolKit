@@ -60,6 +60,10 @@ extension String {
     func toDouble() -> Double? {
         return NumberFormatter().number(from: self)?.doubleValue
     }
+    
+    func toInt() -> Int? {
+        return NumberFormatter().number(from: self)?.intValue
+    }
 
 }
 
@@ -95,7 +99,8 @@ extension URL
         {
             if let crow = cline,
                // the output line may contain '\n' that's why we filtered it
-               let s = String(utf8String: crow)?.filter({($0.asciiValue ?? 0) >= 32})
+//               let s = String(utf8String: crow)?.filter({($0.asciiValue ?? 0) >= 32})
+                let s = String(utf8String: crow)?.trimmingCharacters(in: .newlines)
             {
                 rowParcer(s, row_index)
             }

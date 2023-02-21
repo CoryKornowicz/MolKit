@@ -917,4 +917,9 @@ public func getTypicalValence(_ ele: UInt, _ bosum: UInt, _ charge: Int) -> UInt
     return bosum
 }
 
+public func MKAtomAssignTypicalImplicitHydrogens(_ atom: MKAtom) {
+    let bosum = atom.getExplicitValence()
+    let valence = getTypicalValence(UInt(atom.getAtomicNum()), bosum, atom.getFormalCharge())
+    atom.setImplicitHCount(valence - bosum)
+}
 

@@ -64,7 +64,7 @@ class MKMol: MKBase {
     private var _totalCharge: Int = 0
     private var _totalSpin: UInt = 0
     private var _c: Array<Double> = []
-    private var _vconf: [Array<Array<Double>>] = [] // MARK: Not sure how I feel about this, would like to simplify into one unifying structure
+    private var _vconf: Array<Array<Double>> = [] // MARK: Not sure how I feel about this, would like to simplify into one unifying structure
     private var _energy: Double = 0.0
     private var _residue: [MKResidue] = []
     private var _internals: [MKInternalCoord]? = []
@@ -188,6 +188,10 @@ class MKMol: MKBase {
         guard let bgnAtom = self.getAtom(bgn) else { return nil }
         guard let endAtom = self.getAtom(end) else { return nil }
         return self.getBond(bgnAtom, endAtom)
+    }
+    
+    func getConformer(_ i: Int) -> [Double] {
+        return self._vconf[i]
     }
     
     func numHeavyAtoms() -> Int {
@@ -558,13 +562,42 @@ class MKMol: MKBase {
     }
 
     func deleteResidue(_ residue: MKResidue, _ destroyResidue: Bool = false) -> Bool {
-        return false
+        var idx = residue.getIdx()
+        self._residue.remove(at: Int(idx))
+        var _idx = 0
+
+        for res in self._residue {
+            res.setIdx(_idx)
+            _idx += 1
+        }
+        // if destroyResidue { }
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
     }
     
     func deleteBond(_ bond: MKBond, _ destroyBond: Bool = false) -> Bool {
-        return false
-    }
+        self.beginModify()
 
+        bond.getBeginAtom().deleteBond(bond)
+        bond.getEndAtom().deleteBond(bond)
+        self._vbond.remove(at: Int(bond.getIdx()))
+        self._vbondIds.remove(at: bond.getId())
+
+        //reset all the indices to the atoms
+        var _idx = 0
+        for bond in self.getBondIterator() {
+            bond.setIdx(_idx)
+            _idx += 1
+        }
+
+        self.endModify(false)
+
+        // if destroyBond { }
+        self.setSSSRPerceived(false)
+        self.setLSSRPerceived(false)
+        return true
+    }
 
     func numAtoms() -> Int {
         return self._vatom.count
@@ -572,14 +605,6 @@ class MKMol: MKBase {
     
     func numBonds() -> Int {
         return self._vbond.count
-    }
-
-    func addBond(_ first: Int, _ second: Int, _ order: Int, _ flags: Int = 0, insertpos: Int = -1) -> Bool {
-        return false
-    }
-
-    func addBond(_ bond: MKBond) -> Bool {
-        return false
     }
 
     func automaticPartialCharge() -> Bool {
@@ -609,7 +634,7 @@ class MKMol: MKBase {
         self._mod += 1 
     }
     
-    func endModify(_ nukePercievedData: Bool) {
+    func endModify(_ nukePercievedData: Bool = false) {
         if self._mod == 0 {
             print("_mod is negative - EndModify() called too many times")
             return 
@@ -632,11 +657,11 @@ class MKMol: MKBase {
 
         //if atoms present convert coords into array
         var idx = 0
-        var c: Array<Array<Double>> = []
+        var c: Array<Double> = []
         for atom in self._vatom {
             atom.setIdx(idx+1)
-            c.append(atom.getVector().scalars)
-            atom.setCoordPtr(c[idx])
+            c.append(contentsOf: atom.getVector().scalars)
+            atom.setCoordPtr(atom.getVector().scalars)
             idx += 1
         }
 
@@ -781,6 +806,58 @@ class MKMol: MKBase {
 
         // End Modify
 
+        return true
+    }
+    
+    func addBond(_ first: Int, _ second: Int, _ order: Int, _ flags: Int = 0, insertpos: Int = -1) -> Bool {
+        
+//       Does not invoke beginModify/endModify
+        
+        if first == second || (self.getBond(first, second) != nil) {
+            return false
+        }
+        
+        if first <= self.numAtoms() && second <= self.numAtoms() {
+            let bond = MKBond()
+            guard let bgn = self.getAtom(first) else { return false }
+            guard let end = self.getAtom(second) else { return false }
+            
+            bond.set(_nbonds, bgn, end, UInt(order), UInt(flags))
+            bond.setParent(self)
+            bond.setId(self._vbondIds.count)
+            self._vbondIds.append(bond)
+            
+            self._vbond.append(bond)
+            if insertpos == -1 {
+                bgn.addBond(bond)
+                end.addBond(bond)
+            } else {
+                if insertpos >= bgn.getExplicitDegree() {
+                    bgn.addBond(bond)
+                } else//need to insert the bond for the connectivity order to be preserved
+                 {    //otherwise stereochemistry gets screwed up
+                    bgn.insertBond(insertpos, bond)
+                }
+                end.addBond(bond)
+            }
+        } else {
+            //at least one atom doesn't exist yet - add to bond_q
+            self.setData(MKVirtualBond(UInt(first), UInt(second), UInt(order), flags))
+        }
+        
+        return true
+    }
+
+    func addBond(_ bond: MKBond) -> Bool {
+        if !self.addBond(bond.getBeginAtomIdx(), bond.getEndAtomIdx(), Int(bond.getBondOrder()), Int(bond.getFlags())) {
+            return false
+        }
+        
+        //copy the bond's generic data
+        for di in MKIterator(bond.getDataVector() ?? []){
+            guard let newBond = self.getBond(self.numBonds()-1) else { return false }
+            newBond.cloneData(di)
+        }
         return true
     }
 
@@ -1045,6 +1122,15 @@ class MKMol: MKBase {
         }
     }
     
+    private func isNotCorH(_ atom: MKAtom) -> Bool {
+        switch atom.getAtomicNum() {
+        case MKElements.getAtomicNum("C"), MKElements.getAtomicNum("H"):
+            return false
+        default: break
+        }
+        return true
+    }
+    
     //! \return a "corrected" bonding radius based on the hybridization.
     //! Scales the covalent radius by 0.95 for sp2 and 0.90 for sp hybrids
     func correctedBondRad(_ ele: Int, _ hyb: Int) -> Double {
@@ -1268,10 +1354,45 @@ class MKMol: MKBase {
     //    MARK: HAS/IS Functions
 
     func has2D(_ not3D: Bool = false) -> Bool {
+        var hasX, hasY: Bool
+        hasX = false
+        hasY = false
+        for atom in self.getAtomIterator() {
+            if (!hasX && !isNearZero(atom.getX())) {
+                hasX = true
+            }
+            if (!hasY && !isNearZero(atom.getY())) {
+                hasY = true
+            }
+            if (not3D && atom.getZ() != 0.0) {
+                return false
+            }
+        }
+        if hasX || hasY {
+            return true
+        }
         return false
     }
     
     func has3D() -> Bool {
+        var hasX, hasY, hasZ: Bool
+        hasX = false
+        hasY = false
+        hasZ = false
+        for atom in self.getAtomIterator() {
+            if (!hasX && !isNearZero(atom.getX())) {
+                hasX = true
+            }
+            if (!hasY && !isNearZero(atom.getY())) {
+                hasY = true
+            }
+            if (!hasZ && !isNearZero(atom.getZ())) {
+                hasZ = true
+            }
+            if hasX && hasY && hasZ {
+                return true
+            }
+        }
         return false
     }
     
@@ -1454,12 +1575,128 @@ class MKMol: MKBase {
     
     func setConformer(_ i: Int) {
         if i < self._vconf.count {
-            self._c = self._vconf[i].flatMap({ $0 })
+            self._c = self._vconf[i].compactMap({ $0 })
         }
     }
 
+    func setCoordinates(_ newCoords: Array<Double>) {
+        var noCptr = self._c.isEmpty
+        if noCptr {
+            self._c.reserveCapacity(3)
+        }
+        
+        // copy from external to internal, swift makes this easy...
+        self._c = newCoords
+        
+        if noCptr {
+            for atom in self.getAtomIterator() {
+                atom.setCoordPtr(self._c)
+            }
+            self._vconf.append(newCoords)
+        }
+    }
     
+    //! Renumber the atoms according to the order of indexes in the supplied vector
+    //! This with assemble an atom vector and call RenumberAtoms(vector<OBAtom*>)
+    //! It will return without action if the supplied vector is empty or does not
+    //! have the same number of atoms as the molecule.
+    //!
+    //! \since version 2.3
+    func renumberAtoms(_ v: [Int]) {
+        
+        if self.isEmpty() || v.count != self.numAtoms() {
+            return
+        }
+        var va: [MKAtom] = []
+        va.reserveCapacity(self.numAtoms())
+        for i in v {
+            guard let at = self.getAtom(i) else { continue }
+            va.append(at)
+        }
+        self.renumberAtoms(va)
+    }
     
+    //! Renumber the atoms in this molecule according to the order in the supplied
+    //! vector. This will return without action if the supplied vector is empty or
+    //! does not have the same number of atoms as the molecule.
+    func renumberAtoms(_ v: [MKAtom]) {
+        if self.isEmpty() { return }
+        var va = v
+        if va.isEmpty || va.count != self.numAtoms() { return }
+        
+        var bv = MKBitVec()
+        
+        for i in va {
+            bv |= i.getIdx()
+        }
+        
+        for atom in self.getAtomIterator() {
+            if !bv[atom.getIdx()] {
+                va.append(atom)
+            }
+        }
+        
+        // double *c;
+        // double *ctmp = new double [NumAtoms()*3];
+
+        // for (j = 0;j < NumConformers();++j)
+        // {
+        //     c = GetConformer(j);
+        //     for (k=0,i = va.begin();i != va.end(); ++i,++k)
+        //     memcpy((char*)&ctmp[k*3],(char*)&c[((OBAtom*)*i)->GetCoordinateIdx()],sizeof(double)*3);
+        //     memcpy((char*)c,(char*)ctmp,sizeof(double)*3*NumAtoms());
+        // }
+        // This is the C++ way of only keeping the coordinates from atoms in the va vector 
+        // in swift this is not necessary, and we can make this much shorter and easier to read
+
+        for j in 0..<self.numConformers() {
+            var c = self.getConformer(j)
+            var k = 0
+            for i in va {
+                c[k*3] = c[Int(i.getCoordinateIdx())]
+                c[k*3+1] = c[Int(i.getCoordinateIdx())+1]
+                c[k*3+2] = c[Int(i.getCoordinateIdx())+2]
+                k += 1
+            }
+        }
+        // this reads in swift as for each conformer, extract the coordinates 
+        // for each atom in the va vector, and copy their coordinates back into the c array
+        // in the necessary index, whether that is their original index or not, could be quite
+        // expensive and does need to be replaced in the future 
+
+        var k = 0
+        for i in va {
+            i.setIdx(k)
+            k += 1
+        }
+        
+        self._vatom.removeAll()
+        for i in va {
+            self._vatom.append(i)
+        }
+
+        self.deleteData(.RingData)
+        self.deleteData("OpenBabel Symmetry Classes")
+        self.deleteData("LSSR")
+        self.deleteData("SSSR")
+        self.unsetFlag(OB_LSSR_MOL)
+        self.unsetFlag(OB_SSSR_MOL)
+    }
+    
+    //check that unreasonable bonds aren't being added
+    func validAdditionalBond(_ a: MKAtom, _ n: MKAtom) -> Bool {
+        if a.getExplicitValence() == 5 && a.getAtomicNum() == 15 {
+            //only allow octhedral bonding for F and Cl
+            if n.getAtomicNum() == 9 || n.getAtomicNum() == 17 {
+                return true
+            } else {
+                return false
+            }
+        }
+        //other things to check?
+        return true
+    }
+
 //    MARK: FIND Functions
     
     //! locates all atoms for which there exists a path to 'end'
@@ -1653,9 +1890,205 @@ class MKMol: MKBase {
         
     }
     
-    
-    
 //    MARK: Island of Misfit Toys
+
+    /*! This method adds single bonds between all atoms
+    closer than their combined atomic covalent radii,
+    then "cleans up" making sure bonded atoms are not
+    closer than 0.4A and the atom does not exceed its valence.
+    It implements blue-obelisk:rebondFrom3DCoordinates.
+    */
+    func connectTheDots() {
+        
+        if self.isEmpty() { return }
+
+        if _dimension != 3 {
+            // TODO: throw exception
+            print("connectTheDots() only works in 3D")
+            return 
+        }
+
+        var atom : MKAtom
+        var maxrad: Double = 0.0
+        var zsortedAtoms: [Pair<MKAtom, Double>] = []
+        var rad: [Double] = []
+        var zsorted: [Int] = []
+        var bondCount: [Int] = []
+//        var unset = false
+
+        var c: [Double] = []
+        c.reserveCapacity(numAtoms()*3)
+        rad.reserveCapacity(numAtoms())
+        var j = 0
+        for atom in self.getAtomIterator() {
+            bondCount.append(atom.getExplicitDegree())
+            //don't consider atoms with a full valance already
+            //this is both for correctness (trust existing bonds) and performance
+            if atom.getExplicitValence() >= MKElements.getMaxBonds(atom.getAtomicNum()) { continue }
+            if atom.getAtomicNum() == 7 && atom.getFormalCharge() == 0 && atom.getExplicitValence() >= 3 { continue }
+            c[j] = atom.getX()
+            c[j+1] = atom.getY()
+            c[j+2] = atom.getZ()
+            zsortedAtoms.append((atom, atom.getZ()))
+            j+=1
+        }
+
+        zsortedAtoms.sort(by: { $0.1 < $1.1 })
+        
+        let maxx = zsortedAtoms.count
+        for j in 0..<maxx {
+            atom = zsortedAtoms[j].0
+            rad[j] = MKElements.getCovalentRad(atom.getAtomicNum())
+            maxrad = max(rad[j], maxrad)
+            zsorted.append(atom.getIdx()-1)
+        }
+        
+        var idx1, idx2 : Int
+        var d2, cutoff, zd : Double
+        var atom1, atom2, wrapped_coords: Vector<Double>
+        
+        for j in 0..<maxx {
+            let maxcutoff = square(rad[j] + maxrad + 0.45)
+            idx1 = zsorted[j]
+            for k in j+1..<maxx {
+                idx2 = zsorted[k]
+                // bonded if closer than elemental Rcov + tolerance
+                cutoff = square(rad[j] + rad[k] + 0.45)
+                // Use minimum image convention if the unit cell is periodic
+                // Otherwise, use a simpler (faster) distance calculation based on raw coordinates
+                if self.isPeriodic() {
+                    atom1 = Vector<Double>(arrayLiteral: c[idx1*3], c[idx1*3+1], c[idx1*3+2])
+                    atom2 = Vector<Double>(arrayLiteral: c[idx2*3], c[idx2*3+1], c[idx2*3+2])
+                    let unitCell = self.getData(.UnitCell) as! MKUnitCell
+                    wrapped_coords = unitCell.minimumImageCartesian(atom1 - atom2)
+                    d2 = length_2(wrapped_coords)
+                } else {
+                    zd = square(c[idx1*3+2] - c[idx2*3+2])
+                    // bigger than max cutoff, which is determined using largest radius,
+                    // not the radius of k (which might be small, ie H, and cause an early  termination)
+                    // since we sort by z, anything beyond k will also fail
+                    if zd > maxcutoff { break }
+                    
+                    d2 = square(c[idx1*3] - c[idx2*3])
+                    if d2 > cutoff {
+                        continue // x's bigger than cutoff
+                    }
+                    d2 += square(c[idx1*3+1] - c[idx2*3+1])
+                    if d2 > cutoff {
+                        continue // x^2 + y^2 bigger than cutoff
+                    }
+                    d2 += zd
+                }
+                
+                if d2 > cutoff { continue }
+                if d2 < 0.16 { // 0.4 * 0.4 = 0.16
+                    continue
+                }
+                
+                guard let atom = self.getAtom(idx1+1) else { continue }
+                guard let nbr = self.getAtom(idx2+1) else { continue }
+                
+                if atom.isConnected(nbr) { continue }
+                
+                if !self.validAdditionalBond(atom, nbr) || !validAdditionalBond(nbr, atom) { continue }
+                
+                self.addBond(idx1+1, idx2+1, 1)
+            }
+        }
+        
+        // If between BeginModify and EndModify, coord pointers are NULL
+        // setup molecule to handle current coordinates
+        if self._c.isEmpty {
+            self._c = c
+            for atom in self.getAtomIterator() {
+                atom.setCoordPtr(self._c)
+            }
+            self._vconf.append(c)
+//            unset = true
+        }
+        
+        // Cleanup -- delete long bonds that exceed max valence
+        var bond, maxbond : MKBond
+        var maxlength: Double
+        var valCount: Int
+        var changed: Bool
+        
+        self.beginModify() //prevent needless re-perception in DeleteBond
+        
+        for atom in self.getAtomIterator() {
+            
+            while atom.getExplicitValence() > MKElements.getMaxBonds(atom.getAtomicNum()) || atom.smallestBondAngle() < 45.0 {
+                // no new bonds added for this atom, just skip it
+                guard let bondIterator = atom.getBondIterator() else { break }
+                
+                guard var bond = bondIterator.next() else { break }
+                maxbond = bond
+                // Fix from Liu Zhiguo 2008-01-26
+                // loop past any bonds
+                // which existed before ConnectTheDots was called
+                // (e.g., from PDB resdata.txt)
+                valCount = 0
+                while valCount < bondCount[atom.getIdx()-1] {
+                    guard let bond = bondIterator.next() else { break }
+                    maxbond = bond
+                    valCount += 1
+                }
+                
+                // delete bonds between hydrogens when over max valence
+                if atom.getAtomicNum() == MKElements.getAtomicNum("H") {
+                    let m = bondIterator
+                    changed = false
+                    for bond in m {
+                        if bond.getNbrAtom(atom).getAtomicNum() == MKElements.getAtomicNum("H") {
+                            self.deleteBond(bond)
+                            changed = true
+                            break
+                        }
+                    }
+                    if changed {
+                        continue
+                    } else {
+                        bond = maxbond
+                    }
+                }
+                
+                maxlength = maxbond.getLength()
+                for bond in bondIterator {
+                    if bond.getLength() > maxlength {
+                        maxbond = bond
+                        maxlength = bond.getLength()
+                    }
+                }
+                self.deleteBond(maxbond)
+            }
+        }
+        self.endModify()
+        
+//        apparently, we are supposed to clear _c is the unset flag is set and resize conformers to one less
+//        TODO: find out if this matters
+//        if unset { }
+//        otherwise we just garbage clean the c tmp array, but swift does that for us
+    }
+    
+    /*! This method uses bond angles and geometries from current
+      connectivity to guess atom types and then filling empty valences
+      with multiple bonds. It currently has a pass to detect some
+      frequent functional groups. It still needs a pass to detect aromatic
+      rings to "clean up."
+      AssignSpinMultiplicity(true) is called at the end of the function. The true
+      states that there are no implict hydrogens in the molecule.
+    */
+    func percieveBondOrders() {
+        
+        if self.isEmpty() { return }
+        
+        if _dimension != 3 { return }
+        
+        
+        
+        
+    }
+    
 
     func getAngle(_ a: MKAtom, _ b: MKAtom, _ c: MKAtom) -> Double {
         return a.getAngle(b, c)
@@ -1891,6 +2324,104 @@ class MKMol: MKBase {
             i += 1
         }
     }
+    
+    func align(_ a1: MKAtom, _ a2: MKAtom, _ p1: Vector<Double>, _ p2: Vector<Double>) {
+        
+        var _children: [Int] = []
+        //find which atoms to rotate
+        self.findChildren(a1.getIdx(), a2.getIdx(), &_children)
+        _children.append(a2.getIdx())
+        
+        //find the rotation vector and angle
+        let v1 = p2 - p1
+        let v2 = a2.getVector() - a1.getVector()
+        let v3 = cross3x3(v1, v2)
+        let angle = vector_angle(v1, v2)
+        
+        //find the rotation matrix
+        var m: Matrix<Double> = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
+        m.rotAboutAxisByAngle(v3, angle)
+        
+        //rotate atoms
+        for _child in _children {
+            guard let atom = self.getAtom(_child) else { continue }
+            var v = atom.getVector()
+            v -= a1.getVector()
+            v = v * m //rotate the point
+            v += p1   //translate the vector
+            atom.setVector(v)
+        }
+        //set a1 = p1
+        a1.setVector(p1)
+    }
+    
+    func toInertialFrame() {
+        for conf in 0..<self.numConformers() {
+            self.toInertialFrame(conf)
+        }
+    }
+    
+    func toInertialFrame(_ conf: Int) {
+        
+        var center = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
+        var m: Matrix<Double> = Matrix.init(rows: 3, columns: 3, repeatedValue: 0.0)
+        var mass: Double = 0
+        var x,y,z : Double
+        
+        self.setConformer(conf)
+        
+        //find center of mass
+        for atom in self.getAtomIterator() {
+            let mi = atom.getAtomicMass()
+            center[0] += mi * atom.getX()
+            center[1] += mi * atom.getY()
+            center[2] += mi * atom.getZ()
+            mass += mi
+        }
+        
+        center[0] /= mass
+        center[1] /= mass
+        center[2] /= mass
+        
+        //calculate inertial tensor
+        for atom in self.getAtomIterator() {
+            let x = atom.getX() - center[0]
+            let y = atom.getY() - center[1]
+            let z = atom.getZ() - center[2]
+            let mi = atom.getAtomicMass()
+
+            m[0, 0] += mi * (y * y + z * z)
+            m[0, 1] -= mi * x * y
+            m[0, 2] -= mi * x * z
+            // m[1][0] -= mi*x*y
+            m[1, 1] += mi * (x * x + z * z)
+            m[1, 2] -= mi * y * z
+            // m[2][0] -= mi*x*z
+            // m[2][1] -= mi*y*z
+            m[2, 2] += mi * (x * x + y * y)
+        }
+
+        // Fill in the lower triangle using symmetry across the diagonal
+        m[1, 0] = m[0, 1]
+        m[2, 0] = m[0, 2]
+        m[2, 1] = m[1, 2]
+        
+        /* find rotation matrix for moment of inertia */
+        var rmat: Matrix<Double> = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
+        mk_make_rmat(&m, &rmat)
+        
+        /* rotate all coordinates */
+        var c = self.getConformer(conf)
+        for i in 0..<self.numAtoms() {
+            x = c[i*3]     - center[0]
+            y = c[i*3 + 1] - center[1]
+            z = c[i*3 + 2] - center[2]
+            c[i*3]     = x * rmat[0, 0] + y * rmat[0, 1] + z * rmat[0, 2]
+            c[i*3 + 1] = x * rmat[1, 0] + y * rmat[1, 1] + z * rmat[1, 2]
+            c[i*3 + 2] = x * rmat[2, 0] + y * rmat[2, 1] + z * rmat[2, 2]
+        }
+    }
+    
     
     func correctForPH(_ pH: Double) -> Bool {
         if self.isCorrectedForPH() {

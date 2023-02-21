@@ -40,5 +40,18 @@ final class MolKitTests: XCTestCase {
         XCTAssert(spacegroups.getSize() > 0)
     }
     
+    func testMKAtomicHeatOfFormationTable() throws {
+        let atomicHOFTable = MolKit._AtomicHeatOfFormationTable
+        print(atomicHOFTable.getSize())
+        XCTAssert(atomicHOFTable.getSize() > 0)
+    }
+    
+    func testMKTypeTable() throws {
+        let typeTable = MolKit._TypeTable
+        print(typeTable._ncols)
+        print(typeTable.getSize())
+        XCTAssert(typeTable.getSize() > 0)
+    }
+    
     
 }
