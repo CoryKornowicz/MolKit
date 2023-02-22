@@ -379,9 +379,6 @@ public class MKBitVec: Equatable {
         for i in 0..<min {
             lhs._set[i] &= rhs._set[i]
         }
-        for i in 0..<lhs._size {
-            lhs._set[i] = 0
-        }
     }
     
     static public func |= (lhs: inout MKBitVec, rhs: MKBitVec) {
@@ -506,6 +503,49 @@ public class MKBitVec: Equatable {
         let andBits = Double((lhs & rhs).countBits())
         let orBits = Double((lhs | rhs).countBits())
         return (andBits/orBits)
+    }
+
+    public static func / (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        let min = lhs._size < rhs._size ? lhs._size : rhs._size
+        let temp = MKBitVec(UInt32(min))
+        for i in 0..<min {
+            temp._set[i] = lhs._set[i] & rhs._set[i]
+        }
+        return temp
+    }
+    
+    public static func % (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        let min = lhs._size < rhs._size ? lhs._size : rhs._size
+        let temp = MKBitVec(UInt32(min))
+        for i in 0..<min {
+            temp._set[i] = lhs._set[i] % rhs._set[i]
+        }
+        return temp
+    }
+    
+    public static func %= (lhs: inout MKBitVec, rhs: MKBitVec) {
+        let min = lhs._size < rhs._size ? lhs._size : rhs._size
+        for i in 0..<min {
+            lhs._set[i] %= rhs._set[i]
+        }
+    }
+    
+    public static func * (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        let min = lhs._size < rhs._size ? lhs._size : rhs._size
+        let temp = MKBitVec(UInt32(min))
+        for i in 0..<min {
+            temp._set[i] = lhs._set[i] * rhs._set[i]
+        }
+        return temp
+    }
+        
+    public static func + (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        let min = lhs._size < rhs._size ? lhs._size : rhs._size
+        let temp = MKBitVec(UInt32(min))
+        for i in 0..<min {
+            temp._set[i] = lhs._set[i] + rhs._set[i]
+        }
+        return temp
     }
 
 }
