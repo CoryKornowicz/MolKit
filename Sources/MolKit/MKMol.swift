@@ -1109,7 +1109,7 @@ class MKMol: MKBase {
       this has become a wrapper for backward compatibility
     */
     
-    func addHydrogens(_ polaronly: Bool, _ correctForPH: Bool, _ pH: Double) -> Bool {
+    func addHydrogens(_ polaronly: Bool, _ correctForPH: Bool, _ pH: Double = 0.0) -> Bool {
         return self.addNewHydrogens(polaronly ? .PolarHydrogen : .AllHydrogen, correctForPH, pH)
     }
     

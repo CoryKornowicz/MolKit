@@ -154,9 +154,17 @@ struct AtomSpec {
 //! \brief A SMARTS parser internal pattern
 struct Pattern {
     var aalloc: Int = 0
-    var acount: Int = 0
+    var acount: Int  {
+        get {
+            return atom.count
+        }
+    }
     var balloc: Int = 0
-    var bcount: Int = 0
+    var bcount: Int {
+        get {
+            return bond.count
+        }
+    }
     var isChiral: Bool = false
     var atom: [AtomSpec] = []
     var bond: [BondSpec] = []
@@ -167,9 +175,9 @@ struct Pattern {
 //! \struct ParseState parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal state
 struct ParseState {
-    var closord: [_BondExpr]
-    var closure: [Int]
-    var closindex: Int
+    var closord: [_BondExpr] = []
+    var closure: [Int] = []
+    var closindex: Int = 0
 }
 
 
@@ -242,16 +250,21 @@ class MKSmartsPattern {
     //! \param dst The index of the end atom
     //! \param ord The bond order of this bond
     //! \param idx The index of the bond in the SMARTS pattern
-    func getBond(_ src: Int, _ dst: Int, _ ord: Int, _ idx: Int) {
-        
+    func getBond(_ src: inout Int, _ dst: inout Int, _ ord: inout Int, _ idx: Int) {
+        guard let pat = _pat else { return }
+        src = pat.bond[idx].src
+        dst = pat.bond[idx].dst
+        ord = getExprOrder(pat.bond[idx].expr) 
     }
     
-    func getAtomicNum(_ idx: Int) -> Int {
-        return 0
+    func getAtomicNum(_ idx: Int) -> Int? {
+//        TODO: throw error here on nil
+        return getExprAtomicNum((_pat?.atom[idx].expr)!)
     }
     
-    func getCharge(_ idx: Int) -> Int {
-        return 0
+    func getCharge(_ idx: Int) -> Int? {
+        //        TODO: throw error here on nil
+        return getExprCharge((_pat?.atom[idx].expr)!)
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -261,7 +274,15 @@ class MKSmartsPattern {
     //! \param single Whether only a single match is required (faster). Default is false.
     //! \return Whether matches occurred
     func match(_ mol: MKMol, _ single: Bool = false) -> Bool {
-        return false
+        let matcher = MKSmartsMatcher()
+        guard let _pat = _pat else { return false }
+        if _pat.hasExplicitH { //The SMARTS pattern contains [H]
+            //Do matching on a copy of mol with explicit hydrogens
+            var tmol = mol
+            tmol.addHydrogens(false, false)
+            return matcher.match(tmol, _pat, &_mlist, single)
+        }
+        return matcher.match(mol, _pat, &_mlist, single)
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -272,8 +293,42 @@ class MKSmartsPattern {
     //! \param mlist The resulting match list
     //! \param mtype The match type to use. Default is All.
     //! \return Whether matches occurred
-    func match(_ mol: MKMol, _ mlist: [[Int]], _ mtype: MatchType = .All) -> Bool {
-        return false
+    func match(_ mol: MKMol, _ mlist: inout [[Int]], _ mtype: MatchType = .All) -> Bool {
+        let matcher = MKSmartsMatcher()
+        mlist.removeAll()
+        guard let _pat = _pat else { return false }
+
+        if _pat.hasExplicitH { //The SMARTS pattern contains [H]
+            //Do matching on a copy of mol with explicit hydrogens
+            let tmol = mol
+            tmol.addHydrogens(false, false)
+            if !matcher.match(tmol, _pat, &mlist, mtype == .Single) { return false }
+        } else if !matcher.match(mol, _pat, &mlist, mtype == .Single) { return false }
+
+        if mtype == .AllUnique && mlist.count > 1 {
+            //uniquify
+            var ok = true
+            var bv = MKBitVec()
+            var vbv: [MKBitVec] = []
+            var ulist: [[Int]] = []
+
+            for i in 0..<mlist.count {
+                ok = true
+                bv.clear()
+                bv.fromVecInt(mlist[i])
+                for j in 0..<vbv.count {
+                    if ok && bv == vbv[j] {
+                        ok = false
+                    }
+                }
+                if ok {
+                    ulist.append(mlist[i])
+                    vbv.append(bv)
+                }
+            }
+            mlist = ulist
+        }
+        return true 
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -282,15 +337,69 @@ class MKSmartsPattern {
     //! \param mol The molecule to use for matching
     //! \return Whether there exists any match
     func hasMatch(_ mol: MKMol) -> Bool {
-        return false
+        var dummy: [[Int]] = []
+        return match(mol, &dummy, .Single)
     }
     
-    func restrictedMatch(_ mol: MKMol, _ pairs: [Pair<Int, Int>], _ single: Bool = false) -> Bool {
-        return false
+    func restrictedMatch(_ mol: MKMol, _ pr: [Pair<Int, Int>], _ single: Bool = false) -> Bool {
+        var ok = false 
+        var mlist: [[Int]] = []
+        guard let _pat = _pat else { return false }
+        let matcher = MKSmartsMatcher()
+        matcher.match(mol, _pat, &mlist)
+        
+        _mlist.removeAll()
+        if mlist.isEmpty { return false }
+        
+        let mlistIterator = mlist.makeIterator()
+        let prIterator = pr.makeIterator()
+        
+        for i in mlistIterator {
+            ok = true
+            for j in prIterator {
+                if ok && (i[j.0] != j.1) {
+                    ok = false
+                }
+            }
+            if ok {
+                _mlist.append(i)
+            }
+            if single && !_mlist.isEmpty {
+                return true
+            }
+        }
+        return _mlist.isEmpty ? false : true
     }
-    
-    func restrictedMatch(_ mol: MKMol, _ bv: MKBitVec, _ single: Bool = false) -> Bool {
-        return false
+
+    func restrictedMatch(_ mol: MKMol, _ vres: MKBitVec, _ single: Bool = false) -> Bool {
+        var ok = false
+        var mlist: [[Int]] = []
+        guard let _pat = _pat else { return false }
+        let matcher = MKSmartsMatcher()
+        matcher.match(mol, _pat, &mlist)
+        
+        _mlist.removeAll()
+        if mlist.isEmpty { return false }
+        
+        let mlistIterator = mlist.makeIterator()
+        
+        for i in mlistIterator {
+            ok = true
+            for j in i.makeIterator() {
+                if !vres[j] {
+                    ok = false
+                    break
+                }
+            }
+            if !ok {
+                continue
+            }
+            _mlist.append(i)
+            if single && !_mlist.isEmpty {
+                return true
+            }
+        }
+        return _mlist.isEmpty ? false : true
     }
     
     //! \return the number of non-unique SMARTS matches
@@ -320,7 +429,7 @@ class MKSmartsPattern {
         }
         
         var ok: Bool
-        var bv: MKBitVec = MKBitVec()
+        let bv: MKBitVec = MKBitVec()
         var vbv: [MKBitVec] = []
         var mlist: [[Int]] = []
         
@@ -381,8 +490,44 @@ class MKSmartsPattern {
         return self.parseSMARTSPart(&result, 0)
     }
     
-    private func parseSMARTSPart(_ pat: inout Pattern, _ idx: Int) -> Pattern? {
-        return nil
+    private func parseSMARTSPart(_ result: inout Pattern, _ part: Int) -> Pattern? {
+        
+        var stat: ParseState = ParseState()
+        stat.closure.reserveCapacity(100)
+        var flag: Bool
+
+        for i in 0..<100 {
+            stat.closure[i] =  -1
+        }
+
+        var result: Pattern? = SMARTSParser(&result, &stat, -1, part)
+
+        flag = false 
+        for i in 0..<100 {
+            if stat.closure[i] != -1 {
+                flag = true
+            }
+        }
+
+        if var result = result {
+            if flag {
+                // TODO: throw error here
+                print("SMARTS Error")
+                return result
+            } else {
+                markGrowBonds(&result)
+                result.isChiral = false
+                for i in 0..<result.acount {
+                    result.atom[i].chiral_flag = getChiralFlag(result.atom[i].expr)
+                    if (result.atom[i].chiral_flag != nil) {
+                        result.isChiral = true
+                    }
+                }
+                return result
+            }
+        } else {
+            return nil
+        }
     }
     
     // private func SMARTSError(_ pat: Pattern) -> Pattern {}
@@ -859,6 +1004,70 @@ class MKSmartsPattern {
     }
     
     private func parseAtomExpr(_ level: Int) -> _AtomExpr? {
+        var expr1: _AtomExpr?
+        var expr2: _AtomExpr?
+        var prev: Character
+        
+        switch level {
+        case 0: /* Low Precedence Conjunction */
+            expr1 = parseAtomExpr(1) ?? nil
+            if expr1 != nil  {
+                repeat {
+                    self.LexPtr.inc()
+                    expr2 = parseAtomExpr(1) ?? nil
+                    if expr2 != nil {
+//                        MARK: probably need better error handling here but they should not be nil
+                        expr1 = buildAtomBinary(AE_ANDLO, expr1!, expr2!)
+                    } else { return nil}
+                } while self.LexPtr.cur() == ";"
+            } else { return nil }
+            return expr1
+        case 1: /* Disjunction */
+            expr1 = parseAtomExpr(2) ?? nil
+            if expr1 != nil  {
+                repeat {
+                    self.LexPtr.inc()
+                    expr2 = parseAtomExpr(2) ?? nil
+                    if expr2 != nil {
+//                        MARK: probably need better error handling here but they should not be nil
+                        expr1 = buildAtomBinary(AE_OR, expr1!, expr2!)
+                    } else { return nil}
+                } while self.LexPtr.cur() == ","
+            } else { return nil }
+            return expr1
+        case 2: /* High Precedence Conjunction */
+            expr1 = parseAtomExpr(3) ?? nil
+            if expr1 != nil  {
+                repeat {
+                    if self.LexPtr.cur() == "&" {
+                        self.LexPtr.inc()
+                    }
+                    prev = self.LexPtr.cur()
+                    expr2 = parseAtomExpr(3) ?? nil
+                    if expr2 == nil {
+                        if prev != self.LexPtr.cur() {
+                            return nil
+                        } else { return expr1 }
+                    } else {
+                        expr1 = buildAtomBinary(AE_ANDHI, expr1!, expr2!)
+                    }
+                } while ((self.LexPtr.cur() != "]") &&
+                         (self.LexPtr.cur() != ";") &&
+                         (self.LexPtr.cur() != ",") && !self.LexPtr.empty())
+            } else { return nil }
+            return expr1
+        case 3: /* Negation or Primitive */
+            if self.LexPtr.cur() == "!" {
+                self.LexPtr.inc()
+                expr1 = parseAtomExpr(3) ?? nil
+                if expr1 != nil {
+                    buildAtomNot(expr1!)
+                } else { return nil }
+            }
+            return parseComplexAtomPrimitive()
+        default: break
+        }
+ 
         return nil
     }
     
@@ -901,8 +1110,20 @@ class MKSmartsPattern {
     func getVectorBinding(_ idx: Int) -> Int {
         return _pat?.atom[idx].vb ?? 0
     }
+
+    func getVectorBinding() -> Int {
+        var vb = 0
+        self.LexPtr.inc()
+        if self.LexPtr.cur().isNumber {
+            vb = 0
+            while self.LexPtr.cur().isNumber {
+                vb = vb * 10 + (self.LexPtr.next()?.wholeNumberValue)!
+            }
+        }
+        return vb
+    }
     
-    private func SMARTSParser(_ pat: Pattern, _ stat: ParseState, _ prev: Int, _ part: Int) -> Pattern? {
+    private func SMARTSParser(_ pat: inout Pattern, _ stat: inout ParseState, _ prev: Int, _ part: Int) -> Pattern? {
         return nil 
     }
 
@@ -1031,14 +1252,12 @@ func generateDefaultBond() -> _BondExpr {
 func createAtom(_ pat: inout Pattern, _ expr: _AtomExpr, _ part: Int, _ vb: Int) -> Int {
     let tmp = AtomSpec(expr: expr, part: part, vb: vb)
     pat.atom.append(tmp)
-    pat.acount += 1
     return pat.acount
 }
 
 func createBond(_ pat: inout Pattern, _ expr: _BondExpr, _ src: Int, _ dst: Int) -> Int {
     let tmp = BondSpec(expr: expr, src: src, dst: dst)
     pat.bond.append(tmp)
-    pat.bcount += 1
     return pat.bcount
 }
 
@@ -1089,6 +1308,102 @@ func getChiralFlag(_ expr: _AtomExpr) -> Int {
 
 }
 
+func getExprCharge(_ expr: _AtomExpr) -> Int {
+    switch expr {
+    case .leaf(let _expr1):
+        if (expr as! _AtomExprProtocol).type == AE_CHARGE {
+            return _expr1.value
+        }
+    case .mon(let expr1):
+        break
+    case .bin(let expr1):
+        if (expr as! _AtomExprProtocol).type == AE_OR {
+            var tmp1 = getExprCharge(expr1.lft)
+            if tmp1 == 0  { return 0 }
+            var tmp2 = getExprCharge(expr1.rgt)
+            if tmp2 == 0 { return 0 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+        if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
+           (expr as! _AtomExprProtocol).type == AE_ANDLO {
+            var tmp1 = getExprCharge(expr1.lft)
+            var tmp2 = getExprCharge(expr1.rgt)
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+    case .recur(_):
+        break
+    }
+    return 0
+}
+
+func getExprAtomicNum(_ expr: _AtomExpr) -> Int {
+    switch expr {
+    case .leaf(let _expr1):
+        if (expr as! _AtomExprProtocol).type == AE_ELEM ||
+           (expr as! _AtomExprProtocol).type == AE_AROMELEM || 
+           (expr as! _AtomExprProtocol).type == AE_ALIPHELEM {
+            return _expr1.value
+        }
+    case .mon(let expr1):
+        break
+    case .bin(let expr1):
+        if (expr as! _AtomExprProtocol).type == AE_OR {
+            var tmp1 = getExprAtomicNum(expr1.lft)
+            if tmp1 == 0  { return 0 }
+            var tmp2 = getExprAtomicNum(expr1.rgt)
+            if tmp2 == 0 { return 0 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+        if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
+           (expr as! _AtomExprProtocol).type == AE_ANDLO {
+            var tmp1 = getExprAtomicNum(expr1.lft)
+            var tmp2 = getExprAtomicNum(expr1.rgt)
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+    case .recur(_):
+        break
+    }
+    return 0
+}
+
+func getExprOrder(_ expr: _BondExpr) -> Int { 
+    switch (expr as! _BondExprProtocol).type {
+    case BE_SINGLE: return 1
+    case BE_DOUBLE: return 2
+    case BE_TRIPLE: return 3
+    case BE_QUAD: return 4
+    case BE_AROM: return 5
+
+    case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
+    case BE_ANDHI, BE_ANDLO:
+    switch expr{
+        case .bin(let expr1):
+            var tmp1 = getExprOrder(expr1.lft)
+            var tmp2 = getExprOrder(expr1.rgt)
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
+            if tmp1 == tmp2 { return tmp1 }
+        default: break
+    }
+    case BE_OR:
+    switch expr{
+        case .bin(let expr1):
+            var tmp1 = getExprOrder(expr1.lft)
+            if tmp1 == 0  { return 0 }
+            var tmp2 = getExprOrder(expr1.rgt)
+            if tmp2 == 0 { return 0 }
+            if tmp1 == tmp2 { return tmp1 }
+        default: break
+    }
+    default: break
+    }
+    return 0
+}
+
 
 class MKSmartsMatcher {
 	
@@ -1101,34 +1416,51 @@ class MKSmartsMatcher {
 
     }
 
-    private func evalAtomExpr(_ expr: _AtomExpr, _ atom: MKAtom) -> Bool {
+    func evalAtomExpr(_ expr: _AtomExpr, _ atom: MKAtom) -> Bool {
         return false 
     }
 
-    private func evalBondExpr(_ expr: _BondExpr, _ bond: MKBond) -> Bool {
+    func evalBondExpr(_ expr: _BondExpr, _ bond: MKBond) -> Bool {
         return false 
     }
-
-    private func setupAtomMatchTable(_ ttab: [[Bool]], _ pat: Pattern, _ mol: MKMol) {
-        return  
+    
+    private func setupAtomMatchTable(_ ttab: inout [[Bool]], _ pat: Pattern, _ mol: MKMol) {
+        
+        ttab.reserveCapacity(pat.acount)
+        for i in 0..<pat.acount {
+            ttab[i].reserveCapacity(mol.numAtoms()+1)
+        }
+        
+        for i in 0..<pat.acount {
+            for atom in mol.getAtomIterator() {
+                if evalAtomExpr(pat.atom[0].expr, atom) {
+                    ttab[i][atom.getIdx()] = true
+                }
+            }
+        }
     }
 
     private func fastSingleMatch(_ mol: MKMol, _ pat: Pattern, _ mlist: [[Int]]) {
 
     }
 
-    public func match(_ mol: MKMol, _ pattern: MKSmartsPattern, _ mlist: [[Int]], _ single: Bool = false) -> Bool {
+    public func match(_ mol: MKMol, _ pattern: Pattern, _ mlist: inout [[Int]], _ single: Bool = false) -> Bool {
         return false
     }
 
 }
 
+  //*******************************************************************
+  //  The OBSSMatch class performs exhaustive matching using recursion
+  //  Explicit stack handling is used to find just a single match in
+  //  match()
+  //*******************************************************************
 
   //! \brief Internal class: performs fast, exhaustive matching used to find
   //! just a single match in match() using recursion and explicit stack handling.
 class MKSSMatch {
 
-    private var _uatoms: Bool = false
+    private var _uatoms: [Bool] = []
     private var _mol: MKMol 
     private var _pat: Pattern
     private var _map: [Int] = []
@@ -1136,10 +1468,64 @@ class MKSSMatch {
     init(mol: MKMol, pat: Pattern) {
         self._mol = mol
         self._pat = pat
+
+        if !mol.isEmpty() {
+            _uatoms.reserveCapacity(mol.numAtoms()+1)
+        }
     }
 
-    func match(_ v: [[Int]], _ bidx: Int = -1) {
-
+    func match(_ mlist: inout [[Int]], _ bidx: Int = -1) {
+        let matcher = MKSmartsMatcher()
+        if bidx == -1 {
+            for atom in _mol.getAtomIterator() {
+                if matcher.evalAtomExpr(_pat.atom[0].expr, atom) {
+                    _map[0] = atom.getIdx()
+                    _uatoms[atom.getIdx()] = true
+                    match(&mlist, 0)
+                    _map[0] = 0
+                    _uatoms[atom.getIdx()] = false
+                }
+            }
+            return
+        }
+        if bidx == _pat.bcount { //save full match here
+            mlist.append(_map)
+            return
+        }
+        let grow = _pat.bond[bidx].grow != nil ? _pat.bond[bidx].grow! : false
+        if grow { //match the next bond
+            let src = _pat.bond[bidx].src
+            let dst = _pat.bond[bidx].dst
+            
+            if _map[src] <= 0 || _map[src] > _mol.numAtoms() {
+                return
+            }
+            
+            let aexpr = _pat.atom[dst].expr
+            let bexpr = _pat.bond[bidx].expr
+            
+            guard let atom = _mol.getAtom(_map[src]) else { return }
+            if let nbratoms = atom.getNbrAtomIterator() {
+                for nbr in nbratoms {
+//                    MARK: could bond be nil?
+                    if !_uatoms[nbr.getIdx()] && matcher.evalAtomExpr(aexpr, nbr) &&
+                        matcher.evalBondExpr(bexpr, atom.getBond(nbr)!) {
+                        _map[dst] = nbr.getIdx()
+                        _uatoms[nbr.getIdx()] = true
+                        match(&mlist, bidx+1)
+                        _map[dst] = 0
+                        _uatoms[nbr.getIdx()] = false
+                    }
+                }
+            }
+            
+        } else { //just check bond here
+            guard let bond = _mol.getBond(_map[_pat.bond[bidx].src],
+                                          _map[_pat.bond[bidx].src]) else { return }
+            if matcher.evalBondExpr(_pat.bond[bidx].expr, bond) {
+                match(&mlist, bidx+1)
+            }
+        }
     }
 }
 
