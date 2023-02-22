@@ -34,5 +34,8 @@ class MKCisTransStereo: MKTetraPlanarStereo {
         return .CisTrans
     }
     
+    func getConfig() -> MKCisTransStereo.Config {
+        return self.getConfig()
+    }
     
 }

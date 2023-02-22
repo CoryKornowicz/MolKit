@@ -357,11 +357,11 @@ public class MKAtom: MKBase {
         return parent
     }
     
-    func setAromatic(_ value: Bool) {
+    func setAromatic(_ value: Bool = true) {
         value ? self.setFlag(OB_AROMATIC_ATOM) : self.unsetFlag(OB_AROMATIC_ATOM)
     }
 
-    func setInRing(_ value: Bool) {
+    func setInRing(_ value: Bool = true) {
         value ? self.setFlag(OB_RING_ATOM) : self.unsetFlag(OB_RING_ATOM)
     }
     

@@ -419,7 +419,7 @@ public func mk_make_rmat<Scalar: ExpressibleByFloatLiteral & FloatingPoint>(_ a:
     var v3: Vector<Scalar> = Vector.init([0.0,0.0,0.0])
     var k: Int
     
-    sweep_loop: for l in 1...MAX_SWEEPS {
+sweep_loop: for _ in 1...MAX_SWEEPS {
         dnorm = 0.0
         onorm = 0.0
         for j in 0..<3 {

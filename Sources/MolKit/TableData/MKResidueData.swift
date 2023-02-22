@@ -31,7 +31,9 @@ class MKResidueData: MKGlobalDataBase {
     override func readFile() {
         //        Try to load contents of file
                 guard let filePath = Bundle.module.url(forResource: self._filename, withExtension: "txt", subdirectory: self._subdir) else { return }
-                
+        filePath.foreachRow { rowContent, lineNum in
+            
+        }
     }
     
     //! Sets the table to access the residue information for a specified

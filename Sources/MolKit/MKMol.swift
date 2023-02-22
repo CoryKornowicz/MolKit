@@ -1342,6 +1342,7 @@ class MKMol: MKBase {
             
             if dataType == .CisTrans {
                 let ct = (dat as? MKCisTransStereo)
+                let ct_cfg: MKCisTransStereo.Config? = ct?.getConfig()
 //                let ct_cfg = ct.getConfig()
 //                TODO: IMPL
             } else if dataType == .Tetrahedral {
@@ -1492,65 +1493,65 @@ class MKMol: MKBase {
     }
 
     //! Mark that aromaticity has been perceived for this molecule (see OBAromaticTyper)
-    func setAromaticPerceived(_ value: Bool) {
+    func setAromaticPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_AROMATIC_MOL, value)
     }
     
     //! Mark that Smallest Set of Smallest Rings has been run (see OBRing class)
-    func setSSSRPerceived(_ value: Bool) {
+    func setSSSRPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_SSSR_MOL, value)
     }
     
     //! Mark that Largest Set of Smallest Rings has been run (see OBRing class)
-    func setLSSRPerceived(_ value: Bool) {
+    func setLSSRPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_LSSR_MOL, value)
     }
     
     //! Mark that rings have been perceived (see OBRing class for details)
-    func setRingAtomsAndBondsPerceived(_ value: Bool) {
+    func setRingAtomsAndBondsPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_RINGFLAGS_MOL, value)
     }
 
     //! Mark that atom types have been perceived (see OBAtomTyper for details)
-    func setAtomTypesPerceived(_ value: Bool) {
+    func setAtomTypesPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_ATOMTYPES_MOL, value)
     }
 
     //! Mark that ring types have been perceived (see OBRingTyper for details)
-    func setRingTypesPerceived(_ value: Bool) {
+    func setRingTypesPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_RINGTYPES_MOL, value)
     }
 
     //! Mark that chains and residues have been perceived (see OBChainsParser)
-    func setChainsPerceived(_ value: Bool) {
+    func setChainsPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_CHAINS_MOL, value)
     }
 
     //! Mark that chirality has been perceived
-    func setChiralityPerceived(_ value: Bool) {
+    func setChiralityPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_CHIRALITY_MOL, value)
     }
     
     //! Mark that partial charges have been assigned
-    func setPartialChargesPerceived(_ value: Bool) {
+    func setPartialChargesPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_PCHARGE_MOL, value)
     }
 
     //! Mark that hybridization of all atoms has been assigned
-    func setHybridizationPerceived(_ value: Bool) {
+    func setHybridizationPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_HYBRID_MOL, value)
     }
 
     //! Mark that ring closure bonds have been assigned by graph traversal
-    func setClosureBondsPerceived(_ value: Bool) {
+    func setClosureBondsPerceived(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_CLOSURE_MOL, value)
     }
 
-    func setHydrogensAdded(_ value: Bool) {
+    func setHydrogensAdded(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_H_ADDED_MOL, value)
     }
 
-    func setCorrectedForPH(_ value: Bool) {
+    func setCorrectedForPH(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_PH_CORRECTED_MOL, value)
     }
 
@@ -1879,15 +1880,105 @@ class MKMol: MKBase {
     }
 
     func findRingAtomsAndBonds() {
-        
+        if self.hasFlag(OB_RINGFLAGS_MOL) { return }
+//        TODO: Catch this int response
+        findRingAtomsAndBonds2(self)
     }
 
     func findSSSR() {
+        if self.hasSSSRPerceived() { return }
+        self.setSSSRPerceived()
         
+        // Delete any old data before we start finding new rings
+        // The following procedure is slow
+        // So if client code is multi-threaded, we don't want to make them wait
+        
+        if self.hasData("SSSR") {
+            self.deleteData("SSSR")
+        }
+        
+        //get Fr�rejacque taking int account multiple possible spanning graphs
+        let frj = determineFRJ(self)
+        if frj != 0 {
+            var vr: [MKRing] = []
+            self.findRingAtomsAndBonds()
+            
+            //restrict search for rings around closure bonds
+            var cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
+                bond.isClosure() ? bond : nil
+            }
+            
+            if !cbonds.isEmpty {
+                let rs = MKRingSearch()
+                //search for all rings about closures
+                cbonds.forEach { bond in
+                    rs.addRingFromClosure(self, bond)
+                }
+                
+                rs.sortRings()
+                rs.removeRedundant(frj)
+                //store the SSSR set
+                for j in rs._rlist {
+                    let ring = MKRing(j._path, numAtoms()+1)
+                    ring.setParent(self)
+                    vr.append(ring)
+                }
+            }
+            
+            let rd = MKRingData()
+            rd.setOrigin(.perceived)
+            rd.setAttribute("SSSR")
+            rd.setData(vr)
+            self.setData(rd)
+        }
     }
     
     func findLSSR() {
+        if self.hasLSSRPerceived() { return }
+        self.setLSSRPerceived()
         
+        // Delete any old data before we start finding new rings
+        // The following procedure is slow
+        // So if client code is multi-threaded, we don't want to make them wait
+        
+        if self.hasData("LSSR") {
+            self.deleteData("LSSR")
+        }
+        
+        //get frerejaque taking int account multiple possible spanning graphs
+        let frj = determineFRJ(self)
+        if frj != 0 {
+            var vr: [MKRing] = []
+            self.findRingAtomsAndBonds()
+            
+            //restrict search for rings around closure bonds
+            var cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
+                bond.isClosure() ? bond : nil
+            }
+            
+            if !cbonds.isEmpty {
+                let rs = MKRingSearch()
+                //search for all rings about closures
+                cbonds.forEach { bond in
+                    rs.addRingFromClosure(self, bond)
+                }
+                
+                rs.sortRings()
+                rs.removeRedundant(-1) // -1 means LSSR
+                //store the LSSR set
+                for j in rs._rlist {
+                    let ring = MKRing(j._path, numAtoms()+1)
+                    ring.setParent(self)
+                    vr.append(ring)
+                }
+            }
+            
+            let rd = MKRingData()
+            rd.setOrigin(.perceived)
+            rd.setAttribute("LSSR")
+            rd.setData(vr)
+            self.setData(rd)
+        }
     }
     
 //    MARK: Island of Misfit Toys
@@ -2084,9 +2175,315 @@ class MKMol: MKBase {
         
         if _dimension != 3 { return }
         
+        var atom, b, c: MKAtom
+        var v1, v2: Vector<Double>
+        var angle: Double
         
+        //  BeginModify();
+
+        // Pass 1: Assign estimated hybridization based on avg. angles
+        for atom in self.getAtomIterator() {
+            angle = atom.averageBondAngle()
+            if angle > 155.0 {
+                atom.setHyb(1)
+            } else if angle <= 155.0 && angle > 115.0 {
+                atom.setHyb(2)
+            }
+            
+            // special case for imines
+            if atom.getAtomicNum() == MKElements.getAtomicNum("N") &&
+                atom.explicitHydrogenCount() == 1 &&
+                atom.getExplicitDegree() == 2 &&
+                angle > 109.5 {
+                atom.setHyb(2)
+            } else if atom.getAtomicNum() == MKElements.getAtomicNum("N") &&
+                        atom.getExplicitDegree() == 2 &&
+                        atom.isInRing() { // azete
+                atom.setHyb(2)
+            }
+        } // pass 1
         
+        // Make sure upcoming calls to GetHyb() don't kill these temporary values
+        self.setHybridizationPerceived()
         
+        // Pass 2: look for 5-member rings with torsions <= 7.5 degrees
+        //         and 6-member rings with torsions <= 12 degrees
+        //         (set all atoms with at least two bonds to sp2)
+        
+        var path: [Int]
+        var torsions: Double = 0.0
+        
+        if !self.hasSSSRPerceived() {
+            findSSSR()
+        }
+        
+        var rlist: [MKRing] = getSSSR()
+        for ring in rlist {
+            if ring.size() == 5 {
+                path = ring._path
+                torsions = (abs(self.getTorsion(path[0], path[1], path[2], path[3])) +
+                            abs(self.getTorsion(path[1], path[2], path[3], path[4])) +
+                            abs(self.getTorsion(path[2], path[3], path[4], path[0])) +
+                            abs(self.getTorsion(path[3], path[4], path[0], path[1])) +
+                            abs(self.getTorsion(path[4], path[0], path[1], path[2]))
+                            ) / 5.0
+                if torsions <= 7.5 {
+                    for ringAtom in 0..<path.count {
+//                      TODO: No way this could possibly error...
+                        guard let b = self.getAtom(path[ringAtom]) else { break }
+                        if b.getExplicitDegree() == 2 || b.getExplicitDegree() == 3 {
+                            b.setHyb(2)
+                        }
+                    }
+                }
+            } else if ring.size() == 6 {
+                path = ring._path
+                torsions = (abs(self.getTorsion(path[0], path[1], path[2], path[3])) +
+                            abs(self.getTorsion(path[1], path[2], path[3], path[4])) +
+                            abs(self.getTorsion(path[2], path[3], path[4], path[5])) +
+                            abs(self.getTorsion(path[3], path[4], path[5], path[0])) +
+                            abs(self.getTorsion(path[4], path[5], path[0], path[1])) +
+                            abs(self.getTorsion(path[5], path[0], path[1], path[2]))
+                            ) / 6.0
+                if torsions <= 12.0 {
+                    for ringAtom in 0..<path.count {
+//                      TODO: No way this could possibly error...
+                        guard let b = self.getAtom(path[ringAtom]) else { break }
+                        if b.getExplicitDegree() == 2 || b.getExplicitDegree() == 3 {
+                            b.setHyb(2)
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Pass 3: "Antialiasing" If an atom marked as sp hybrid isn't
+        //          bonded to another or an sp2 hybrid isn't bonded
+        //          to another (or terminal atoms in both cases)
+        //          mark them to a lower hybridization for now
+        
+        var openNbr: Bool
+        
+        for atom in self.getAtomIterator() {
+            if atom.getHyb() == 2 || atom.getHyb() == 1 {
+                openNbr = false
+                guard let nbrs = atom.getNbrAtomIterator() else { continue }
+                for b in nbrs {
+                    if b.getHyb() < 3 || b.getExplicitDegree() == 1 {
+                        openNbr = true
+                        break
+                    }
+                }
+                if !openNbr && atom.getHyb() == 2 { atom.setHyb(3) }
+                else if !openNbr && atom.getHyb() == 1 { atom.setHyb(2) }
+            }
+        } // pass 3
+        
+        // Pass 4: Check for known functional group patterns and assign bonds
+        //         to the canonical form
+        //      Currently we have explicit code to do this, but a "bond typer"
+        //      is in progress to make it simpler to test and debug.
+        MolKit._BondTyper.assignFunctionalGroupBonds(self)
+        
+        // Pass 5: Check for aromatic rings and assign bonds as appropriate
+        // This is just a quick and dirty approximation that marks everything
+        //  as potentially aromatic
+
+        // This doesn't work perfectly, but it's pretty decent.
+        //  Need to have a list of SMARTS patterns for common rings
+        //  which would "break ties" on complicated multi-ring systems
+        // (Most of the current problems lie in the interface with the
+        //   Kekulize code anyway, not in marking everything as potentially aromatic)
+        
+        var needs_kekulization: Bool = false
+        var typed: Bool
+        var loop, loopSize: Int
+        
+        for ringit in rlist {
+            typed = false
+            loopSize = ringit.size()
+            if loopSize == 5 || loopSize == 6 || loopSize == 7 {
+                path = ringit._path
+                for loop in 0..<loopSize {
+                    guard let atom = self.getAtom(path[loop]) else { break }
+                    if atom.hasBondOfOrder(2) || atom.hasBondOfOrder(3) || atom.getHyb() != 2 {
+                        typed = true
+                        break
+                    }
+                }
+                
+                if !typed {
+                    for loop in 0..<loopSize {
+                        self.getBond(path[loop], path[(loop+1) % loopSize])?.setAromatic()
+                        needs_kekulization = true
+                    }
+                }
+            }
+        }
+        
+        // Kekulization is necessary if an aromatic bond is present
+        if needs_kekulization {
+            self.setAromaticPerceived()
+            // First of all, set the atoms at the ends of the aromatic bonds to also
+            // be aromatic. This information is required for OBKekulize.
+            for bond in self.getBondIterator() {
+                if bond.isAromatic() {
+                    bond.getBeginAtom().setAromatic()
+                    bond.getEndAtom().setAromatic()
+                }
+            }
+            var ok: Bool = MKKekulize(self)
+            if !ok {
+//                TODO: Handle this error with more indepth error codes for sure
+                print("Failed to kekulize aromatic bonds in OBMol::PerceiveBondOrders")
+                print(self.getTitle())
+            }
+            self.setAromaticPerceived(false)
+        }
+        
+        // Quick pass.. eliminate inter-ring sulfur atom multiple bonds
+        // dkoes - I have removed this code - if double bonds are set,
+        // we should trust them.  See pdb_ligands_sdf/4iph_1fj.sdf for
+        // a case where the charge isn't set, but we break the molecule
+        // if we remove the double bond.  Also, the previous code was
+        // fragile - relying on the total mol charge being set.  If we
+        // are going to do anything, we should "perceive" a formal charge
+        // in the case of a ring sulfur with a double bond (thiopyrylium)
+        
+        // Pass 6: Assign remaining bond types, ordered by atom electronegativity
+        
+        var bondLength, testLength: Double
+        var maxElNeg, shortestBond, currentElNeg: Double
+        var maxx: Int
+        var sortedAtoms: [Pair<MKAtom, Double>] = []
+        
+        for atom in self.getAtomIterator() {
+            // if atoms have the same electronegativity, make sure those with shorter bonds
+            // are handled first (helps with assignment of conjugated single/double bonds)
+            shortestBond = 1.0e5
+            guard let nbratoms = atom.getNbrAtomIterator() else { continue }
+            for b in nbratoms {
+                if b.getAtomicNum() != 1 {
+                    shortestBond = min(shortestBond, atom.getBond(b)!.getLength())
+                }
+            }
+            let entry = Pair<MKAtom, Double>(atom, MKElements.getElectroNeg(atom.getAtomicNum()) * 1.0e6 + shortestBond)
+            sortedAtoms.append(entry)
+        }
+        
+        sortedAtoms.sort { $0.1 < $1.1 }
+
+        maxx = sortedAtoms.count
+        
+        for iter in 0..<maxx {
+            let atom = sortedAtoms[iter].0
+            
+            // Possible sp-hybrids
+            if (atom.getHyb() == 1 || atom.getExplicitDegree() == 1) && atom.getExplicitValence() + 2 <= MKElements.getMaxBonds(atom.getAtomicNum()) {
+                // loop through the neighbors looking for a hybrid or terminal atom
+                // (and pick the one with highest electronegativity first)
+                // *or* pick a neighbor that's a terminal atom
+                if atom.hasNonSingleBond() || (atom.getAtomicNum() == 7 && atom.getExplicitValence() + 2 > 3) { continue }
+                
+                maxElNeg = 0.0
+                shortestBond = 5000.0
+                var c: MKAtom?
+                guard let nbratoms = atom.getNbrAtomIterator() else { continue }
+                for b in nbratoms {
+                    currentElNeg = MKElements.getElectroNeg(b.getAtomicNum())
+                    if (b.getHyb() == 1 || b.getExplicitDegree() == 1) && (b.getExplicitValence() + 2 <= MKElements.getMaxBonds(b.getAtomicNum())) &&
+                        (currentElNeg > maxElNeg || (isApprox(currentElNeg, to: maxElNeg, epsilon: 1.0e-6) && atom.getBond(b)!.getLength() < shortestBond)) {
+                        if b.hasNonSingleBond() || (b.getAtomicNum() == 7 && b.getExplicitValence() + 2 > 3) { continue }
+                        // Test terminal bonds against expected triple bond lengths
+                        bondLength = atom.getBond(b)!.getLength()
+                        if atom.getExplicitDegree() == 1 || b.getExplicitDegree() == 1 {
+                            testLength = correctedBondRad(atom.getAtomicNum(), atom.getHyb()) +
+                                         correctedBondRad(b.getAtomicNum(), b.getHyb())
+                            if (bondLength > 0.9 * testLength) { continue } // too long, ignore it
+                        }
+                        shortestBond = bondLength
+                        maxElNeg = MKElements.getElectroNeg(b.getAtomicNum())
+                        c = b
+                    }
+                }
+                if c != nil {
+                    atom.getBond(c!)!.setBondOrder(3)
+                }
+            }
+            // Possible sp2-hybrid atoms
+            else if (atom.getHyb() == 2 || atom.getExplicitDegree() == 1) && atom.getExplicitValence() + 1 <= MKElements.getMaxBonds(atom.getAtomicNum()) {
+                
+                if atom.hasNonSingleBond() || (atom.getAtomicNum() == 7 && atom.getExplicitValence() + 1 > 3) { continue }
+                // Don't build multiple bonds to ring sulfurs
+                // except thiopyrylium
+                if atom.isInRing() && atom.getAtomicNum() == 16 {
+                    if _totalCharge > 1 && atom.getFormalCharge() == 0 {
+                        atom.setFormalCharge(+1)
+                    } else {
+                        continue
+                    }
+                }
+                
+                maxElNeg = 0.0
+                shortestBond = 5000.0
+                var c: MKAtom?
+                
+                guard let nbratoms = atom.getNbrAtomIterator() else { continue }
+                for b in nbratoms {
+                    currentElNeg = MKElements.getElectroNeg(b.getAtomicNum())
+                    
+                    if (b.getHyb() == 2 || b.getExplicitDegree() == 1) && (b.getExplicitValence() + 1 <= MKElements.getMaxBonds(b.getAtomicNum())) &&
+                        (currentElNeg > maxElNeg || (isApprox(currentElNeg, to: maxElNeg, epsilon: 1.0e-6) && self.getBond(atom, b)!.isDoubleBondGeometry())) {
+                        
+                        if b.hasNonSingleBond() || (b.getAtomicNum() == 7 && b.getExplicitValence() + 1 > 3) { continue }
+                        
+                        if b.isInRing() && b.getAtomicNum() == 16 {
+                            if _totalCharge > 1 && b.getFormalCharge() == 0 {
+                                b.setFormalCharge(+1)
+                            } else {
+                                continue
+                            }
+                        }
+                        
+                        // Test terminal bonds against expected double bond lengths
+                        bondLength = atom.getBond(b)!.getLength()
+                        if atom.getExplicitDegree() == 1 || b.getExplicitDegree() == 1 {
+                            testLength = correctedBondRad(atom.getAtomicNum(), atom.getHyb()) +
+                                         correctedBondRad(b.getAtomicNum(), b.getHyb())
+                            if (bondLength > 0.93 * testLength) { continue } // too long, ignore it
+                        }
+                        
+                        // OK, see if this is better than the previous choice
+                        // If it's much shorter, pick it (e.g., fulvene)
+                        // If they're close (0.1A) then prefer the bond in the ring
+                        let difference = shortestBond - bondLength
+                        if ((difference > 0.1) || ((difference > -0.01) && (!atom.isInRing() || (c == nil) || !c!.isInRing() || b.isInRing())
+                                                   || (atom.isInRing() && (c != nil) && !c!.isInRing() && b.isInRing()))) {
+                            shortestBond = bondLength
+                            maxElNeg = MKElements.getElectroNeg(b.getAtomicNum())
+                            c = b // save this atom for later use
+                        }  // is this bond better than previous choices
+                    }
+                }// loop through neighbors
+                
+                if c != nil {
+                    atom.getBond(c!)!.setBondOrder(2)
+                }
+                
+            }
+            
+        } // pass 6
+        
+        // Now let the atom typer go to work again
+        self._flags &= (~OB_HYBRID_MOL)
+        self._flags &= (~OB_AROMATIC_MOL)
+        self._flags &= (~OB_ATOMTYPES_MOL)
+        //  EndModify(true); // "nuke" perceived data
+        
+        //Set _spinMultiplicity other than zero for atoms which are hydrogen
+        //deficient and which have implicit valency definitions (essentially the
+        //organic subset in SMILES). There are assumed to no implicit hydrogens.
+        //AssignSpinMultiplicity(true); // TODO: sort out radicals
     }
     
 

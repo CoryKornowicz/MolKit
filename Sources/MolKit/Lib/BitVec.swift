@@ -303,8 +303,8 @@ public class MKBitVec: Equatable {
         \param[in] bit_offset the first bit to consider
         \return the bit offset of the first true bit at or after \p bit_offset, or -1 if there is none
     */
-    func firstBit(_ bit_offset: UInt) -> Int {
-        return self.bitIsSet(Int(bit_offset)) ? 0 : self.nextBit(Int(bit_offset))
+    func firstBit(_ bit_offset: Int = 0) -> Int {
+        return self.bitIsSet(Int(bit_offset)) ? self.nextBit(Int(bit_offset - 1)) : self.nextBit(Int(bit_offset))
     }
 
     func endBit() -> Int {

@@ -38,7 +38,7 @@ let package = Package(
                   ]),
         .testTarget(
             name: "MolKitTests",
-            dependencies: ["MolKit"],
+            dependencies: ["MolKit", .product(name: "Algorithms", package: "swift-algorithms"), "Surge", .product(name: "Collections", package: "swift-collections")],
             resources: [
                     // Copy Tests/ExampleTests/Resources directories as-is.
                     // Use to retain directory structure.

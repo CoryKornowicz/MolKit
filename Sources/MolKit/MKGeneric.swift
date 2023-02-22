@@ -345,6 +345,10 @@ public class MKRingData: MKGenericData {
         return self._vr
     }
 
+    func setData(_ data: [MKRing]) {
+        self._vr = data
+    }
+    
     static func == (lhs: MKRingData, rhs: MKRingData) -> Bool {
         return lhs._vr == rhs._vr && lhs == rhs
     }

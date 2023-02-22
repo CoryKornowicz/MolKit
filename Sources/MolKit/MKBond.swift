@@ -167,31 +167,31 @@ class MKBond: MKBase {
         self._parent = parent
     }
 
-    func setAromatic(_ value: Bool) {
+    func setAromatic(_ value: Bool = true) {
         value ? self.setFlag(OB_AROMATIC_BOND) : self.unsetFlag(OB_AROMATIC_BOND)
     }
 
-    func setWedge(_ value: Bool) {
+    func setWedge(_ value: Bool = true) {
         value ? self.setFlag(MKAtomStereoFlag.Wedge.rawValue) : self.unsetFlag(MKAtomStereoFlag.Wedge.rawValue)
     }
 
-    func setHash(_ value: Bool) {
+    func setHash(_ value: Bool = true) {
         value ? self.setFlag(MKAtomStereoFlag.Hash.rawValue) : self.unsetFlag(MKAtomStereoFlag.Hash.rawValue)
     }
 
-    func setWedgeOrHash(_ value: Bool) {
+    func setWedgeOrHash(_ value: Bool = true) {
         value ? self.setFlag(MKAtomStereoFlag.WedgeOrHash.rawValue) : self.unsetFlag(MKAtomStereoFlag.WedgeOrHash.rawValue)
     }
 
-    func setCisOrTrans(_ value: Bool) {
+    func setCisOrTrans(_ value: Bool = true) {
         value ? self.setFlag(MKAtomStereoFlag.CisOrTrans.rawValue) : self.unsetFlag(MKAtomStereoFlag.CisOrTrans.rawValue)
     }
 
-    func setInRing(_ value: Bool) {
+    func setInRing(_ value: Bool = true) {
         value ? self.setFlag(OB_RING_BOND) : self.unsetFlag(OB_RING_BOND)
     }
 
-    func setClosure(_ value: Bool) {
+    func setClosure(_ value: Bool = true) {
         value ? self.setFlag(OB_CLOSURE_BOND) : self.unsetFlag(OB_CLOSURE_BOND)
     }
 
