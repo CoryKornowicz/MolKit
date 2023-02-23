@@ -4,7 +4,7 @@ import Collections
 /**
  * Special case Ref values.
  */
-public enum RefValue {
+public enum RefValue: Equatable {
     case NoRef            //!< No Ref set (invalid Ref)
     case ImplicitRef      //!< Implicit Ref (i.e. hydrogen, N lone pair, ...).
     case Ref(_ value: Int)
@@ -13,7 +13,7 @@ public enum RefValue {
         self = .Ref(rawValue)
     }
     
-    static func == (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
+    public static func == (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
         switch lhs {
         case .NoRef:
             return false
@@ -48,10 +48,6 @@ public enum RefValue {
             }
         }
     }
-    
-    
-    
-    
 }
 
 typealias Ref = RefValue

@@ -15,6 +15,8 @@ There is also a lack of test cases, which are crucial for a production-ready pac
 
 Plans for CLI applications are scheduled after the package is working and useable for applications, then standalone binaries will be compiled.
 
+File Reader Class is not as expansive as OpenBabel's. Order of importance is SMI, PDB, and then SDF/MOL/MOL2. The goal is to also have trajectory parsing, but that would most likely need other additions as well, and will likely need to wait until the conformer issue is addressed.  
+
 ## Installation
 
 ### Swift Package Manager

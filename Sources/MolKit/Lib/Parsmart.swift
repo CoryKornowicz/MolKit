@@ -70,32 +70,34 @@ private let SmartsImplicitRef = -9999 // Used as a placeholder when recording at
 //! \union _AtomExpr parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) atomic expression
 
+protocol _MKAtomExpr {}
+
 protocol _AtomExprProtocol {
     var type: Int { get set }
 }
 
-struct _AtomExprLeaf: _AtomExprProtocol {
+struct _AtomExprLeaf: _AtomExprProtocol, _MKAtomExpr {
     var type: Int
     var value: Int
 }
 
-struct _AtomExprRecur: _AtomExprProtocol {
+struct _AtomExprRecur: _AtomExprProtocol, _MKAtomExpr {
     var type: Int
     var recur: Pattern?
 }
 
-struct _AtomExprMon: _AtomExprProtocol {
+struct _AtomExprMon: _AtomExprProtocol, _MKAtomExpr {
     var type: Int
-    var arg: _AtomExpr
+    var arg: _MKAtomExpr
 }
 
-struct _AtomExprBin: _AtomExprProtocol {
+struct _AtomExprBin: _AtomExprProtocol, _MKAtomExpr {
     var type: Int
-    var lft: _AtomExpr
-    var rgt: _AtomExpr
+    var lft: _MKAtomExpr
+    var rgt: _MKAtomExpr
 }
 
-indirect enum _AtomExpr {
+indirect enum _AtomExpr: _MKAtomExpr {
     case leaf(_AtomExprLeaf)
     case recur(_AtomExprRecur)
     case mon(_AtomExprMon)
@@ -132,27 +134,41 @@ indirect enum _BondExpr {
 
 //! \struct BondSpec parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) bond specification
-struct BondSpec {
+struct BondSpec: Equatable {
+    
     var expr: _BondExpr
     var src, dst: Int
     var visit: Int?
     var grow: Bool?
+    
+    static func == (lhs: BondSpec, rhs: BondSpec) -> Bool {
+        lhs.src == rhs.src && lhs.dst == rhs.dst && lhs.grow == rhs.grow && lhs.visit == rhs.visit
+    }
+    
 }
 
 //! \struct AtomSpec parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) atom specification
-struct AtomSpec {
-    var expr: _AtomExpr
+struct AtomSpec: Equatable {
+
+    var expr: _MKAtomExpr
     var visit: Int?
     var part: Int
     var chiral_flag: Int?
     var vb: Int
     var nbrs: [Int]?
+    
+    static func == (lhs: AtomSpec, rhs: AtomSpec) -> Bool {
+        lhs.part == rhs.part && lhs.visit == rhs.visit && lhs.chiral_flag == rhs.chiral_flag && lhs.vb == rhs.vb && lhs.nbrs == rhs.nbrs
+        // add _expr comparators if truly needed
+    }
 }
 
 //! \struct Pattern parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal pattern
-struct Pattern {
+struct Pattern: Equatable {
+    
+    
     var aalloc: Int = 0
     var acount: Int  {
         get {
@@ -170,6 +186,26 @@ struct Pattern {
     var bond: [BondSpec] = []
     var parts: Int = 1
     var hasExplicitH: Bool = false
+    
+    static func == (lhs: Pattern, rhs: Pattern) -> Bool {
+        if lhs.acount != rhs.acount || lhs.bcount != rhs.bcount {
+            return false
+        }
+        if lhs.isChiral != rhs.isChiral {
+            return false
+        }
+        if lhs.parts != rhs.parts || lhs.hasExplicitH != rhs.hasExplicitH {
+            return false
+        }
+        if lhs.atom != rhs.atom {
+            return false
+        }
+        if lhs.bond != rhs.bond {
+            return false
+        }
+        return true
+    }
+    
 }
 
 //! \struct ParseState parsmart.h <openbabel/parsmart.h>
@@ -275,14 +311,14 @@ class MKSmartsPattern {
     //! \return Whether matches occurred
     func match(_ mol: MKMol, _ single: Bool = false) -> Bool {
         let matcher = MKSmartsMatcher()
-        guard let _pat = _pat else { return false }
+        guard var _pat = _pat else { return false }
         if _pat.hasExplicitH { //The SMARTS pattern contains [H]
             //Do matching on a copy of mol with explicit hydrogens
             var tmol = mol
             tmol.addHydrogens(false, false)
-            return matcher.match(tmol, _pat, &_mlist, single)
+            return matcher.match(tmol, &_pat, &_mlist, single)
         }
-        return matcher.match(mol, _pat, &_mlist, single)
+        return matcher.match(mol, &_pat, &_mlist, single)
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -296,14 +332,14 @@ class MKSmartsPattern {
     func match(_ mol: MKMol, _ mlist: inout [[Int]], _ mtype: MatchType = .All) -> Bool {
         let matcher = MKSmartsMatcher()
         mlist.removeAll()
-        guard let _pat = _pat else { return false }
+        guard var _pat = _pat else { return false }
         
         if _pat.hasExplicitH { //The SMARTS pattern contains [H]
             //Do matching on a copy of mol with explicit hydrogens
             let tmol = mol
             tmol.addHydrogens(false, false)
-            if !matcher.match(tmol, _pat, &mlist, mtype == .Single) { return false }
-        } else if !matcher.match(mol, _pat, &mlist, mtype == .Single) { return false }
+            if !matcher.match(tmol, &_pat, &mlist, mtype == .Single) { return false }
+        } else if !matcher.match(mol, &_pat, &mlist, mtype == .Single) { return false }
         
         if mtype == .AllUnique && mlist.count > 1 {
             //uniquify
@@ -344,9 +380,9 @@ class MKSmartsPattern {
     func restrictedMatch(_ mol: MKMol, _ pr: [Pair<Int, Int>], _ single: Bool = false) -> Bool {
         var ok = false
         var mlist: [[Int]] = []
-        guard let _pat = _pat else { return false }
+        guard var _pat = _pat else { return false }
         let matcher = MKSmartsMatcher()
-        matcher.match(mol, _pat, &mlist)
+        matcher.match(mol, &_pat, &mlist)
         
         _mlist.removeAll()
         if mlist.isEmpty { return false }
@@ -374,9 +410,9 @@ class MKSmartsPattern {
     func restrictedMatch(_ mol: MKMol, _ vres: MKBitVec, _ single: Bool = false) -> Bool {
         var ok = false
         var mlist: [[Int]] = []
-        guard let _pat = _pat else { return false }
+        guard var _pat = _pat else { return false }
         let matcher = MKSmartsMatcher()
-        matcher.match(mol, _pat, &mlist)
+        matcher.match(mol, &_pat, &mlist)
         
         _mlist.removeAll()
         if mlist.isEmpty { return false }
@@ -534,7 +570,7 @@ class MKSmartsPattern {
     // private func SMARTSError(_ pat: Pattern) -> Pattern {}
     // private func parseSMARTSError(_ pat: Pattern, _ expr: _BondExpr) -> Pattern {}
     
-    private func parseSimpleAtomPrimitive() -> _AtomExpr? {
+    private func parseSimpleAtomPrimitive() -> _MKAtomExpr? {
         switch self.LexPtr.next() {
         case "*":
             return buildAtomPred(AE_TRUE)
@@ -591,7 +627,7 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseComplexAtomPrimitive() -> _AtomExpr? {
+    private func parseComplexAtomPrimitive() -> _MKAtomExpr? {
         var pat: Pattern?
         var index: Int
         
@@ -1004,9 +1040,9 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseAtomExpr(_ level: Int) -> _AtomExpr? {
-        var expr1: _AtomExpr?
-        var expr2: _AtomExpr?
+    private func parseAtomExpr(_ level: Int) -> _MKAtomExpr? {
+        var expr1: _MKAtomExpr?
+        var expr2: _MKAtomExpr?
         var prev: Character
         
         switch level {
@@ -1189,7 +1225,7 @@ class MKSmartsPattern {
     
     private func SMARTSParser(_ pat: inout Pattern?, _ stat: inout ParseState, _ prev: inout Int, _ part: Int) -> Pattern? {
         var vb = 0
-        var aexpr: _AtomExpr? = nil
+        var aexpr: _MKAtomExpr? = nil
         var bexpr: _BondExpr? = nil
         var index: Int = 0
         while !self.LexPtr.empty() {
@@ -1378,36 +1414,36 @@ class MKSmartsPattern {
 /*  Atom Expression Manipulation  */
 /*================================*/
 
-func buildAtomPred(_ type: Int) -> _AtomExpr {
+func buildAtomPred(_ type: Int) -> _MKAtomExpr {
     let res = _AtomExprLeaf(type: type, value: 0)
-    return .leaf(res)
+    return _AtomExpr.leaf(res)
 }
 
-func buildAtomLeaf(_ type: Int, _ value: Int) -> _AtomExpr {
+func buildAtomLeaf(_ type: Int, _ value: Int) -> _MKAtomExpr {
     let res = _AtomExprLeaf(type: type, value: value)
-    return .leaf(res)
+    return _AtomExpr.leaf(res)
 }
 
-func buildAtomNot(_ expr: _AtomExpr) -> _AtomExpr {
+func buildAtomNot(_ expr: _MKAtomExpr) -> _MKAtomExpr {
     let res = _AtomExprMon(type: AE_NOT, arg: expr)
-    return .mon(res)
+    return _AtomExpr.mon(res)
 }
 
-func buildAtomBinary(_ type: Int, _ lhs: _AtomExpr, _ rhs: _AtomExpr) -> _AtomExpr {
+func buildAtomBinary(_ type: Int, _ lhs: _MKAtomExpr, _ rhs: _MKAtomExpr) -> _MKAtomExpr {
     let res = _AtomExprBin(type: type, lft: lhs, rgt: rhs)
-    return .bin(res)
+    return _AtomExpr.bin(res)
 }
 
-func buildAtomRecurs(_ pat: Pattern) -> _AtomExpr {
+func buildAtomRecurs(_ pat: Pattern) -> _MKAtomExpr {
     let res = _AtomExprRecur(type: AE_RECUR, recur: pat)
-    return .recur(res)
+    return _AtomExpr.recur(res)
 }
 
-func generateElement(_ elem: Int) -> _AtomExpr {
+func generateElement(_ elem: Int) -> _MKAtomExpr {
     return buildAtomLeaf(AE_ELEM, elem)
 }
 
-func generateAromElem(_ elem: Int, _ flag: Bool) -> _AtomExpr {
+func generateAromElem(_ elem: Int, _ flag: Bool) -> _MKAtomExpr {
     // MARK: sneakily add aliphatic elements here as well (for now)
     return flag ? buildAtomLeaf(AE_AROMELEM, elem) : buildAtomLeaf(AE_ALIPHELEM, elem)
 }
@@ -1492,7 +1528,7 @@ func generateDefaultBond() -> _BondExpr {
   /*  SMARTS Pattern Manipulation  */
   /*===============================*/
 
-func createAtom(_ pat: inout Pattern, _ expr: _AtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
+func createAtom(_ pat: inout Pattern, _ expr: _MKAtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
     let tmp = AtomSpec(expr: expr, part: part, vb: vb)
     pat.atom.append(tmp)
     return pat.acount
@@ -1515,9 +1551,9 @@ func markGrowBonds(_ pat: inout Pattern) {
     }
 }
 
-func getChiralFlag(_ expr: _AtomExpr) -> Int {
+func getChiralFlag(_ expr: _MKAtomExpr) -> Int {
 
-    switch expr {
+    switch (expr as! _AtomExpr) {
     case .leaf(let _expr1):
         if (expr as! _AtomExprProtocol).type == AE_CHIRAL {
             return _expr1.value
@@ -1551,8 +1587,8 @@ func getChiralFlag(_ expr: _AtomExpr) -> Int {
 
 }
 
-func getExprCharge(_ expr: _AtomExpr) -> Int {
-    switch expr {
+func getExprCharge(_ expr: _MKAtomExpr) -> Int {
+    switch expr as! _AtomExpr {
     case .leaf(let _expr1):
         if (expr as! _AtomExprProtocol).type == AE_CHARGE {
             return _expr1.value
@@ -1581,8 +1617,8 @@ func getExprCharge(_ expr: _AtomExpr) -> Int {
     return 0
 }
 
-func getExprAtomicNum(_ expr: _AtomExpr) -> Int {
-    switch expr {
+func getExprAtomicNum(_ expr: _MKAtomExpr) -> Int {
+    switch expr as! _AtomExpr {
     case .leaf(let _expr1):
         if (expr as! _AtomExprProtocol).type == AE_ELEM ||
            (expr as! _AtomExprProtocol).type == AE_AROMELEM || 
@@ -1659,12 +1695,140 @@ class MKSmartsMatcher {
 
     }
 
-    func evalAtomExpr(_ expr: _AtomExpr, _ atom: MKAtom) -> Bool {
-        return false 
+    func evalAtomExpr(_ expr: _MKAtomExpr, _ atom: MKAtom) -> Bool {
+        switch (expr as! _AtomExprProtocol).type {
+        case AE_TRUE: return true
+        case AE_FALSE: return false
+        case AE_AROMATIC: return atom.isAromatic()
+        case AE_ALIPHATIC: return !atom.isAromatic()
+        case AE_CYCLIC: return atom.isInRing()
+        case AE_ACYCLIC: return !atom.isInRing()
+        default: break
+        }
+
+        switch (expr as! _AtomExpr) {
+        case .leaf(var expr):
+            switch (expr as! _AtomExprProtocol).type {
+            case AE_MASS: 
+                return expr.value == atom.getIsotope()
+            case AE_ELEM:
+                return expr.value == atom.getAtomicNum()
+            case AE_AROMELEM:
+                return atom.isAromatic() && expr.value == atom.getAtomicNum()
+            case AE_ALIPHELEM:
+                return !atom.isAromatic() && expr.value == atom.getAtomicNum()
+            case AE_HCOUNT:
+                return expr.value == (atom.getImplicitHCount() + atom.explicitHydrogenCount())
+            case AE_CHARGE:
+                return expr.value == atom.getFormalCharge()
+            case AE_CONNECT:
+                return expr.value == atom.getTotalDegree()
+            case AE_DEGREE:
+                return expr.value == atom.getExplicitDegree()
+            case AE_IMPLICIT:
+                return expr.value == atom.getImplicitHCount()
+            case AE_RINGS:
+                return expr.value == atom.memberOfRingCount()
+            case AE_SIZE:
+                return atom.isInRingSize(expr.value)
+            case AE_VALENCE:
+                return expr.value == atom.getTotalValence()
+            case AE_CHIRAL:
+            // always return true (i.e. accept the match) and check later
+                return true
+            case AE_HYB:
+                return expr.value == atom.getHyb()
+            case AE_RINGCONNECT:
+                return expr.value == atom.countRingBonds()
+            default: break
+            }
+        case .mon(var expr):
+            if (expr as _AtomExprProtocol).type == AE_NOT {
+                return !evalAtomExpr(expr.arg, atom)
+            }
+        case .bin(var expr):
+            if (expr as _AtomExprProtocol).type == AE_ANDHI ||
+               (expr as _AtomExprProtocol).type == AE_ANDLO {
+                if !evalAtomExpr(expr.lft, atom) { return false }
+                expr = expr.rgt as! _AtomExprBin
+            } else if (expr as _AtomExprProtocol).type == AE_OR {
+                if evalAtomExpr(expr.lft, atom) { return true }
+                expr = expr.rgt as! _AtomExprBin
+            }
+        case .recur(var expr):
+            //see if pattern has been matched
+            for i in 0..<rscache.count {
+                if rscache[i].0 == expr.recur {
+                    return rscache[i].1[atom.getIdx()]
+                }
+            }
+            //perceive and match pattern
+            var vb: [Bool] = []
+            var mlist : [[Int]] = []
+            guard let par = atom.getParent() else { return false }
+            if match(par, &expr.recur!, &mlist) {
+                for j in mlist {
+                    vb[j[0]] = true
+                }
+            }
+            //cache result
+            rscache.append(Pair(expr.recur!, vb))
+            return vb[atom.getIdx()]
+        }
+        return false
     }
 
-    func evalBondExpr(_ expr: _BondExpr, _ bond: MKBond) -> Bool {
-        return false 
+    func evalBondExpr(_ expr: inout _BondExpr, _ bond: MKBond) -> Bool {
+        repeat {
+            switch (expr as! _BondExprProtocol).type {
+            case BE_ANDHI, BE_ANDLO:
+                // get expr to _BondExprBin type
+                switch expr {
+                case .bin(var expr1):
+                    if !evalBondExpr(&expr1.lft, bond) {
+                        return false
+                    }
+                    expr = expr1.rgt
+                default: break
+                }
+            case BE_OR:
+                // get expr to _BondExprBin type 
+                switch expr {
+                case .bin(var expr1):
+                    if evalBondExpr(&expr1.lft, bond) {
+                        return true
+                    }
+                    expr = expr1.rgt
+                default: break
+                }
+            case BE_NOT:
+                // get expr to _BondExprMon type 
+                switch expr {
+                case .mon(var expr1):
+                    return !evalBondExpr(&expr1.arg, bond)
+                default: break
+                }
+
+            case BE_ANY: return true
+            case BE_DEFAULT:
+                return bond.getBondOrder() == 1 || bond.isAromatic()
+            case BE_SINGLE: return bond.getBondOrder() == 1 && !bond.isAromatic()
+            case BE_DOUBLE: return bond.getBondOrder() == 2 && !bond.isAromatic()
+            case BE_TRIPLE: return bond.getBondOrder() == 3
+            case BE_QUAD: return bond.getBondOrder() == 4
+            case BE_AROM: return bond.isAromatic()
+            case BE_RING: return bond.isInRing()
+            //case BE_UP:
+            //  return bond->IsUp();
+            //case BE_DOWN:
+            //  return bond->IsDown();
+            //case BE_UPUNSPEC: // up or unspecified (i.e., not down)
+            //  return !bond->IsDown();
+            //case BE_DOWNUNSPEC: // down or unspecified (i.e., not up)
+            //  return !bond->IsUp();
+            default: return false 
+            }
+        } while true 
     }
     
     private func setupAtomMatchTable(_ ttab: inout [[Bool]], _ pat: Pattern, _ mol: MKMol) {
@@ -1683,12 +1847,197 @@ class MKSmartsMatcher {
         }
     }
 
-    private func fastSingleMatch(_ mol: MKMol, _ pat: Pattern, _ mlist: [[Int]]) {
+    private func fastSingleMatch(_ mol: MKMol, _ pat: inout Pattern, _ mlist: inout [[Int]]) {
+        var bv = MKBitVec(UInt32(mol.numAtoms() + 1))
+        var map: [Int] = []
+        map.reserveCapacity(pat.acount)
+        var vif: [Bool] = []
+        var atom, a1, nbr: MKAtom
+        var a1Iter: [MKIterator<MKAtom>?] = []
+
+        if (pat.bcount != 0) {
+            vif.reserveCapacity(pat.bcount)
+        }
+
+        var bcount: Int = 0 
+        for atom in mol.getAtomIterator() {
+            if evalAtomExpr(pat.atom[0].expr, atom) {
+                
+                map[0] = atom.getIdx()
+                if (pat.bcount != 0) {
+                    vif[0] = false
+                }
+                bv.clear() 
+                bv.setBitOn(UInt32(atom.getIdx()))
+
+                repeat {
+                    //***entire pattern matched***
+                    if bcount == pat.bcount { //save full match here
+                        mlist.append(map)
+                        bcount -= 1
+                        return //found a single match
+                    }
+                    
+                    //***match the next bond***
+                    if !(pat.bond[bcount].grow ?? false) {
+                        if !vif[bcount] {
+                            if let bond = mol.getBond(map[pat.bond[bcount].src], map[pat.bond[bcount].dst])  {
+                                if evalBondExpr(&pat.bond[bcount].expr, bond) {
+                                    vif[bcount] = true
+                                    bcount += 1
+                                    if bcount < pat.bcount {
+                                        vif[bcount] = false
+                                    }
+                                }
+                            }
+                            else { 
+                                bcount -= 1
+                            }
+                        } else { //bond must have already been visited - backtrack
+                            bcount -= 1
+                        }
+                    } else { //need to map atom and check bond
+                        a1 = mol.getAtom(map[pat.bond[bcount].src])!
+                        if !vif[bcount] { //figure out which nbr atom we are mapping
+                            if a1Iter[bcount] == nil {
+                                a1Iter[bcount] = a1.getNbrAtomIterator() ?? nil
+                            }
+                            nbr = a1Iter[bcount]!.next()!
+                        } else {
+                            bv.setBitOff(UInt32(map[pat.bond[bcount].dst]))
+                            nbr = a1Iter[bcount]!.next()!
+                        }
+
+                        for nbr in a1Iter[bcount]! {
+                            if !bv[nbr.getIdx()] {
+                                if evalAtomExpr(pat.atom[pat.bond[bcount].dst].expr, nbr) {
+                                    if let bond = mol.getBond(a1.getIdx(), nbr.getIdx()) {
+                                        if evalBondExpr(&pat.bond[bcount].expr, bond) {
+                                            bv.setBitOn(UInt32(nbr.getIdx()))
+                                            map[pat.bond[bcount].dst] = nbr.getIdx()
+                                            vif[bcount] = true
+                                            bcount += 1
+                                            if bcount < pat.bcount {
+                                                vif[bcount] = false
+                                            }
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if a1Iter[bcount]!.next() == nil {
+                            bcount -= 1
+                        }
+                    }
+                } while bcount >= 0 
+            }
+        }
 
     }
 
-    public func match(_ mol: MKMol, _ pattern: Pattern, _ mlist: inout [[Int]], _ single: Bool = false) -> Bool {
-        return false
+    public func match(_ mol: MKMol, _ pat: inout Pattern, _ mlist: inout [[Int]], _ single: Bool = false) -> Bool {
+        
+        mlist.removeAll()
+        if single && !pat.isChiral {
+            // perform a fast single match (only works for non-chiral SMARTS)
+            fastSingleMatch(mol, &pat, &mlist)
+        } else {
+            // perform normal match (chirality ignored and checked below)
+            var ssm: MKSSMatch = MKSSMatch(mol, pat)
+            ssm.match(&mlist)
+        }
+
+        if pat.isChiral {
+            var tmp: [[Int]] = []
+            // iterate over the atom mappings
+            for m in mlist {
+                
+                var allStereoCentersMatch = true 
+
+                // for each pattern atom
+                for j in 0..<pat.acount {
+                    // skip non-chiral pattern atoms
+                    if (pat.atom[j].chiral_flag == nil) { continue }
+                    // ignore @? in smarts, parse like any other smarts
+                    if pat.atom[j].chiral_flag! == AL_UNSPECIFIED { continue }
+                    
+                    // use the mapping the get the chiral atom in the molecule being queried
+                    guard let center = mol.getAtom(m[j]) else { continue }
+
+                    // get the OBTetrahedralStereo::Config from the molecule
+
+                    var stereo: MKStereoFacade = MKStereoFacade(mol)
+                    var ts: MKTetrahedralStereo? = stereo.getTetrahedralStereo(center.getId().rawValue) 
+                    if ts == nil {
+                        allStereoCentersMatch = false
+                        break
+                    } else if !ts!.getConfig().specified {
+                        // no stereochemistry specified in molecule for the atom
+                        // corresponding to the chiral pattern atom using the current
+                        // mapping --> no match
+                        allStereoCentersMatch = false
+                        break
+                    }
+
+                    guard let nbrs: [Int] = pat.atom[j].nbrs else { continue }
+
+                    if nbrs.count != 4 { // 3 nbrs currently not supported. Other values are errors.
+                        print("ERROR: SMARTS chiral atom has \(nbrs.count) neighbors, only works with 4")
+                        continue
+                    }
+
+                    // construct a OBTetrahedralStereo::Config using the smarts pattern
+                    var smartsConfig = MKTetrahedralStereo.Config()
+                    smartsConfig.center = center.getId().ref
+                    if nbrs[0] == SmartsImplicitRef {
+                        smartsConfig.from_or_towrds = .from(.ImplicitRef)
+                    } else {
+                        guard let ma = mol.getAtom(m[nbrs[0]])?.getId() else { continue }
+                        smartsConfig.from_or_towrds = .from(ma.ref)
+                    }
+                    
+                    var firstref: Ref
+                    if nbrs[1] == SmartsImplicitRef {
+                        firstref = .ImplicitRef
+                    } else {
+                        guard let ma = mol.getAtom(m[nbrs[1]])?.getId() else { continue }
+                        firstref = ma.ref
+                    }
+
+                    guard var ra2 = mol.getAtom(m[nbrs[2]]) else { continue }
+                    guard var ra3 = mol.getAtom(m[nbrs[3]]) else { continue }
+
+                    smartsConfig.refs = MKStereo.makeRefs(firstref, ra2.getId().ref, ra3.getId().ref)
+                    
+                    smartsConfig.view = MKStereo.View.ViewFrom
+                    
+                    switch pat.atom[j].chiral_flag! {
+                    case AL_CLOCKWISE:
+                        smartsConfig.winding = .Clockwise
+                    case AL_ANTICLOCKWISE:
+                        smartsConfig.winding = .AntiClockwise
+                    default:
+                        smartsConfig.specified = false
+                    }
+                    
+                    // and save the match if the two configurations are the same
+                    if ts?.getConfig() != smartsConfig {
+                        allStereoCentersMatch = false
+                    }
+
+                    // don't waste time checking more stereocenters using this mapping if one didn't match
+                    if !allStereoCentersMatch { break }
+                }
+                // if all the atoms in the molecule match the stereochemistry specified
+                // in the smarts pattern, save this mapping as a match
+                if allStereoCentersMatch {
+                    tmp.append(m)
+                }
+            }
+            mlist = tmp
+        }
+        return !mlist.isEmpty
     }
 
 }
@@ -1708,7 +2057,7 @@ class MKSSMatch {
     private var _pat: Pattern
     private var _map: [Int] = []
 
-    init(mol: MKMol, pat: Pattern) {
+    init(_ mol: MKMol, _ pat: Pattern) {
         self._mol = mol
         self._pat = pat
 
@@ -1744,15 +2093,15 @@ class MKSSMatch {
                 return
             }
             
-            let aexpr = _pat.atom[dst].expr
-            let bexpr = _pat.bond[bidx].expr
+            var aexpr = _pat.atom[dst].expr
+            var bexpr = _pat.bond[bidx].expr
             
             guard let atom = _mol.getAtom(_map[src]) else { return }
             if let nbratoms = atom.getNbrAtomIterator() {
                 for nbr in nbratoms {
 //                    MARK: could bond be nil?
                     if !_uatoms[nbr.getIdx()] && matcher.evalAtomExpr(aexpr, nbr) &&
-                        matcher.evalBondExpr(bexpr, atom.getBond(nbr)!) {
+                        matcher.evalBondExpr(&bexpr, atom.getBond(nbr)!) {
                         _map[dst] = nbr.getIdx()
                         _uatoms[nbr.getIdx()] = true
                         match(&mlist, bidx+1)
@@ -1765,7 +2114,7 @@ class MKSSMatch {
         } else { //just check bond here
             guard let bond = _mol.getBond(_map[_pat.bond[bidx].src],
                                           _map[_pat.bond[bidx].src]) else { return }
-            if matcher.evalBondExpr(_pat.bond[bidx].expr, bond) {
+            if matcher.evalBondExpr(&_pat.bond[bidx].expr, bond) {
                 match(&mlist, bidx+1)
             }
         }
@@ -1773,7 +2122,31 @@ class MKSSMatch {
 }
 
 public func smartsLexReplace(_ s: String, _ p: [Pair<String, String>]) {
+// ???
+// size_t j,pos;
+//     std::string token,repstr;
+//     std::vector<std::pair<std::string,std::string> >::iterator i;
 
+//     for (pos = 0,pos = s.find("$",pos);pos < s.size();pos = s.find("$",pos))
+//       //for (pos = 0,pos = s.find("$",pos);pos != std::string::npos;pos = s.find("$",pos))
+//       {
+//         pos++;
+//         for (j = pos;j < s.size();++j)
+//           if (!isalpha(s[j]) && !isdigit(s[j]) && s[j] != '_')
+//             break;
+//         if (pos == j)
+//           continue;
+
+//         token = s.substr(pos,j-pos);
+//         for (i = vlex.begin();i != vlex.end();++i)
+//           if (token == i->first)
+//             {
+//               repstr = "(" + i->second + ")";
+//               s.replace(pos,j-pos,repstr);
+//               j = 0;
+//             }
+//         pos = j;
+//       }
 }
 
 

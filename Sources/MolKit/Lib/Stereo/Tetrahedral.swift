@@ -7,7 +7,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
     
     var m_cfg: Config
 
-    struct Config: ConfigNonPlanar {
+    struct Config: ConfigNonPlanar, Equatable {
         
         var center: Ref
         var from_or_towrds: from_or_towrds
@@ -32,7 +32,17 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             self.view = view
             self.specified = specified
             self.refs = refs
-        }        
+        }
+        
+        static func == (lhs: MKTetrahedralStereo.Config, rhs: MKTetrahedralStereo.Config) -> Bool {
+            if lhs.center == rhs.center && lhs.from_or_towrds == rhs.from_or_towrds 
+            && lhs.winding == rhs.winding && lhs.view == rhs.view && lhs.specified == rhs.specified 
+            && lhs.refs == rhs.refs {
+                return true
+            }
+            return false
+        }
+        
     }
 
     override func getType() -> MKStereo.TType {
@@ -48,5 +58,8 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
         super.init(mol)
     }
 
+    func getConfig() -> MKTetrahedralStereo.Config {
+        return self.m_cfg
+    }
 
 }

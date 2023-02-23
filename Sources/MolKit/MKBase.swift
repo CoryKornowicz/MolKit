@@ -28,6 +28,15 @@ public enum MKBaseID: Comparable {
         }
     }
     
+    var ref: RefValue {
+        switch self {
+        case .NoId:
+            return .NoRef
+        case ._id(let val):
+            return .Ref(val)
+        }
+    }
+    
 }
 
 

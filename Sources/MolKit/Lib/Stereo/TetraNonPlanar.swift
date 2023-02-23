@@ -8,6 +8,9 @@ class MKTetraNonPlanarStereo: MKStereoBase {
     }
 
     
+    func toConfig<T: ConfigNonPlanar>(_ cfg: T) -> T {
+        return cfg
+    }
 
 
 }
