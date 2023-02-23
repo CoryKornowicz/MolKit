@@ -3,13 +3,16 @@
 A Swift-version of a cheminformatics library, __shamelessly__ based off of OpenBabel to make adoption feel intuitive. 
 To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Swift wrappers, so might as well write it in pure Swift then.  
 
+~ 15,000 lines of code and still does not yet read molecules, but __almost__ there.
+
+
 ## WARNINGS AND CRITICAL HINDRANCES   
 
 Currently in very very early development, and not even close to being usable. Once the base molecule class is working, then things will become interesting. Shortly after will arrive the basic file parsers, and then the fun stuff.
 
-One problem looming on the horizon is the issue of Swift's copy-on-write paradigm, which could inflate the sizes of underlying datastructs in memory. I would like to experiment with using true pointers (UnsafeMutablePointer) as that would probably make handling coordinates more intuitive and behave more like the original OpenBabel implementation.
+One problem looming on the horizon is the issue of Swift's copy-on-write paradigm, which could inflate the sizes of underlying datastructs in memory. I would like to experiment with using true pointers (UnsafeMutablePointer) as that would probably make handling coordinates more intuitive and behave more like the original OpenBabel implementation, however, the first goal is to make it work, then make it fast. 
 
-This project lacks the ability to switch between Double and Float for the base precision. There are accompantying functions for Float types, but a global type that encompasses Float and Double needs to be inserted. 
+This project lacks the ability to dynamically switch between Double and Float for the base precision. There are accompantying functions for Float types, but a global type that encompasses Float and Double needs to be inserted. 
 
 There is also a lack of test cases, which are crucial for a production-ready package.  
 
@@ -23,4 +26,7 @@ File Reader Class is not as expansive as OpenBabel's. Order of importance is SMI
 Not included as it should not be used publicly yet.
 
 
-**Not meant to be used as a cmd line program at the moment** 
+
+
+Thank you OpenBabel, this project would have never been possible without your commitment to 
+being open source. 
