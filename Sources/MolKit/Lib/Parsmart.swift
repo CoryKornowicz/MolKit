@@ -1333,6 +1333,7 @@ class MKSmartsPattern {
                     pat!.atom[prev].nbrs.append(-1) // Store the BC idx as a -ve
                     bexpr = nil
                 } else if stat.closure[index] != prev {
+                    //Ring Closure
                     if bexpr == nil {
                         if stat.closord[index] == nil {
                             bexpr = generateDefaultBond()
@@ -1346,7 +1347,7 @@ class MKSmartsPattern {
                     createBond(&pat!, bexpr!, prev, stat.closure[index])
                     
                     pat!.atom[prev].nbrs.append(stat.closure[index])
-                    for nbr_idx in pat!.atom[stat.closure[index]].nbrs.makeIterator() {
+                    for nbr_idx in 0..<pat!.atom[stat.closure[index]].nbrs.count {
                         if pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] == -index {
 //                            pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] = prev
                             pat!.atom[stat.closure[index]].nbrs.insert(prev, at: (nbr_idx < 0 ? pat!.atom[stat.closure[index]].nbrs.endIndex.advanced(by: (nbr_idx-1)) :
@@ -1415,7 +1416,7 @@ class MKSmartsPattern {
             if prev == -1 { print("ParseSMARTSError: found bad prev in \"end\"") }
             if (bexpr != nil) {print("ParseSMARTSError: found bad bexpr in \"end\"")}
             print("ParseSMARTSError: found bad prev or bexpr after iteration")
-            return nil
+            fatalError("ParseSMARTSError at end")
         }
         
         return pat
@@ -1601,22 +1602,22 @@ func getChiralFlag(_ expr: _MKAtomExpr) -> Int {
 
 func getExprCharge(_ expr: _MKAtomExpr) -> Int {
     switch expr as! _AtomExpr {
-    case .leaf(let _expr1):
-        if (expr as! _AtomExprProtocol).type == AE_CHARGE {
-            return _expr1.value
+    case .leaf(let expr1):
+        if expr1.type == AE_CHARGE {
+            return expr1.value
         }
     case .mon:
         break
     case .bin(let expr1):
-        if (expr as! _AtomExprProtocol).type == AE_OR {
+        if expr1.type == AE_OR {
             let tmp1 = getExprCharge(expr1.lft)
             if tmp1 == 0  { return 0 }
             let tmp2 = getExprCharge(expr1.rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
-        if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
-           (expr as! _AtomExprProtocol).type == AE_ANDLO {
+        if expr1.type == AE_ANDHI ||
+            expr1.type == AE_ANDLO {
             let tmp1 = getExprCharge(expr1.lft)
             let tmp2 = getExprCharge(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
@@ -1631,24 +1632,24 @@ func getExprCharge(_ expr: _MKAtomExpr) -> Int {
 
 func getExprAtomicNum(_ expr: _MKAtomExpr) -> Int {
     switch expr as! _AtomExpr {
-    case .leaf(let _expr1):
-        if (expr as! _AtomExprProtocol).type == AE_ELEM ||
-           (expr as! _AtomExprProtocol).type == AE_AROMELEM || 
-           (expr as! _AtomExprProtocol).type == AE_ALIPHELEM {
-            return _expr1.value
+    case .leaf(let expr1):
+        if expr1.type == AE_ELEM ||
+           expr1.type == AE_AROMELEM ||
+           expr1.type == AE_ALIPHELEM {
+            return expr1.value
         }
     case .mon:
         break
     case .bin(let expr1):
-        if (expr as! _AtomExprProtocol).type == AE_OR {
+        if expr1.type == AE_OR {
             let tmp1 = getExprAtomicNum(expr1.lft)
             if tmp1 == 0  { return 0 }
             let tmp2 = getExprAtomicNum(expr1.rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
-        if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
-           (expr as! _AtomExprProtocol).type == AE_ANDLO {
+        if expr1.type == AE_ANDHI ||
+           expr1.type == AE_ANDLO  {
             let tmp1 = getExprAtomicNum(expr1.lft)
             let tmp2 = getExprAtomicNum(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
@@ -1661,28 +1662,43 @@ func getExprAtomicNum(_ expr: _MKAtomExpr) -> Int {
     return 0
 }
 
-func getExprOrder(_ expr: _BondExpr) -> Int { 
-    switch (expr as! _BondExprProtocol).type {
-    case BE_SINGLE: return 1
-    case BE_DOUBLE: return 2
-    case BE_TRIPLE: return 3
-    case BE_QUAD: return 4
-    case BE_AROM: return 5
-
-    case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
-    case BE_ANDHI, BE_ANDLO:
-        switch expr{
-        case .bin(let expr1):
+func getExprOrder(_ expr: _BondExpr) -> Int {
+    switch expr {
+    case .leaf(let expr1):
+        switch expr1.type {
+        case BE_SINGLE: return 1
+        case BE_DOUBLE: return 2
+        case BE_TRIPLE: return 3
+        case BE_QUAD: return 4
+        case BE_AROM: return 5
+        case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
+        default: break
+        }
+    case .mon(let expr1):
+        switch expr1.type {
+        case BE_SINGLE: return 1
+        case BE_DOUBLE: return 2
+        case BE_TRIPLE: return 3
+        case BE_QUAD: return 4
+        case BE_AROM: return 5
+        case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
+        default: break
+        }
+    case .bin(let expr1):
+        switch expr1.type {
+        case BE_SINGLE: return 1
+        case BE_DOUBLE: return 2
+        case BE_TRIPLE: return 3
+        case BE_QUAD: return 4
+        case BE_AROM: return 5
+        case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
+        case BE_ANDHI, BE_ANDLO:
             let tmp1 = getExprOrder(expr1.lft)
             let tmp2 = getExprOrder(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
             if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
-        default: break
-        }
-    case BE_OR:
-        switch expr{
-        case .bin(let expr1):
+        case BE_OR:
             let tmp1 = getExprOrder(expr1.lft)
             if tmp1 == 0  { return 0 }
             let tmp2 = getExprOrder(expr1.rgt)
@@ -1690,8 +1706,8 @@ func getExprOrder(_ expr: _BondExpr) -> Int {
             if tmp1 == tmp2 { return tmp1 }
         default: break
         }
-    default: break
     }
+    
     return 0
 }
 
@@ -2239,6 +2255,7 @@ class LexicalParser: IteratorProtocol, Equatable {
     }
     
     static func == (lhs: LexicalParser, rhs: Character) -> Bool {
+        if lhs._index >= lhs._lexCharacters.count { return false }
         return lhs._lexCharacters[lhs._index] == rhs
     }
     

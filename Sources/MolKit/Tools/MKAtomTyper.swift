@@ -42,7 +42,8 @@ class MKAtomTyper: MKGlobalDataBase {
         filePath.foreachRow { rowContent, lineNum in
 //            INTHYB Line
             if rowContent.starts(with: "INTHYB") {
-                let vs = rowContent.components(separatedBy: .whitespaces)
+                var vs = rowContent.components(separatedBy: .whitespaces)
+                vs.removeAll(where: { $0 == "" })
                 if vs.count < 3 {
                     print("Could not parse INTHYB line in atom type table from atomtyp.txt")
                 }
@@ -55,7 +56,8 @@ class MKAtomTyper: MKGlobalDataBase {
             }
 //            EXTTYP Line
             else if rowContent.starts(with: "EXTTYP") {
-                let vs = rowContent.components(separatedBy: .whitespaces)
+                var vs = rowContent.components(separatedBy: .whitespaces)
+                vs.removeAll(where: { $0 == "" })
                 if vs.count < 3 {
                     print("Could not parse EXTTYP line in atom type table from atomtyp.txt")
                 }

@@ -58,4 +58,22 @@ final class MolKitTests: XCTestCase {
         XCTAssert(ringTyper.getSize() == 40)
     }
     
+    func testMKBondTyper() throws {
+        let bondTyper = MolKit._BondTyper
+        print(bondTyper.getSize())
+        XCTAssert(bondTyper.getSize() > 0)
+    }
+    
+    func testMKAtomTyper() throws {
+        let atomTyper = MolKit._AtomTyper
+        print(atomTyper.getSize())
+        XCTAssert(atomTyper.getSize() > 0)
+    }
+    
+    func testMKPhModel() throws {
+        let pHmodel = MolKit._PhModel
+        print(pHmodel.getSize())
+        XCTAssert(pHmodel.getSize() > 0)
+    }
+    
 }

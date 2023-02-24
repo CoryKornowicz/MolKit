@@ -22,7 +22,8 @@ class MKBondTyper: MKGlobalDataBase {
         filePath.foreachRow { rowContent, lineNum in
             if !rowContent.starts(with: "#") {
                 var bovector: [Int] = []
-                let vs = rowContent.components(separatedBy: .whitespaces)
+                var vs = rowContent.components(separatedBy: .whitespaces)
+                vs.removeAll(where: { $0 == "" })
                 // Make sure we actually have a SMARTS pattern plus at least one triple
                 // and make sure we have the correct number of integers
                 if vs.count < 4 { return } // just ignore empty (or short lines)

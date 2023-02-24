@@ -284,26 +284,24 @@ class MKPhModel: MKGlobalDataBase {
     var _vschrg: [Pair<MKSmartsPattern, [Double]>] = []
 
     init() {
-        super.init(fileName: "phmodel.txt", subDir: "Data")
+        super.init(fileName: "phmodel", subDir: "Data")
+        self.readFile()
     }
     
     override func readFile() {
         guard let filePath = Bundle.module.url(forResource: self._filename, withExtension: "txt", subdirectory: self._subdir) else { return }
         
         filePath.foreachRow { rowContent, lineNum in
-            if rowContent.starts(with: "#") { return }
             if rowContent.starts(with: "TRANSFORM") {
                 var vs = rowContent.components(separatedBy: .whitespaces)
                 vs.removeAll(where: { $0 == "" })
                 if vs.count < 5 {
-//                  TODO: Handle error, log
+                    //                  TODO: Handle error, log
                     print("Could not parse line in phmodel table from phmodel.txt")
-                    return
                 }
                 let tsfm = MKChemTsfm()
                 if !tsfm.initialize(vs[1], vs[3]) {
                     print("Could not parse line in phmodel table from phmodel.txt")
-                    return
                 }
                 _vtsfm.append(tsfm)
                 _vpka.append(String(vs[4]).toDouble()!)
@@ -312,16 +310,13 @@ class MKPhModel: MKGlobalDataBase {
                 vs.removeAll(where: { $0 == "" })
                 if vs.count < 2 {
                     print("Could not parse line in phmodel table from phmodel.txt")
-                    return
                 }
                 let sp = MKSmartsPattern()
                 if !sp.initialize(vs[1]) {
                     print("Could not parse line in phmodel table from phmodel.txt")
-                    return
                 }
                 if (vs.count-2) != sp.numAtoms() {
                     print("Could not parse line in phmodel table from phmodel.txt")
-                    return
                 }
                 var vf : [Double] = []
                 for i in vs[2...] {
