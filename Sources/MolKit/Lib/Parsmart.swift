@@ -294,12 +294,14 @@ class MKSmartsPattern {
     
     func getAtomicNum(_ idx: Int) -> Int? {
         //        TODO: throw error here on nil
-        return getExprAtomicNum((_pat?.atom[idx].expr)!)
+        guard let pat = _pat else { return nil }
+        return getExprAtomicNum(pat.atom[idx].expr)
     }
     
     func getCharge(_ idx: Int) -> Int? {
         //        TODO: throw error here on nil
-        return getExprCharge((_pat?.atom[idx].expr)!)
+        guard let pat = _pat else { return nil }
+        return getExprCharge(pat.atom[idx].expr)
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -1208,8 +1210,8 @@ class MKSmartsPattern {
     }
     
     //! \return the vector binding of the atom @p idx in the internal pattern
-    func getVectorBinding(_ idx: Int) -> Int {
-        return _pat?.atom[idx].vb ?? 0
+    func getVectorBinding(_ idx: Int) -> Int? {
+        return _pat?.atom[idx].vb
     }
     
     func getVectorBinding() -> Int {

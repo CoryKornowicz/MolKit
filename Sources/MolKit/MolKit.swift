@@ -17,6 +17,7 @@ public class MolKit {
     static let _BondTyper = MKBondTyper()
     static let _AtomTyper = MKAtomTyper()
     static let _AromTyper = MKAromaticTyper()
+    static let _PhModel = MKPhModel()
     
     init() {
         

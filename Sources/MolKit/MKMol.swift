@@ -131,6 +131,10 @@ class MKMol: MKBase {
         self._title = title
     }
     
+    func getDimension() -> Int {
+        return Int(self._dimension)
+    }
+    
     //! Returns a pointer to the atom after a safety check
     //! 0 < idx <= NumAtoms
     func getAtom(_ idx: Int) -> MKAtom? {
@@ -2825,7 +2829,7 @@ class MKMol: MKBase {
             return true
         }
 //      MARK: Should probably wrap this in a try/catch block
-        MKPhModel.sharedInstance.correctForPH(self, pH)
+        MolKit._PhModel.correctForPH(self, pH)
         
         return true
     }

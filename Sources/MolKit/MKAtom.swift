@@ -244,7 +244,7 @@ public class MKAtom: MKBase {
                 for atom in mol.getAtomIterator() {
                     atom.setPartialCharge(0.0)
                 }
-                MKPhModel.sharedInstance.assignSeedPartialCharge(mol)
+                MolKit._PhModel.assignSeedPartialCharge(mol)
                 let gc: MKGastChrg = MKGastChrg()
                 gc.assignPartialCharges(mol)
             }
