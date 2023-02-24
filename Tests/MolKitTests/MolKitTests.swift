@@ -48,7 +48,6 @@ final class MolKitTests: XCTestCase {
     
     func testMKTypeTable() throws {
         let typeTable = MolKit._TypeTable
-        print(typeTable._ncols)
         print(typeTable.getSize())
         XCTAssert(typeTable.getSize() > 0)
     }

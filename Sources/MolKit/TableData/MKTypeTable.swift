@@ -87,7 +87,8 @@ class MKTypeTable: MKGlobalDataBase {
                     self._colnames = rowContent.components(separatedBy: .whitespaces)
                     self._ncols = self._colnames.count
                 } else {
-                    let newRow = rowContent.components(separatedBy: .whitespaces)
+                    var newRow = rowContent.components(separatedBy: .whitespaces)
+                    newRow.removeAll(where: { $0 == "" })
                     if newRow.count == self._ncols {
                         self._table.append(newRow)
                     } else {

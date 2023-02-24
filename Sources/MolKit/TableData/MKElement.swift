@@ -39,7 +39,7 @@ import Foundation
 
 public let NUMELEMENTS = 118
 
-struct MKElement {
+struct MKElement: Equatable {
     // Num    Symb    ARENeg    RCov    RBO    RVdW    MaxBnd    Mass    ElNeg.    Ionization    ElAffinity    Red    Green    Blue    Name
     let Num: Int
     let Symb: String
@@ -74,13 +74,33 @@ struct MKElement {
         self.Blue = Blue
         self.Name = Name
     }
+    
+    var atomicNum: Int {
+        self.Num
+    }
+    
+    static func == (_ lhs: MKElement, _ rhs: MKElement) -> Bool {
+        return lhs.Num == rhs.Num
+    }
+        
+    static func == (_ lhs: MKElement, _ rhs: Int) -> Bool {
+        return lhs.Num == rhs
+    }
+    
+    static func == (_ lhs: MKElement, _ rhs: UInt) -> Bool {
+        return lhs.Num == Int(rhs)
+    }
 
 }
 
 class MKElements {
+    
+    static let Hydrogen = MKElement(  1, "H" , 2.20, 0.31, 0.31, 1.10,  1,    1.00794, 2.20, 13.5984, 0.75420375, 0.75, 0.75, 0.75, "Hydrogen")
+    
+    
     private let _MKELEMTable: [MKElement] = [
         MKElement(  0, "*,", 0.00, 0.00, 0.00, 0.00,  0,          0, 0.00,       0,          0, 0.07, 0.50, 0.70, "Dummy"),
-        MKElement(  1, "H" , 2.20, 0.31, 0.31, 1.10,  1,    1.00794, 2.20, 13.5984, 0.75420375, 0.75, 0.75, 0.75, "Hydrogen"),
+        Hydrogen,
         MKElement(  2, "He", 0.00, 0.28, 0.28, 1.40,  0,   4.002602, 0.00, 24.5874,          0, 0.85, 1.00, 1.00, "Helium"),
         MKElement(  3, "Li", 0.97, 1.28, 1.28, 1.81,  1,      6.941, 0.98,  5.3917,   0.618049, 0.80, 0.50, 1.00, "Lithium"),
         MKElement(  4, "Be", 1.47, 0.96, 0.96, 1.53,  2,   9.012182, 1.57,  9.3227,          0, 0.76, 1.00, 0.00, "Beryllium"),

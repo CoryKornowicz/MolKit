@@ -45,6 +45,29 @@ class MKRingTyper: MKGlobalDataBase {
     
     //! Assign external atomic types (ringtyp.txt)
     func assignTypes(_ mol: MKMol) {
-        
+        mol.setRingTypesPerceived()
+
+        let rlist = mol.getSSSR()
+        var member_count = 0 
+
+        for i2 in _ringtyp { // for each ring type
+            var mlist: [[Int]] = []
+            if i2.0.match(mol, &mlist) {
+                for j2 in mlist { // for each found match
+                    for i in rlist { // for each ring 
+                        member_count = 0
+                        for j in j2 { // for each atom in the match
+                            guard let atom = mol.getAtom(j) else { break }
+                            if i.isMember(atom) {
+                                member_count += 1
+                            }
+                        }
+                        if i.size() == member_count {
+                            i.setType(i2.1)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
