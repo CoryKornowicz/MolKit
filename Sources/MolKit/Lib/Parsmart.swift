@@ -156,7 +156,7 @@ struct AtomSpec: Equatable {
     var part: Int
     var chiral_flag: Int?
     var vb: Int
-    var nbrs: [Int]?
+    var nbrs: [Int] = []
     
     static func == (lhs: AtomSpec, rhs: AtomSpec) -> Bool {
         lhs.part == rhs.part && lhs.visit == rhs.visit && lhs.chiral_flag == rhs.chiral_flag && lhs.vb == rhs.vb && lhs.nbrs == rhs.nbrs
@@ -167,7 +167,6 @@ struct AtomSpec: Equatable {
 //! \struct Pattern parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal pattern
 struct Pattern: Equatable {
-    
     
     var aalloc: Int = 0
     var acount: Int  {
@@ -252,8 +251,8 @@ class MKSmartsPattern {
     }
     
     func initialize(_ pattern: String) -> Bool {
-        _pat = self.parseSMARTSRecord(pattern)
         _str = pattern
+        _pat = self.parseSMARTSRecord(pattern)
         return _pat != nil
     }
     
@@ -314,7 +313,7 @@ class MKSmartsPattern {
         guard var _pat = _pat else { return false }
         if _pat.hasExplicitH { //The SMARTS pattern contains [H]
             //Do matching on a copy of mol with explicit hydrogens
-            var tmol = mol
+            let tmol = mol
             tmol.addHydrogens(false, false)
             return matcher.match(tmol, &_pat, &_mlist, single)
         }
@@ -344,7 +343,7 @@ class MKSmartsPattern {
         if mtype == .AllUnique && mlist.count > 1 {
             //uniquify
             var ok = true
-            var bv = MKBitVec()
+            let bv = MKBitVec()
             var vbv: [MKBitVec] = []
             var ulist: [[Int]] = []
             
@@ -531,13 +530,15 @@ class MKSmartsPattern {
         
         var stat: ParseState = ParseState()
         stat.closure.reserveCapacity(100)
+        stat.closord.reserveCapacity(100)
         var flag: Bool
         
-        for i in 0..<100 {
-            stat.closure[i] =  -1
+        for _ in 0..<100 {
+            stat.closure.append(-1)
+            stat.closord.append(nil)
         }
         var prev = -1
-        var result: Pattern? = SMARTSParser(&result, &stat, &prev, part)
+        let result: Pattern? = SMARTSParser(&result, &stat, &prev, part)
         
         flag = false
         for i in 0..<100 {
@@ -549,7 +550,7 @@ class MKSmartsPattern {
         if var result = result {
             if flag {
                 // TODO: throw error here
-                print("SMARTS Error")
+                print("SMARTS Error: Flag was triggered")
                 return result
             } else {
                 markGrowBonds(&result)
@@ -1049,33 +1050,35 @@ class MKSmartsPattern {
         case 0: /* Low Precedence Conjunction */
             expr1 = parseAtomExpr(1) ?? nil
             if expr1 != nil  {
-                repeat {
+                while self.LexPtr.cur() == ";" {
                     self.LexPtr.inc()
                     expr2 = parseAtomExpr(1) ?? nil
                     if expr2 != nil {
                         //                        MARK: probably need better error handling here but they should not be nil
                         expr1 = buildAtomBinary(AE_ANDLO, expr1!, expr2!)
                     } else { return nil}
-                } while self.LexPtr.cur() == ";"
+                }
             } else { return nil }
             return expr1
         case 1: /* Disjunction */
             expr1 = parseAtomExpr(2) ?? nil
             if expr1 != nil  {
-                repeat {
+                while self.LexPtr.cur() == "," {
                     self.LexPtr.inc()
                     expr2 = parseAtomExpr(2) ?? nil
                     if expr2 != nil {
                         //                        MARK: probably need better error handling here but they should not be nil
                         expr1 = buildAtomBinary(AE_OR, expr1!, expr2!)
                     } else { return nil}
-                } while self.LexPtr.cur() == ","
+                }
             } else { return nil }
             return expr1
         case 2: /* High Precedence Conjunction */
             expr1 = parseAtomExpr(3) ?? nil
             if expr1 != nil  {
-                repeat {
+                while ((self.LexPtr.cur() != "]") &&
+                       (self.LexPtr.cur() != ";") &&
+                       (self.LexPtr.cur() != ",") && !self.LexPtr.empty()) {
                     if self.LexPtr.cur() == "&" {
                         self.LexPtr.inc()
                     }
@@ -1088,9 +1091,7 @@ class MKSmartsPattern {
                     } else {
                         expr1 = buildAtomBinary(AE_ANDHI, expr1!, expr2!)
                     }
-                } while ((self.LexPtr.cur() != "]") &&
-                         (self.LexPtr.cur() != ";") &&
-                         (self.LexPtr.cur() != ",") && !self.LexPtr.empty())
+                }
             } else { return nil }
             return expr1
         case 3: /* Negation or Primitive */
@@ -1098,7 +1099,7 @@ class MKSmartsPattern {
                 self.LexPtr.inc()
                 expr1 = parseAtomExpr(3) ?? nil
                 if expr1 != nil {
-                    buildAtomNot(expr1!)
+                    return buildAtomNot(expr1!)
                 } else { return nil }
             }
             return parseComplexAtomPrimitive()
@@ -1136,33 +1137,35 @@ class MKSmartsPattern {
         case 0: /* Low Precedence Conjunction */
             expr1 = parseBondExpr(1) ?? nil
             if expr1 != nil  {
-                repeat {
+                while self.LexPtr.cur() == ";" {
                     self.LexPtr.inc()
                     expr2 = parseBondExpr(1) ?? nil
                     if expr2 != nil {
                         //                        MARK: probably need better error handling here but they should not be nil
                         expr1 = buildBondBin(BE_ANDLO, expr1!, expr2!)
                     } else { return nil}
-                } while self.LexPtr.cur() == ";"
+                }
             } else { return nil }
             return expr1
         case 1: /* Disjunction */
             expr1 = parseBondExpr(2) ?? nil
             if expr1 != nil  {
-                repeat {
+                while self.LexPtr.cur() == "," {
                     self.LexPtr.inc()
                     expr2 = parseBondExpr(2) ?? nil
                     if expr2 != nil {
                         //                        MARK: probably need better error handling here but they should not be nil
                         expr1 = buildBondBin(BE_OR, expr1!, expr2!)
                     } else { return nil}
-                } while self.LexPtr.cur() == ","
+                }
             } else { return nil }
             return expr1
         case 2: /* High Precedence Conjunction */
             expr1 = parseBondExpr(3) ?? nil
             if expr1 != nil  {
-                repeat {
+                while ((self.LexPtr.cur() != "]") &&
+                       (self.LexPtr.cur() != ";") &&
+                       (self.LexPtr.cur() != ",") && !self.LexPtr.empty()) {
                     if self.LexPtr.cur() == "&" {
                         self.LexPtr.inc()
                     }
@@ -1175,9 +1178,7 @@ class MKSmartsPattern {
                     } else {
                         expr1 = buildBondBin(BE_ANDHI, expr1!, expr2!)
                     }
-                } while ((self.LexPtr.cur() != "]") &&
-                         (self.LexPtr.cur() != ";") &&
-                         (self.LexPtr.cur() != ",") && !self.LexPtr.empty())
+                }
             } else { return nil }
             return expr1
         case 3: /* Negation or Primitive */
@@ -1185,7 +1186,7 @@ class MKSmartsPattern {
                 self.LexPtr.inc()
                 expr1 = parseBondExpr(3) ?? nil
                 if expr1 != nil {
-                    buildBondNot(expr1!)
+                    return buildBondNot(expr1!)
                 } else { return nil }
             }
             return parseBondPrimitive()
@@ -1231,23 +1232,24 @@ class MKSmartsPattern {
         while !self.LexPtr.empty() {
             switch self.LexPtr.next() {
             case ".":
-                print("ParseSMARTSError")
+                print("ParseSMARTSError: found \".\"")
                 return nil
             case "-", "=", "#", "$", ":", "~", "@", "/", "\\", "!":
                 self.LexPtr.dec()
                 if prev == -1 || (bexpr != nil) {
-                    print("ParseSMARTSError")
+                    if prev == -1 { print("found bad prev in punc. parse") }
+                    if (bexpr != nil) {print("found bad bexpr in punc. parse")}
                     return nil
                 }
                 bexpr = parseBondExpr(0) ?? nil
                 if bexpr == nil {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: bexpr == nil in punc. parse")
                     return nil
                 }
             case "(":
                 if bexpr != nil {
                     self.LexPtr.dec()
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found \"(\"")
                     return nil
                 }
                 if prev == -1 {
@@ -1256,37 +1258,41 @@ class MKSmartsPattern {
                     pat = SMARTSParser(&pat, &stat, &prev, part) ?? nil
                     if pat == nil { return nil }
                     if index == pat!.acount {
-                        print("ParseSMARTSError")
+                        print("ParseSMARTSError: index == pat!.acount")
                         return nil
                     }
                     prev = index
                 } else {
                     pat = SMARTSParser(&pat, &stat, &prev, part)
-                    if pat == nil { return nil }
+                    if pat == nil { 
+                        print("ParseSMARTSError: pat == nil")
+                        return nil 
+                    }
                 }
                 
                 if self.LexPtr.cur() != ")" {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found \"(\" but no \")\"")
                     return nil
                 }
                 self.LexPtr.inc()
             case ")":
                 self.LexPtr.dec()
                 if prev == -1 || (bexpr != nil) {
-                    print("ParseSMARTSError")
+                    if prev == -1 { print("ParseSMARTSError: found bad prev in \")\"") }
+                    if (bexpr != nil) {print("ParseSMARTSError: found bad bexpr in \")\"")}
                     return nil
                 }
                 return pat
             case "%":
                 if prev == -1 {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad prev in \"%\"")
                     return nil
                 }
                 if self.LexPtr[0].isNumber && self.LexPtr[1].isNumber {
                     index = 10 * (self.LexPtr.next()?.wholeNumberValue)! + (self.LexPtr.next()?.wholeNumberValue)!
                     self.LexPtr += 2
                 } else {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad index in \"%\"")
                     return nil
                 }
                 if stat.closure[index] == -1 {
@@ -1300,21 +1306,21 @@ class MKSmartsPattern {
                             bexpr = stat.closord[index]
                         }
                     } else if (stat.closord[index] != nil) && !equivalentBonExpr(bexpr!, stat.closord[index]!) {
-                        print("ParseSMARTSError")
+                        print("ParseSMARTSError: found bad closure in \"%\"")
                         return nil
                     }
                     createBond(&pat!, bexpr!, prev, stat.closure[index])
                     stat.closure[index] = -1
                     bexpr = nil
                 } else {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad closure in \"%\"")
                     return nil
                 }
                 // case 0 - 9
             case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
                 self.LexPtr.dec()
                 if prev == -1 {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad prev in \"0-9\"")
                     return nil
                 }
                 index = self.LexPtr.next()?.wholeNumberValue ?? -1
@@ -1322,7 +1328,7 @@ class MKSmartsPattern {
                     // Ring Opening
                     stat.closord[index] = bexpr
                     stat.closure[index] = prev
-                    pat!.atom[prev].nbrs?.append(-1) // Store the BC idx as a -ve
+                    pat!.atom[prev].nbrs.append(-1) // Store the BC idx as a -ve
                     bexpr = nil
                 } else if stat.closure[index] != prev {
                     if bexpr == nil {
@@ -1332,21 +1338,24 @@ class MKSmartsPattern {
                             bexpr = stat.closord[index]
                         }
                     } else if (stat.closord[index] != nil) && !equivalentBonExpr(bexpr!, stat.closord[index]!) {
-                        print("ParseSMARTSError")
+                        print("ParseSMARTSError: found bad closure in \"0-9\"")
                         return nil
                     }
                     createBond(&pat!, bexpr!, prev, stat.closure[index])
                     
-                    pat!.atom[prev].nbrs?.append(stat.closure[index])
-                    for nbr_idx in pat!.atom[stat.closure[index]].nbrs!.makeIterator() {
-                        if pat!.atom[stat.closure[index]].nbrs?[nbr_idx] == -index {
-                            pat!.atom[stat.closure[index]].nbrs?[nbr_idx] = prev
+                    pat!.atom[prev].nbrs.append(stat.closure[index])
+                    for nbr_idx in pat!.atom[stat.closure[index]].nbrs.makeIterator() {
+                        if pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] == -index {
+//                            pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] = prev
+                            pat!.atom[stat.closure[index]].nbrs.insert(prev, at: (nbr_idx < 0 ? pat!.atom[stat.closure[index]].nbrs.endIndex.advanced(by: (nbr_idx-1)) :
+                                                                                                nbr_idx ))
+
                         }
                     }
                     stat.closure[index] = -1
                     bexpr = nil
                 } else {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad closure in \"0-9\"")
                     return nil
                 }
             case "[":
@@ -1359,8 +1368,9 @@ class MKSmartsPattern {
                     aexpr = parseAtomExpr(0)
                 }
                 vb = self.LexPtr.cur() == ":" ? getVectorBinding() : 0
-                if aexpr == nil || self.LexPtr.cur() == "]" {
-                    print("ParseSMARTSError")
+                if aexpr == nil || self.LexPtr.cur() != "]" {
+                    if aexpr == nil{ print("ParseSMARTSError: found bad aexpr in \"]\"") }
+                    if self.LexPtr.cur() == "]" {print("ParseSMARTSError: found bad char in \"]\"")}
                     return nil
                 }
                 index = createAtom(&pat!, aexpr!, part, vb)
@@ -1369,12 +1379,12 @@ class MKSmartsPattern {
                         bexpr = generateDefaultBond()
                     }
                     createBond(&pat!, bexpr!, prev, index)
-                    pat?.atom[index].nbrs?.append(prev)
-                    pat?.atom[prev].nbrs?.append(index)
+                    pat?.atom[index].nbrs.append(prev)
+                    pat?.atom[prev].nbrs.append(index)
                     bexpr = nil
                 }
                 if self.LexPtr[-1] == "H" && self.LexPtr[-2] == "@" { // i.e. [C@H] or [C@@H]
-                    pat?.atom[index].nbrs?.append(SmartsImplicitRef)
+                    pat?.atom[index].nbrs.append(SmartsImplicitRef)
                 }
                 prev = index
                 self.LexPtr.inc()
@@ -1382,7 +1392,7 @@ class MKSmartsPattern {
                 self.LexPtr.dec()
                 aexpr = parseSimpleAtomPrimitive()
                 if aexpr == nil {
-                    print("ParseSMARTSError")
+                    print("ParseSMARTSError: found bad aexpr in \"default\"")
                     return nil
                 }
                 index = createAtom(&pat!, aexpr!, part)
@@ -1391,8 +1401,8 @@ class MKSmartsPattern {
                         bexpr = generateDefaultBond()
                     }
                     createBond(&pat!, bexpr!, prev, index)
-                    pat?.atom[index].nbrs?.append(prev)
-                    pat?.atom[prev].nbrs?.append(index)
+                    pat?.atom[index].nbrs.append(prev)
+                    pat?.atom[prev].nbrs.append(index)
                     bexpr = nil
                 }
                 prev = index
@@ -1400,7 +1410,9 @@ class MKSmartsPattern {
         }
         
         if (prev == -1) || (bexpr != nil) {
-            print("ParseSMARTSError")
+            if prev == -1 { print("ParseSMARTSError: found bad prev in \"end\"") }
+            if (bexpr != nil) {print("ParseSMARTSError: found bad bexpr in \"end\"")}
+            print("ParseSMARTSError: found bad prev or bexpr after iteration")
             return nil
         }
         
@@ -1471,11 +1483,11 @@ func equivalentBonExpr(_ lhs: _BondExpr, _ rhs: _BondExpr) -> Bool {
     }
     
     switch lhs {
-    case .leaf(let _expr):
+    case .leaf:
         break
     case .mon(let expr1):
         switch rhs {
-        case .leaf(let _expr):
+        case .leaf:
             break
         case .mon(let expr2):
             switch expr1.type {
@@ -1488,7 +1500,7 @@ func equivalentBonExpr(_ lhs: _BondExpr, _ rhs: _BondExpr) -> Bool {
         }
     case .bin(let expr1):
         switch rhs {
-        case .leaf(let _expr):
+        case .leaf:
             break
         case .mon(_):
             break
@@ -1529,15 +1541,13 @@ func generateDefaultBond() -> _BondExpr {
   /*===============================*/
 
 func createAtom(_ pat: inout Pattern, _ expr: _MKAtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
-    let tmp = AtomSpec(expr: expr, part: part, vb: vb)
-    pat.atom.append(tmp)
-    return pat.acount
+    pat.atom.append(AtomSpec(expr: expr, part: part, vb: vb))
+    return pat.acount - 1
 }
 
 func createBond(_ pat: inout Pattern, _ expr: _BondExpr, _ src: Int, _ dst: Int) -> Int {
-    let tmp = BondSpec(expr: expr, src: src, dst: dst)
-    pat.bond.append(tmp)
-    return pat.bcount
+    pat.bond.append(BondSpec(expr: expr, src: src, dst: dst))
+    return pat.bcount - 1
 }
 
 func markGrowBonds(_ pat: inout Pattern) {
@@ -1555,27 +1565,27 @@ func getChiralFlag(_ expr: _MKAtomExpr) -> Int {
 
     switch (expr as! _AtomExpr) {
     case .leaf(let _expr1):
-        if (expr as! _AtomExprProtocol).type == AE_CHIRAL {
+        if _expr1.type == AE_CHIRAL {
             return _expr1.value
         }
     case .mon(let expr1):
         // Treat [!@] as [@@], and [!@@] as [@]
-        if (expr as! _AtomExprProtocol).type == AE_NOT {
-            var tmp1 = getChiralFlag(expr1.arg)
+        if expr1.type == AE_NOT {
+            let tmp1 = getChiralFlag(expr1.arg)
             if tmp1 == AL_ANTICLOCKWISE { return AL_CLOCKWISE }
             if tmp1 == AL_CLOCKWISE { return AL_ANTICLOCKWISE }
         }
     case .bin(let expr1):
-        if (expr as! _AtomExprProtocol).type == AE_OR {
-            var tmp1 = getChiralFlag(expr1.lft)
-            var tmp2 = getChiralFlag(expr1.rgt)
+        if expr1.type == AE_OR {
+            let tmp1 = getChiralFlag(expr1.lft)
+            let tmp2 = getChiralFlag(expr1.rgt)
             if tmp1 == 0 || tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
-        if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
-           (expr as! _AtomExprProtocol).type == AE_ANDLO {
-            var tmp1 = getChiralFlag(expr1.lft)
-            var tmp2 = getChiralFlag(expr1.rgt)
+        if  expr1.type == AE_ANDHI ||
+            expr1.type == AE_ANDLO {
+            let tmp1 = getChiralFlag(expr1.lft)
+            let tmp2 = getChiralFlag(expr1.rgt)
             if tmp1 == 0 { return 0 }
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
@@ -1593,20 +1603,20 @@ func getExprCharge(_ expr: _MKAtomExpr) -> Int {
         if (expr as! _AtomExprProtocol).type == AE_CHARGE {
             return _expr1.value
         }
-    case .mon(let expr1):
+    case .mon:
         break
     case .bin(let expr1):
         if (expr as! _AtomExprProtocol).type == AE_OR {
-            var tmp1 = getExprCharge(expr1.lft)
+            let tmp1 = getExprCharge(expr1.lft)
             if tmp1 == 0  { return 0 }
-            var tmp2 = getExprCharge(expr1.rgt)
+            let tmp2 = getExprCharge(expr1.rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
         if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
            (expr as! _AtomExprProtocol).type == AE_ANDLO {
-            var tmp1 = getExprCharge(expr1.lft)
-            var tmp2 = getExprCharge(expr1.rgt)
+            let tmp1 = getExprCharge(expr1.lft)
+            let tmp2 = getExprCharge(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
             if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
@@ -1625,20 +1635,20 @@ func getExprAtomicNum(_ expr: _MKAtomExpr) -> Int {
            (expr as! _AtomExprProtocol).type == AE_ALIPHELEM {
             return _expr1.value
         }
-    case .mon(let expr1):
+    case .mon:
         break
     case .bin(let expr1):
         if (expr as! _AtomExprProtocol).type == AE_OR {
-            var tmp1 = getExprAtomicNum(expr1.lft)
+            let tmp1 = getExprAtomicNum(expr1.lft)
             if tmp1 == 0  { return 0 }
-            var tmp2 = getExprAtomicNum(expr1.rgt)
+            let tmp2 = getExprAtomicNum(expr1.rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
         if (expr as! _AtomExprProtocol).type == AE_ANDHI ||
            (expr as! _AtomExprProtocol).type == AE_ANDLO {
-            var tmp1 = getExprAtomicNum(expr1.lft)
-            var tmp2 = getExprAtomicNum(expr1.rgt)
+            let tmp1 = getExprAtomicNum(expr1.lft)
+            let tmp2 = getExprAtomicNum(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
             if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
@@ -1659,25 +1669,25 @@ func getExprOrder(_ expr: _BondExpr) -> Int {
 
     case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
     case BE_ANDHI, BE_ANDLO:
-    switch expr{
+        switch expr{
         case .bin(let expr1):
-            var tmp1 = getExprOrder(expr1.lft)
-            var tmp2 = getExprOrder(expr1.rgt)
+            let tmp1 = getExprOrder(expr1.lft)
+            let tmp2 = getExprOrder(expr1.rgt)
             if tmp1 == 0 { return tmp2 }
             if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
         default: break
-    }
+        }
     case BE_OR:
-    switch expr{
+        switch expr{
         case .bin(let expr1):
-            var tmp1 = getExprOrder(expr1.lft)
+            let tmp1 = getExprOrder(expr1.lft)
             if tmp1 == 0  { return 0 }
-            var tmp2 = getExprOrder(expr1.rgt)
+            let tmp2 = getExprOrder(expr1.rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         default: break
-    }
+        }
     default: break
     }
     return 0
@@ -1707,8 +1717,8 @@ class MKSmartsMatcher {
         }
 
         switch (expr as! _AtomExpr) {
-        case .leaf(var expr):
-            switch (expr as! _AtomExprProtocol).type {
+        case .leaf(let expr):
+            switch expr.type {
             case AE_MASS: 
                 return expr.value == atom.getIsotope()
             case AE_ELEM:
@@ -1742,8 +1752,8 @@ class MKSmartsMatcher {
                 return expr.value == atom.countRingBonds()
             default: break
             }
-        case .mon(var expr):
-            if (expr as _AtomExprProtocol).type == AE_NOT {
+        case .mon(let expr):
+            if expr.type == AE_NOT {
                 return !evalAtomExpr(expr.arg, atom)
             }
         case .bin(var expr):
@@ -1779,7 +1789,7 @@ class MKSmartsMatcher {
     }
 
     func evalBondExpr(_ expr: inout _BondExpr, _ bond: MKBond) -> Bool {
-        repeat {
+        while true {
             switch (expr as! _BondExprProtocol).type {
             case BE_ANDHI, BE_ANDLO:
                 // get expr to _BondExprBin type
@@ -1828,7 +1838,7 @@ class MKSmartsMatcher {
             //  return !bond->IsUp();
             default: return false 
             }
-        } while true 
+        }
     }
     
     private func setupAtomMatchTable(_ ttab: inout [[Bool]], _ pat: Pattern, _ mol: MKMol) {
@@ -1848,11 +1858,12 @@ class MKSmartsMatcher {
     }
 
     private func fastSingleMatch(_ mol: MKMol, _ pat: inout Pattern, _ mlist: inout [[Int]]) {
-        var bv = MKBitVec(UInt32(mol.numAtoms() + 1))
+        let bv = MKBitVec(UInt32(mol.numAtoms() + 1))
         var map: [Int] = []
         map.reserveCapacity(pat.acount)
         var vif: [Bool] = []
-        var atom, a1, nbr: MKAtom
+        var a1: MKAtom
+        var nbr: MKAtom?
         var a1Iter: [MKIterator<MKAtom>?] = []
 
         if (pat.bcount != 0) {
@@ -1870,7 +1881,7 @@ class MKSmartsMatcher {
                 bv.clear() 
                 bv.setBitOn(UInt32(atom.getIdx()))
 
-                repeat {
+                while bcount >= 0 {
                     //***entire pattern matched***
                     if bcount == pat.bcount { //save full match here
                         mlist.append(map)
@@ -1902,19 +1913,19 @@ class MKSmartsMatcher {
                             if a1Iter[bcount] == nil {
                                 a1Iter[bcount] = a1.getNbrAtomIterator() ?? nil
                             }
-                            nbr = a1Iter[bcount]!.next()!
+                            nbr = a1Iter[bcount]!.next()
                         } else {
                             bv.setBitOff(UInt32(map[pat.bond[bcount].dst]))
-                            nbr = a1Iter[bcount]!.next()!
+                            nbr = a1Iter[bcount]!.next()
                         }
 
-                        for nbr in a1Iter[bcount]! {
-                            if !bv[nbr.getIdx()] {
-                                if evalAtomExpr(pat.atom[pat.bond[bcount].dst].expr, nbr) {
-                                    if let bond = mol.getBond(a1.getIdx(), nbr.getIdx()) {
+                        while nbr != nil {
+                            if !bv[nbr!.getIdx()] {
+                                if evalAtomExpr(pat.atom[pat.bond[bcount].dst].expr, nbr!) {
+                                    if let bond = mol.getBond(a1.getIdx(), nbr!.getIdx()) {
                                         if evalBondExpr(&pat.bond[bcount].expr, bond) {
-                                            bv.setBitOn(UInt32(nbr.getIdx()))
-                                            map[pat.bond[bcount].dst] = nbr.getIdx()
+                                            bv.setBitOn(UInt32(nbr!.getIdx()))
+                                            map[pat.bond[bcount].dst] = nbr!.getIdx()
                                             vif[bcount] = true
                                             bcount += 1
                                             if bcount < pat.bcount {
@@ -1925,12 +1936,13 @@ class MKSmartsMatcher {
                                     }
                                 }
                             }
+                            nbr = a1Iter[bcount]!.next()
                         }
                         if a1Iter[bcount]!.next() == nil {
                             bcount -= 1
                         }
                     }
-                } while bcount >= 0 
+                }
             }
         }
 
@@ -1944,7 +1956,7 @@ class MKSmartsMatcher {
             fastSingleMatch(mol, &pat, &mlist)
         } else {
             // perform normal match (chirality ignored and checked below)
-            var ssm: MKSSMatch = MKSSMatch(mol, pat)
+            let ssm: MKSSMatch = MKSSMatch(mol, pat)
             ssm.match(&mlist)
         }
 
@@ -1967,8 +1979,8 @@ class MKSmartsMatcher {
 
                     // get the OBTetrahedralStereo::Config from the molecule
 
-                    var stereo: MKStereoFacade = MKStereoFacade(mol)
-                    var ts: MKTetrahedralStereo? = stereo.getTetrahedralStereo(center.getId().rawValue) 
+                    let stereo: MKStereoFacade = MKStereoFacade(mol)
+                    let ts: MKTetrahedralStereo? = stereo.getTetrahedralStereo(center.getId().rawValue)
                     if ts == nil {
                         allStereoCentersMatch = false
                         break
@@ -1980,7 +1992,7 @@ class MKSmartsMatcher {
                         break
                     }
 
-                    guard let nbrs: [Int] = pat.atom[j].nbrs else { continue }
+                    let nbrs: [Int] = pat.atom[j].nbrs
 
                     if nbrs.count != 4 { // 3 nbrs currently not supported. Other values are errors.
                         print("ERROR: SMARTS chiral atom has \(nbrs.count) neighbors, only works with 4")
@@ -2005,8 +2017,8 @@ class MKSmartsMatcher {
                         firstref = ma.ref
                     }
 
-                    guard var ra2 = mol.getAtom(m[nbrs[2]]) else { continue }
-                    guard var ra3 = mol.getAtom(m[nbrs[3]]) else { continue }
+                    guard let ra2 = mol.getAtom(m[nbrs[2]]) else { continue }
+                    guard let ra3 = mol.getAtom(m[nbrs[3]]) else { continue }
 
                     smartsConfig.refs = MKStereo.makeRefs(firstref, ra2.getId().ref, ra3.getId().ref)
                     
@@ -2093,7 +2105,7 @@ class MKSSMatch {
                 return
             }
             
-            var aexpr = _pat.atom[dst].expr
+            let aexpr = _pat.atom[dst].expr
             var bexpr = _pat.bond[bidx].expr
             
             guard let atom = _mol.getAtom(_map[src]) else { return }
@@ -2188,7 +2200,7 @@ class LexicalParser: IteratorProtocol, Equatable {
     }
     
     public func cur() -> Character {
-        self._lexCharacters[self._index]
+        self._index < self._lexCharacters.count ? self._lexCharacters[self._index] : "\0"
     }
 
     public func prev() -> Character {
@@ -2211,8 +2223,13 @@ class LexicalParser: IteratorProtocol, Equatable {
         if lhs._index > lhs._lexCharacters.count { lhs._index = lhs._lexCharacters.count }
     }
     
+    // returns true if empty, otherwise should be returning false
     func empty() -> Bool {
-        return _lexCharacters.count > 0 || self._index >= _lexCharacters.count || self._index == -1
+        if _lexCharacters.count > 0 && _index < _lexCharacters.count {
+            return false
+        } else {
+            return true
+        }
     }
     
     static func == (lhs: LexicalParser, rhs: LexicalParser) -> Bool {

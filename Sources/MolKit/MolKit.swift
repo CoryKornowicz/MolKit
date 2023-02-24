@@ -15,6 +15,8 @@ public class MolKit {
     static let _TypeTable = MKTypeTable()
     static let _RingTyper = MKRingTyper()
     static let _BondTyper = MKBondTyper()
+    static let _AtomTyper = MKAtomTyper()
+    static let _AromTyper = MKAromaticTyper()
     
     init() {
         

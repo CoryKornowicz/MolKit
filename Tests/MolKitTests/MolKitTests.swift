@@ -53,5 +53,10 @@ final class MolKitTests: XCTestCase {
         XCTAssert(typeTable.getSize() > 0)
     }
     
+    func testMKRingTyper() throws {
+        let ringTyper = MolKit._RingTyper
+        print(ringTyper.getSize())
+        XCTAssert(ringTyper.getSize() == 40)
+    }
     
 }

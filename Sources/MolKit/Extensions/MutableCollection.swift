@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Collections
 
 
 extension MutableCollection {
@@ -14,4 +15,20 @@ extension MutableCollection {
       update(&self[i])
     }
   }
+}
+
+enum SubscriptError: Error {
+    case outOfBounds
+    case greaterThanZero
+    case lessThanLastIndex
+}
+
+extension Collection where Indices.Iterator.Element == Index {
+    
+    public subscript(safelyAccess ind: Index) -> Iterator.Element {
+        get { return (ind as! Int) < 0 ? self[index(endIndex, offsetBy: (ind as! Int) - 1)] : self[ind]}
+        
+        
+    }
+
 }

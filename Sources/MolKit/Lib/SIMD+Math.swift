@@ -525,7 +525,10 @@ sweep_loop: for _ in 1...MAX_SWEEPS {
     v3[2] -= (r1[1] * r2[0])
     
     /* Ensure it is normalised |v3|=1 */
-    s = sqrt(v3[0]*v3[0] + v3[1]*v3[1] + v3[2]*v3[2])
+    let v302 = v3[0]*v3[0]
+    let v312 = v3[1]*v3[1]
+    let v322 = v3[2]*v3[2]
+    s = sqrt( v302 + v312 + v322 )
     v3[0] /= s
     v3[1] /= s
     v3[2] /= s
@@ -536,7 +539,10 @@ sweep_loop: for _ in 1...MAX_SWEEPS {
     v2[2] =  v3[0]*r1[1] - v3[1]*r1[0]
 
     /* Ensure it is normalised |v2|=1 */
-    s = sqrt(v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2])
+    let v202 = v2[0]*v2[0]
+    let v212 = v2[1]*v2[1]
+    let v222 = v2[2]*v2[2]
+    s = sqrt( v202 + v212 + v222 )
     v2[0] /= s
     v2[1] /= s
     v2[2] /= s
@@ -547,7 +553,10 @@ sweep_loop: for _ in 1...MAX_SWEEPS {
     v1[2] =  v2[0]*v3[1] - v2[1]*v3[0]
 
     /* Ensure it is normalised |v1|=1 */
-    s = sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2])
+    let v102 = v1[0]*v1[0]
+    let v112 = v1[1]*v1[1]
+    let v122 = v1[2]*v1[2]
+    s = sqrt( v102 + v112 + v122 )
     v1[0] /= s
     v1[1] /= s
     v1[2] /= s

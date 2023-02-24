@@ -26,7 +26,8 @@ class MKRingTyper: MKGlobalDataBase {
         
         filePath.foreachRow { rowContent, lineNum in
             if rowContent.starts(with: "RINGTYP") {
-                let vs = rowContent.components(separatedBy: .whitespaces)
+                var vs = rowContent.components(separatedBy: .whitespaces)
+                vs.removeAll(where: { $0 == "" })
                 if vs.count < 3 {
 //                  TODO: Handle error, log
                     print("Could not parse RING line in ring type table from ringtyp.txt")

@@ -251,7 +251,7 @@ class MKBond: MKBase {
     func isAromatic() -> Bool {
         guard let mol = self.getParent() else { return false }
         if (!mol.hasAromaticPerceived()) {
-            MKAromaticTyper.sharedInstance.assignAromaticFlags(mol)
+            MolKit._AromTyper.assignAromaticFlags(mol)
         }
         return self.hasFlag(OB_AROMATIC_BOND)
     }

@@ -21,19 +21,118 @@ import Foundation
     \endcode
   */
 
-class MKAtomTyper {
+class MKAtomTyper: MKGlobalDataBase {
+
+    var _vinthyb: [Pair<MKSmartsPattern, Int>] = []    //!< internal hybridization rules
+    var _vexttyp: [Pair<MKSmartsPattern, String>] = [] //!< external atom type rules
     
-    static let sharedInstance = MKAtomTyper()
+    public init() {
+        super.init(fileName: "atomtyp", subDir: "Data")
+        self.readFile()
+    }
     
-    private init() {}
+    //! \return the number of internal hybridization rules
+    override func getSize() -> Int {
+        return _vinthyb.count
+    }
+    
+    override func readFile() {
+        guard let filePath = Bundle.module.url(forResource: self._filename, withExtension: "txt", subdirectory: self._subdir) else { return }
+        
+        filePath.foreachRow { rowContent, lineNum in
+//            INTHYB Line
+            if rowContent.starts(with: "INTHYB") {
+                let vs = rowContent.components(separatedBy: .whitespaces)
+                if vs.count < 3 {
+                    print("Could not parse INTHYB line in atom type table from atomtyp.txt")
+                }
+                let sp = MKSmartsPattern()
+                if sp.initialize(vs[1]) {
+                    _vinthyb.append((sp, String(vs[2]).toInt()!))
+                } else {
+                    print("Could not parse INTHYB line in atom type table from atomtyp.txt")
+                }
+            }
+//            EXTTYP Line
+            else if rowContent.starts(with: "EXTTYP") {
+                let vs = rowContent.components(separatedBy: .whitespaces)
+                if vs.count < 3 {
+                    print("Could not parse EXTTYP line in atom type table from atomtyp.txt")
+                }
+                let sp = MKSmartsPattern()
+                if sp.initialize(vs[1]) {
+                    _vexttyp.append((sp, String(vs[2])))
+                } else {
+                    print("Could not parse EXTTYP line in atom type table from atomtyp.txt")
+                }
+            } 
+        }
+    }
     
     func assignTypes(_ mol: MKMol) {
-        
+        mol.setAtomTypesPerceived()
+
+        for i in _vexttyp {
+            var mlist: [[Int]] = []
+            if i.0.match(mol, &mlist) {
+                for j in mlist {
+                    guard let atom = mol.getAtom(j[0]) else { break }
+                    atom.setType(i.1)
+                }
+            }
+        }
+
+        // Special cases
+        for atom in mol.getAtomIterator() {
+            // guanidinium. Fixes PR#1800964
+            if atom.getType() == "C2" {
+                var guanidineN = 0 
+                guard let nbrs = atom.getNbrAtomIterator() else { break }
+                for nbr in nbrs {
+                    if nbr.getType() == "Ng+" || nbr.getType() == "Npl" || nbr.getType() == "N2" {
+                        guanidineN += 1
+                    }
+                }
+                if guanidineN == 3 {
+                    atom.setType("C+")
+                }
+            }// end C2 carbon for guanidinium
+        }// end special cases
     }
     
     func assignHyb(_ mol: MKMol) {
         
+        MolKit._AromTyper.assignAromaticFlags(mol)
+
+        mol.setHybridizationPerceived()
+
+        mol.getAtomIterator().forEach({ $0.setHyb(0) })
+
+        for i in _vinthyb {
+            var mlist: [[Int]] = []
+            if i.0.match(mol, &mlist) {
+                for j in mlist {
+                    guard let atom = mol.getAtom(j[0]) else { break }
+                    atom.setHyb(i.1)
+                }
+            }
+        }
+
+        // check all atoms to make sure *some* hybridization is assigned 
+        for atom in mol.getAtomIterator() {
+            if atom.getHyb() == 0 {
+                switch atom.getExplicitDegree() {
+                    case 0,1,2:
+                        atom.setHyb(1)
+                    case 3:
+                        atom.setHyb(2)
+                    case 4:
+                        atom.setHyb(3)
+                    default:
+                        atom.setHyb(atom.getExplicitDegree())
+                }
+            }
+        }
     }
-    
 }
-committment
+

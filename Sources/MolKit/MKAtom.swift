@@ -139,7 +139,7 @@ public class MKAtom: MKBase {
     func getType() -> String {
         guard let mol: MKMol = (self._parent as? MKMol) else { return self._type }
         if !mol.hasAtomTypesPerceived() {
-            MKAtomTyper.sharedInstance.assignTypes(mol)
+            MolKit._AtomTyper.assignTypes(mol)
         }
         return self._type
     }
@@ -152,7 +152,7 @@ public class MKAtom: MKBase {
         //hybridization is assigned when atoms are typed
         guard let mol: MKMol = (self._parent as? MKMol) else { return _hyb }
         if !mol.hasHybridizationPerceived() {
-            MKAtomTyper.sharedInstance.assignHyb(mol)
+            MolKit._AtomTyper.assignHyb(mol)
         }
 
         return _hyb
@@ -731,7 +731,7 @@ public class MKAtom: MKBase {
     func isAromatic() -> Bool {
         guard let mol = self.getParent() else { return false }
         if !mol.hasAromaticPerceived() {
-            MKAromaticTyper.sharedInstance.assignAromaticFlags(mol)
+            MolKit._AromTyper.assignAromaticFlags(mol)
         }
         if self.hasFlag(OB_AROMATIC_ATOM) {
             return true

@@ -215,7 +215,7 @@ public class MKBitVec: Equatable {
         wrdcnt += 1
         while wrdcnt < _size {
             if _set[wrdcnt] != 0 {
-                var s = _set[wrdcnt]
+                var s = _set[safelyAccess: wrdcnt]
                 var bit = 0
                 lowBit(&s, &bit)
                 if bit != -1 {
