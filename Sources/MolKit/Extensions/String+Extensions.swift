@@ -6,3 +6,8 @@ extension String {
         return CharacterSet(charactersIn: self).isSubset(of: digitsCharacters)
     }
 }
+
+extension String.Iterator {
+    
+        
+}

@@ -19,8 +19,12 @@ public class MolKit {
     static let _AromTyper = MKAromaticTyper()
     static let _PhModel = MKPhModel()
     
+    static let _plugin_ids: [String] = []
+    
     init() {
         
+//        Enable Plugins??
+//        MolKit._plugin_ids.append()
         
     }
     
