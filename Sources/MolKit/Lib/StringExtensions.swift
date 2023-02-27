@@ -67,9 +67,7 @@ extension String {
 
 }
 
-extension URL
-
-{
+extension URL {
     func foreachRow(_ rowParcer:((String, Int) -> Void) )
     {
         //Here we should use path not the absoluteString (wich contains file://)
@@ -109,3 +107,4 @@ extension URL
         }
     }
 }
+

@@ -81,7 +81,7 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
         index += by
     }
 
-    public func ignore(until: Character) {
+    public func ignore(until: T) {
         while self.peek() != until && !self.isEmpty(){
             self.ignore()
         }
@@ -102,17 +102,6 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
             self.index -= 1
         }
     }
-
-    public func parseDouble() -> Double? {
-        var numBuffer: String = ""
-        var char = self.peek()
-        while char.isNumber || char == "." {
-            numBuffer.append(char)
-            self.ignore()
-            char = self.peek()
-        }
-        return numBuffer.toDouble()
-    }
     
     public func nextElement(_ elem: T, updateIndex: Bool = false) -> T? {
         if let currElemIndex = self.collection.firstIndex(where: {$0 == elem}) {
@@ -131,15 +120,23 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
         return nil
     }
     
-    public func nextUntil(_ elem: T) -> ArraySlice<T> {
+    public func nextUntil(_ elem: T) -> ArraySlice<T>? {
         let elemIndx = self.collection.firstIndex(where: {$0 == elem})
         // return substring of index to elemIndx
         if let elemIndx = elemIndx {
             let subArr = self.collection[self.index..<elemIndx]
             self.index = elemIndx
-            return subArr.last
+            return subArr
         }
+        return nil
     }  
+
+    public func nextWhile(_ condition: (T) -> Bool) -> T? {
+        while condition(self.peek()) {
+            self.ignore()
+        }
+        return self.next()
+    }
     
     public func append(_ newElement: T) {
         self.collection.append(T.self as! T)
@@ -156,6 +153,22 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
 
     func setEmpty() {
         self.index = self.collection.count
+    }
+    
+}
+
+
+extension Iterator where T == Character {
+    
+    public func parseDouble() -> Double? {
+        var numBuffer: String = ""
+        var char = self.peek()
+        while char.isNumber || char == "." {
+            numBuffer += String(char)
+            self.ignore()
+            char = self.peek()
+        }
+        return numBuffer.toDouble()
     }
     
 }

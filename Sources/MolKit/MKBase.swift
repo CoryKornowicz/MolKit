@@ -65,6 +65,12 @@ public class MKBase: NSObject {
         self._vdata = []
         self._flags = 0
     }
+    
+    func getTitle() -> String {
+        return ""
+    }
+    
+    func setTitle(_ title: String) { return }
 
     func getFlags() -> UInt {
         return self._flags

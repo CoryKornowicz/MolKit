@@ -123,11 +123,11 @@ class MKMol: MKBase {
         }
     }
     
-    func getTitle() -> String {
+    override func getTitle() -> String {
         return self._title
     }
     
-    func setTitle(_ title: String) {
+    override func setTitle(_ title: String) {
         self._title = title
     }
     

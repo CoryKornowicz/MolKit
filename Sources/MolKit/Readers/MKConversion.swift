@@ -48,17 +48,17 @@ class MKConversion {
     var inFilename: String
     var outFilename: String
     
-    var pInput: String  //input stream, may be filtered
+    var pInput: String?  //input stream, may be filtered
     var ownedInStreams: [String] = []
     
-    var pOutput: String  //output stream, may have filters applied
+    var pOutput: String?  //output stream, may have filters applied
     var ownedOutStreams: [String] = []
     
     static var pDefaultFormat: MKFormat?
     var pInFormat: MKFormat?
     var pOutFormat: MKFormat?
     
-    var OptionsArray: OrderedDictionary<String, String> = .init(minimumCapacity: 3)
+    var OptionsArray: OrderedDictionary<Option_Type, Dictionary<String, String?>> = .init(minimumCapacity: 3)
     
     var Index: Int
     var StartsNumber: Int
@@ -87,17 +87,52 @@ class MKConversion {
     var SupportedOutputFormat: [String]  ///< list of supported output format
     
 
-//    init(_ inFilename: String, outFilename: String) {
-//        TODO: IMPLEMENT
-//    }
+   init(_ inFilename: String, _ outFilename: String) {
+        self.pInput = nil
+        self.pOutput = nil
+        self.pInFormat = nil
+        self.pOutFormat = nil
+        self.Index = 0
+        self.StartsNumber = 1
+        self.EndNumber = 0
+        self.Count = -1
+        self.m_IsFirstInput = true
+        self.m_IsLast = true
+        self.MoreFilesToCome = false
+        self.OneObjectOnly = false
+        self.SkippedMolecules = false
+        self.inFormatGzip = false
+        self.outFormatGzip = false
+        self.pOb = nil
+        self.wInpos = 0
+        self.wInlen = 0
+        self.pAuxConv = nil
+
+        self.setInStream(inFilename)
+        self.setOutStream(outFilename)
+
+        MKConversion.registerOptionParam("f", nil, 1, .GENOPTIONS)
+        MKConversion.registerOptionParam("l", nil, 1, .GENOPTIONS)
+
+        openInAndOutFiles(inFilename, outFilename)
+   }
     
 //    MARK: Functions
     
     // Collection of Formats
     /// @brief Called once by each format class
+    /// Class information on formats is collected by making an instance of the class
+    /// derived from OBFormat(only one is usually required). RegisterFormat() is called
+    /// from its constructor.
+    ///
+    /// If the compiled format is stored separately, like in a DLL or shared library,
+    /// the initialization code makes an instance of the imported OBFormat class.
     static func registerFormat(_ ID: String, _ pFormat: MKFormat, _ MIME: String? = nil) -> Int {
-        
+        return pFormat.registerFormat(ID, MIME)
     }
+
+    
+    
     ///@brief Searches registered formats
     static func findFormat(_ ID: String) -> MKFormat {
         
@@ -118,13 +153,14 @@ class MKConversion {
     /// These return a filtered stream for reading/writing (possible filters include compression, decompression, and newline transformation)
     /// @name Parameter get and set
     //@{
-    func getInStream() -> String { return pInput }
-    func getOutStream() -> String { return pOutput }
+    func getInStream() -> String { return pInput ?? "" }
+    func getOutStream() -> String { return pOutput ?? "" }
     
     /// @brief Set input stream.  If takeOwnership is true, will deallocate when done.
     /// If isGzipped is true, will treat as a gzipped stream regardless of option settings,
     //  if false, then will be treated as gzipped stream only if z/zin is set.
     func setInStream(_ pIn: String, _ takeOwnership: Bool = false) {
+        // clear and deallocate any existing streams
         
     }
     
@@ -144,26 +180,26 @@ class MKConversion {
     func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {}
     func setOutFormat(_ pOut: MKFormat, isgzip: Bool = false) -> Bool {}
 
-    func getInFormat() -> MKFormat { return pInFormat }
-    func getOutFormat() -> MKFormat { return pOutFormat }
+    func getInFormat() -> MKFormat? { return pInFormat }
+    func getOutFormat() -> MKFormat? { return pOutFormat }
 
     func getInGzipped() -> Bool { return inFormatGzip }
     func getOutGzipped() -> Bool { return outFormatGzip }
 
-    func getInFilename() -> String { return InFilename }
-    func getOutFilename() -> String { return OutFilename }
+    func getInFilename() -> String { return inFilename }
+    func getOutFilename() -> String { return outFilename }
 
     ///Get the position in the input stream of the object being read
-    func getInPos() -> Int { return wInpos }
+    func getInPos() -> Int? { return wInpos }
 
     ///Get the length in the input stream of the object being read
-    func getInLen() -> Int { return wInlen }
+    func getInLen() -> Int? { return wInlen }
 
     /// \return a default title which is the filename
     func getTitle() -> String {  }
 
     ///@brief Extension method: deleted in ~OBConversion()
-    func getAuxConv() -> MKConversion { return pAuxConv }
+    func getAuxConv() -> MKConversion? { return pAuxConv }
     func setAuxConv(_ pConv: MKConversion) { pAuxConv = pConv }
     
     //@}
@@ -206,21 +242,36 @@ class MKConversion {
       //@{
 
     ///@brief Determine whether an option is set. \return NULL if option not and a pointer to the associated text if it is
-    func isOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS) -> String? {}
+    func isOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS) -> String? {
+        //Returns NULL if option not found or a pointer to the text if it is
+        if var pos = OptionsArray[opttype]![opt] {
+            return pos
+        } else {
+            return nil
+        }
+    }
 
     ///@brief Access the map with option name as key and any associated text as value
-    func getOptions(_ opttype: Option_Type) -> [String: String] { return OptionsArray[opttyp] }
+    func getOptions(_ opttyp: Option_Type) -> [String: String?] { return OptionsArray[opttyp]! }
 
     ///@brief Set an option of specified type, with optional text
-    func addOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS, _ text: String? = nil) {}
+    func addOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS, _ text: String? = nil) {
+        if text == nil {
+            OptionsArray[opttype]![opt] = ""
+        } else {
+            OptionsArray[opttype]![opt] = text!
+        }
+    }
 
-    func removeOption(_ opt: String, _ opttype: Option_Type) -> Bool {}
+    func removeOption(_ opt: String, _ opttype: Option_Type) -> Bool {
+        OptionsArray[opttype]?.removeValue(forKey: opt) != nil
+    }
 
     ///@brief Set several single character options of specified type from string like ab"btext"c"ctext"
     func setOptions(_ opt: String, _ opttype: Option_Type) {}
 
     ///@brief For example -h takes 0 parameters; -f takes 1. Call in a format constructor.
-    static func registerOptionParam(_ name: String, _ pFormat: MKFormat, _ numParams: Int, _ typ: Option_Type = .OUTOPTIONS) {}
+    static func registerOptionParam(_ name: String, _ pFormat: MKFormat?, _ numParams: Int, _ typ: Option_Type = .OUTOPTIONS) {}
 
     /// \return the number of parameters registered for the option, or 0 if not found
     static func getOptionParams(_ name: String, _ typ: Option_Type) -> Int {}

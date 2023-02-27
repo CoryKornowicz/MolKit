@@ -30,5 +30,31 @@ func canHaveLonePair(_ elem: Int) -> Bool {
     }
 }
 
+//Base class for SMIFormat and CANSIFormat with most of the functionality
+class SMIBaseFormat: MKMoleculeFormat {
 
+
+
+
+
+    ////////////////////////////////////////////////////
+    /// The "API" interface functions
+    override func readMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
+    
+    }
+
+    override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
+    
+    }
+
+    override func getMIMEType() -> String {
+        return "chemical/x-daylight-smiles"
+    }
+
+    func classDescription() -> String {
+        return MKMol.classDescription()
+    }
+
+
+}
 

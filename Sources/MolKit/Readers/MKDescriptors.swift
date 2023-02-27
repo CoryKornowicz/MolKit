@@ -107,7 +107,7 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
     static var Default: MKDescriptor?
     static var map: PluginMapType<MKDescriptor> = PluginMapType<MKDescriptor>()
     
-    var _id: String
+    var _id: String = ""
     
     func getID() -> String {
         return _id
@@ -121,7 +121,7 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
     }
     
     func description() -> String? {
-        <#code#>
+        return nil
     }
     
     func typeID() -> String {
@@ -146,7 +146,7 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
     }
     
     func makeInstance(_ v: [String]) -> (any MKPluginProtocol)? {
-        <#code#>
+        return nil 
     }
     
     static func getMap() -> PluginMapType<MKDescriptor> {
@@ -154,12 +154,27 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
     }
     
     func predict(_ pOb: MKBase, _ param: String?) -> Double {
-        <#code#>
+        return Double.nan
     }
 
     /// \return the value of the descriptor and adds it to the object's OBPairData
-    func predictAndSave(_ pOb: MKBase, _ param: String?) -> Double {
-        <#code#>
+    func predictAndSave(_ pOb: MKBase, _ param: inout String?) -> Double {
+        var attr = getID()
+        var svalue: String? = ""
+        var val: Double = getStringValue(pOb, &svalue, &param)
+        var dp = pOb.getData(attr) as? MKPairData<String>
+        var previouslySet = true 
+        if dp == nil {
+            previouslySet = false 
+            dp = MKPairData<String>()
+        }
+        dp!.setAttribute(attr)
+        dp!.setValue(svalue ?? "")
+        dp!.setOrigin(.perceived)
+        if !previouslySet {
+            pOb.setData(dp!)
+        }
+        return val
     }
 
     /// Interprets the --filter option string and returns the combined result of all the comparisons it contains
@@ -229,8 +244,8 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
 
             //If there is existing OBPairData use that
             if param.isEmpty && matchPairData(pOb, &descID) {
-                let value: String = (pOb.getData(descID) as! MKPairData<String>).getValue()!
-                retFromCompare = compareStringWithFilter(optionText, value, noEval, true)
+                var value: String = (pOb.getData(descID) as! MKPairData<String>).getValue()!
+                retFromCompare = compareStringWithFilter(optionText, &value, noEval, true)
             } else {
                 //if no existing data see if it is an OBDescriptor
                 let pDesc = MKDescriptor.findType(descID) as? MKDescriptor
@@ -288,12 +303,28 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
 
     ///Reads list of descriptor IDs and calls PredictAndSave() for each.
     static func addProperties(_ pOb: MKBase, _ DescrList: String) {
-        <#code#>
+        let ss: Iterator<Character> = Iterator([Character](DescrList))
+        var pDescr: MKDescriptor? = nil
+        while !ss.isEmpty() {
+            var spair = getIdentifier(ss)
+            pDescr = MKDescriptor.findType(spair.0) as? MKDescriptor 
+            if pDescr != nil {
+                pDescr!.predictAndSave(pOb, &spair.1)
+            } else {
+                print("not recognized as a descriptor")
+                // TODO: throw error
+            }
+        }
     }
 
     ///Deletes all the OBPairDatas whose attribute names are in the list (if they exist).
     static func deleteProperties(_ pOb: MKBase, _ DescrList: String) {
-        <#code#>
+        var vs: [String] = DescrList.components(separatedBy: CharacterSet(charactersIn: "\t\r\n,/-*&;:|%+"))
+        for var token in vs {
+            if matchPairData(pOb, &token) {
+                pOb.deleteData(token)
+            }
+        }
     }
 
     //Reads list of descriptor IDs and OBPairData names and returns a list of values
@@ -358,10 +389,10 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
                 if ch == "\"" || ch == "\'" {
                     // parameter is in parentheses
                     optionText.ignore()
-                    param = String(optionText.nextUntil(ch!))
+                    param = String(optionText.nextUntil(ch!)!)
                     optionText.ignore(until: ")")
                 } else {
-                    param = String(optionText.nextUntil(")"))
+                    param = String(optionText.nextUntil(")")!)
                 }
                 if optionText.isEmpty() {
                     print("Missing ')' in descriptor parameter")
@@ -381,7 +412,11 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
     }
     
     func getStringValue(_ pOb: MKBase, _ svalue: inout String?, _ param: inout String?) -> Double {
-        <#code#>
+        let val: Double = predict(pOb, param)
+        if svalue != nil {
+            svalue = String(val)
+        }
+        return val
     }
     
     func compare(_ pOb: MKBase, _ optionText: Iterator<Character>, _ noEval: Bool, _ param: String?) -> Bool {
@@ -428,9 +463,9 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
         }
         //Try to read a double. Rewind and read as a string
         let spos = optionText.tellg()
-        val = optionText.parseDouble()
+        val = optionText.parseDouble() ?? Double.nan
         //only a number when the param has no additional text or only a closing bracket
-        if !optionText.isEmpty() && optionText.peek().isAlphanumeric {
+        if !optionText.isEmpty() && (optionText.peek().isLetter || optionText.peek().isNumber) {
             val = Double.nan
         }
 
@@ -440,16 +475,144 @@ class MKDescriptor: MKPluginProtocol, MKDescriptorProtocol {
         return val
     }
 
-    ///Reads a string from the filter stream, optionally preceded by = or !=
-    /// \return false if != operator found, and true otherwise.
-    static func readStringFromFilter(_ ss: Iterator<Character>, _ result: inout String) -> Bool {
-        <#code#>
+    /// Reads a string from the filter string  optionally preceded by = or !=
+    /** On entry the stringstream position should be just after the ID. On exit it is after the string.
+        If there is an error, the stringstream badbit is set.
+        Returns false if != found, to indicate negation.
+        Can be of any of the following forms:
+        mystring  =mystring ==mystring [must be terminated by a space or tab]
+        "mystring" 'mystring'  ="mystring" ='mystring' [mystring can contain spaces or tabs]
+        !=mystring !="mystring" [Returns false indicating negate]
+        There can be spaces or tabs after the operator = == !=
+    **/
+    static func readStringFromFilter(_ optionText: Iterator<Character>, _ result: inout String) -> Bool {
+        var ret = true
+        var ch: Character? = optionText.next()
+        if ch != nil {
+            if ch == "=" || ch == "!" {
+                if optionText.peek() != "=" {
+                    optionText.unget()
+                }
+                if ch == "!" {
+                    ret = false //to indicate negation
+                }
+            } else { //no operator
+                optionText.unget()
+            }
+            ch = optionText.next()
+            if ch == "\"" || ch == "\'" {
+                result = String(optionText.nextUntil(ch!)!) //get quoted text
+            } else { // not quoted; get string up to next space or ')'
+                optionText.unget()
+                result = ""
+                ch = optionText.nextWhile({ $0.isWhitespace }) //ignore leading white space
+                while ch != nil && !ch!.isWhitespace && ch != ")" {
+                    result.append(ch!)
+                    ch = optionText.next()
+                }
+            }
+        }
+        // TODO: A stream should be used to check for potential errors in parsing 
+        return ret
     }
 
     ///Makes a comparison using the operator and a string read from the filter stream with a provided string.
     /// \return the result of the comparison and true if NoCompOK==true and there is no comparison operator.
-    static func compareStringWithFilter(_ optionText: Iterator<Character>, _ s: String, _ noEval: Bool, _ NoCompOK: Bool = false) -> Bool {
-        <#code#>
+    static func compareStringWithFilter(_ optionText: Iterator<Character>, _ sval: inout String, _ noEval: Bool, _ NoCompOK: Bool = false) -> Bool {
+        /** Convert to swift
+         char ch1=0, ch2=0;
+           string sfilterval;
+           double filterval = ParsePredicate(optionText, ch1, ch2, sfilterval);
+           if(ch1==0 && NoCompOK)
+           {
+             // there is no comparison operator
+             return true; // means that the identifier exists
+           }
+
+           stringstream ss(sval);
+           double val;
+           if((ss >> val) && !IsNan(filterval))
+             //Do a numerical comparison if both values are numbers
+             return DoComparison(ch1, ch2, val, filterval);
+           else
+           {
+             //Do a string comparison if either the filter or the OBPair value is not a number
+             //If sval is quoted remove quotes
+             if(sval[0]=='\"' || sval[0]=='\'')
+               sval.erase(0,1);
+             if(sval[sval.size()-1]=='\"' || sval[sval.size()-1]=='\'')
+               sval.erase(sval.size()-1);
+
+             bool leading=false, trailing=false;
+             if(sfilterval[0]=='*')
+             {
+               leading=true;
+               sfilterval.erase(0,1);
+             }
+             if(sfilterval[sfilterval.size()-1]=='*')
+             {
+               trailing=true;
+               sfilterval.erase(sfilterval.size()-1);
+             }
+             string::size_type pos = sval.find(sfilterval);
+             if(pos!=string::npos)
+             {
+               if(trailing) //needs to be first
+                 sval.erase(pos+sfilterval.size()); //erase aftermatch
+               if(leading)
+                 sval.erase(0, pos); //erase before match
+             }
+             return DoComparison(ch1, ch2, sval, sfilterval);
+           }
+         */
+        var ch1: Character?
+        var ch2: Character?
+        var sfilterval: String = ""
+        let filterval = parsePredicate(optionText, &ch1, &ch2, &sfilterval)
+
+        if ch1 == nil && NoCompOK {
+            // there is no comparison operator
+            return true // means that the identifier exists
+        }
+
+        var val: Double? = Iterator<Character>([Character](sval)).parseDouble()
+        // parse next double value from the string by using Iterator
+        if val != nil && !filterval.isNaN {
+            // Do a numerical comparison if both values are numbers
+            return doComparison(ch1!, ch2, val!, filterval)
+        } else {
+            // Do a string comparison if either the filter or the OBPair value is not a number
+            // If sval is quoted remove quotes
+            if sval.first == "\"" || sval.first == "\'" {
+                sval.removeFirst()
+            }
+            if sval.last == "\"" || sval.last == "\'" {
+                sval.removeLast()
+            }
+            
+            var leading = false
+            var trailing = false
+
+            if sfilterval.first == "*" {
+                leading = true
+                sfilterval.removeFirst()
+            }
+
+            if sfilterval.last == "*" {
+                trailing = true
+                sfilterval.removeLast()
+            }
+
+            if let pos = sval.index(of: sfilterval) {
+                if trailing { // needs to be first
+                    sval.removeSubrange(pos...sval.endIndex) // erase aftermatch
+                }
+                if leading { // needs to be second
+                    sval.removeSubrange(sval.startIndex...pos) // erase before match
+                }
+            }
+            return doComparison(ch1!, ch2, sval, sfilterval)
+        }
     }
 
     // Treats _ as not a punctuation character and since 2.3.2 also $ # and %
