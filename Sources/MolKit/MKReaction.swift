@@ -77,7 +77,7 @@ class MKReaction: MKBase {
         return _ts
     }
     
-    func getTitle() -> String {
+    override func getTitle() -> String {
         return _title
     }
     
@@ -89,7 +89,7 @@ class MKReaction: MKBase {
         _comment = comment
     }
     
-    func setTitle(_ title: String) {
+    override func setTitle(_ title: String) {
         _title = title
     }
     

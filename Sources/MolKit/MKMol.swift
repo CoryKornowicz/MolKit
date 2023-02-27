@@ -2905,4 +2905,39 @@ class MKMol: MKBase {
       [NH4].[Cl]         0   [NH4+].[Cl-]
       */
     
+    ///////////////////////////////////////////////////
+    static func classDescription() -> String {
+    
+      var ret = """
+For conversions of molecules
+Additional options :
+-d Delete hydrogens (make implicit)
+-h Add hydrogens (make explicit)
+-p <pH> Add hydrogens appropriate for this pH
+-b Convert dative bonds e.g.-[N+]([O-])=O to -N(=O)=O
+-B Make dative bonds e.g.-[N+]([O-])=O from -N(=O)=O
+-r Remove all but the largest contiguous fragment
+-c Center Coordinates
+-C Combine mols in first file with others by name
+--filter <filterstring> Filter: convert only when tests are true:
+--add <list> Add properties from descriptors
+--delete <list> Delete properties in list
+--append <list> Append properties or descriptors in list to title:
+-s\"smarts\" Convert only if match SMARTS or mols in file:
+-v\"smarts\" Convert only if NO match to SMARTS or mols in file(not displayed in GUI)
+--join Join all input molecules into a single output molecule
+--separate Output disconnected fragments separately
+--property <attrib> <value> add or replace a property (SDF)
+--title <title> Add or replace molecule title
+--addtotitle <text> Append text to title
+--writeconformers Output multiple conformers separately
+--addoutindex Append output index to title
+"""
+        
+        //Append lines from OBOp plugins that work with OBMol
+        var dummymol = MKMol()
+        ret += MKOp.opOptions(dummymol)
+        return ret
+    }
+    
 }

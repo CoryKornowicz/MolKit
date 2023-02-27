@@ -1,12 +1,8 @@
 
 
-class MKFormat: MKPluginProtocol {
+class MKFormat: MKPlugin, MKPluginProtocol {
     
-    static var Default: MKFormat?
-    static var map = PluginMapType<MKFormat>()
-    
-    var _id: String
-    
+        
     private let NOTREADABLE     = 0x01
     private let READONEONLY     = 0x02
     private let READBINARY      = 0x04
@@ -18,36 +14,43 @@ class MKFormat: MKPluginProtocol {
     private let DEPICTION2D     = 0x100
     private let DEFAULTFORMAT   = 0x4000
     
-    static var formatsMIMEMap: PluginMapType = PluginMapType<MKFormat>()
-    
+        
     var pMime: String = ""
     
-    init() {
-//        if isDefault || MKFormat.map.isEmpty {
-//            MKFormat.Default = self
-//        }
-//        if MKFormat.map.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
-//            MKFormat.map[_id] = self
-//            MKPlugin.pluginMap[typeID()] = self
-//        }
-        _id = "formats"
+    static var Default: MKFormat?
+    static var map: PluginMapType<MKFormat> = PluginMapType<MKFormat>()
+    static var formatsMIMEMap: PluginMapType = PluginMapType<MKFormat>()
+    
+//    override init() {
+////        if isDefault || MKFormat.map.isEmpty {
+////            MKFormat.Default = self
+////        }
+////        if MKFormat.map.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
+////            MKFormat.map[_id] = self
+////            MKPlugin.pluginMap[typeID()] = self
+////        }
+//
+//    }
+    
+    override init() {
+        super.init()
     }
     
-    func typeID() -> String {
+    required init(_ id: String, _ isDefault: Bool) {
+        super.init()
+//        _id = "formats"
+    }
+    
+    override func typeID() -> String {
         return "formats"
     }
     
-    func getID() -> String {
-        return _id
-    }
-    
-    static func getMap() -> PluginMapType<MKFormat> {
+    func getMap() -> PluginMapType<MKFormat> {
         return MKFormat.map
     }
     
     func registerFormat(_ ID: String, _ MIME: String? = nil) -> Int {
-        
-        var mp = MKFormat.getMap()
+        var mp = getMap()
         mp.updateValue(self, forKey: ID)
         if MIME != nil {
             MKFormat.formatsMIMEMap[MIME!] = self
@@ -59,7 +62,7 @@ class MKFormat: MKPluginProtocol {
         //ensure "formats" is registered as a plugin
         MKPlugin.pluginMap[typeID()] = self
         self._id = ID
-        return MKFormat.getMap().count
+        return getMap().count
     }
     
     /// @brief The "API" interface Read function.
@@ -105,16 +108,16 @@ class MKFormat: MKPluginProtocol {
     /// Must be provided by each format class.
     /// Can include a list of command line Options. These may be used to construction
     /// check boxes, radio buttons etc for GUI interface.
-    func description() -> String? {
+    override func description() -> String? {
         return ""
     }
     
     /// @brief A decription of the chemical object converted by this format.
     /// If not provided, the object type used by the default format is used (usually MKMol).
     func targetClassDescription() -> String {
-        if let res = MKFormat.findType(nil) {
+        if let res = T.findType(nil) {
             if type(of: res) == MKFormat.self {
-                return (res as! MKFormat).targetClassDescription()
+                return res.targetClassDescription()
             }
         }
         return ""
@@ -131,19 +134,19 @@ class MKFormat: MKPluginProtocol {
     func getMIMEType() -> String { return pMime }
     
     
-    func makeInstance(_ v: [String]) -> (any MKPluginProtocol)? {
+    override func makeInstance(_ v: [String]) -> MKFormat? {
         return nil
     }
     
-    static func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
+    override func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
         return false
     }
     
-    static func findType(_ ID: String?) -> (any MKPluginProtocol)? {
+    static func findType(_ ID: String?) -> MKFormat? {
         if ID == nil {
             return MKFormat.Default
         }
-        return MKPlugin.baseFindType(getMap(), ID!)
+        return MKPlugin.baseFindType(MKFormat.map, ID!) as? MKFormat
     }
     
     /// @brief Decribes the capabilities of the format (Read only etc.)

@@ -17,7 +17,6 @@ class MKMoleculeFormat: MKFormat {
     
     override init() {
         super.init()
-        
         if !MKMoleculeFormat.optionsRegistered {
             MKMoleculeFormat.optionsRegistered = true
             
@@ -51,17 +50,19 @@ class MKMoleculeFormat: MKFormat {
             MKConversion.registerOptionParam("append", nil, 1, .GENOPTIONS)
             
         }
-        
-        
+    }
+    
+    required init(_ id: String, _ isDefault: Bool) {
+        fatalError("init(_:_:) has not been implemented")
     }
     
     //! Static routine,  which can be called from elsewhere
     static func readChemObjectImpl(_ pConv: MKConversion, _ format : MKFormat) -> Bool {
-        
+        return false
     }
     
     static func writeChemObjectImpl(_ pConv: MKConversion, _ format : MKFormat) -> Bool {
-        
+        return false
     }
     
     override func readChemObject(_ pConv: MKConversion) -> Bool {
@@ -85,7 +86,7 @@ class MKMoleculeFormat: MKFormat {
                 var c = 0
                 while c < pmol.numConformers() - 1 {
                     pmol.setConformer(c)
-                    if !pConv.getOutFormat().writeMolecule(pOb, pConv) {
+                    if !pConv.getOutFormat()!.writeMolecule(pOb, pConv) {
                         break
                     }
                     c += 1
@@ -101,11 +102,11 @@ class MKMoleculeFormat: MKFormat {
     //! Defer output of a molecule until later, so it can be combined with others
     //! \return Success, or false if no molecule was read.
     static func  deferMolOutput(_ pmol: MKMol, _ pConv: MKConversion, _ pF: MKFormat) -> Bool {
-        
+        return false
     }
     //! Write out all molecules queued with DeferMolOutput
     static func  outputDeferredMols(_ pConv: MKConversion) -> Bool {
-        
+        return false
     }
     //! Delete the list of queued molecules from DeferMolOutput
     static func  deleteDeferredMols() -> Bool {
@@ -114,12 +115,12 @@ class MKMoleculeFormat: MKFormat {
         return false
     }
     //! \return the OBMol which combines @p pFirst and @p pSecond (i.e.)
-    static func  makeCombinedMolecule(_ pFirst: MKMol, _ pSecond: MKMol) -> MKMol {
-        
+    static func  makeCombinedMolecule(_ pFirst: MKMol, _ pSecond: MKMol) -> MKMol? {
+        return nil
     }
 
     //!When sent an OBReaction object, output all the constituent molecules
-    static func outputMolsFromReaction(_ pReact: MKReaction, _ pConv: MKConversion, _ pFormat: MKFormat) -> Bool {}
+    static func outputMolsFromReaction(_ pReact: MKReaction, _ pConv: MKConversion, _ pFormat: MKFormat) -> Bool { return false }
     
     //////////////////////////////////////////////////////////////////
     /** Attempts to read the index file datafilename.obindx successively
@@ -148,7 +149,7 @@ class MKMoleculeFormat: MKFormat {
         every time the index is read.
     **/
     static func readNameIndex(_ index: NameIndexType, _ datafilename: String, _ pInFormat: MKFormat) -> Bool {
-        
+        return false
     }
 
     //! \return the type of data converted by this format (here, OBMol)

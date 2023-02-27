@@ -256,11 +256,11 @@ public class MKBase: NSObject {
         }
     }
 
-    // func doTransformations(_ map: Dictionary<String,String>, _ conversion: OBConversion)
-
-    static func classDescription() -> String {
+    func classDescription() -> String {
         return ""
     }
+    
+    // func doTransformations(_ map: Dictionary<String,String>, _ conversion: OBConversion)
 
     deinit {
         _vdata = nil

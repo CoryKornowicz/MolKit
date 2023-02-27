@@ -45,8 +45,8 @@ class MKConversion {
     
 //    MARK: Class Variables
     
-    var inFilename: String
-    var outFilename: String
+    var inFilename: String = ""
+    var outFilename: String = ""
     
     var pInput: String?  //input stream, may be filtered
     var ownedInStreams: [String] = []
@@ -72,8 +72,8 @@ class MKConversion {
     var SkippedMolecules: Bool     /// skip molecules using -f and -l
 
     //unlike the z and zin options, these are not sticky - setting formats will reset them
-    var inFormatGzip: Bool
-    var outFormatGzip: Bool
+    var inFormatGzip: Bool = false
+    var outFormatGzip: Bool = false
 
     var pOb: MKBase?
     var wInpos: Int?  ///<position in the input stream of the object being written
@@ -83,11 +83,11 @@ class MKConversion {
     
     var pAuxConv: MKConversion? ///<Way to extend OBConversion?
 
-    var SupportedInputFormat:  [String]  ///< list of supported input format
-    var SupportedOutputFormat: [String]  ///< list of supported output format
+    var SupportedInputFormat:  [String] = [] ///< list of supported input format
+    var SupportedOutputFormat: [String] = []///< list of supported output format
     
-
-   init(_ inFilename: String, _ outFilename: String) {
+    
+    init(_ inFilename: String, _ outFilename: String) {
         self.pInput = nil
         self.pOutput = nil
         self.pInFormat = nil
@@ -107,15 +107,19 @@ class MKConversion {
         self.wInpos = 0
         self.wInlen = 0
         self.pAuxConv = nil
-
-        self.setInStream(inFilename)
-        self.setOutStream(outFilename)
-
+        self.inFilename = inFilename
+        self.outFilename = outFilename
+        
         MKConversion.registerOptionParam("f", nil, 1, .GENOPTIONS)
         MKConversion.registerOptionParam("l", nil, 1, .GENOPTIONS)
-
+        
+        setInStream(inFilename)
+        setOutStream(outFilename)
+        
         openInAndOutFiles(inFilename, outFilename)
-   }
+        
+    }
+
     
 //    MARK: Functions
     
@@ -161,11 +165,11 @@ class MKConversion {
     //  if false, then will be treated as gzipped stream only if z/zin is set.
     func setInStream(_ pIn: String, _ takeOwnership: Bool = false) {
         // clear and deallocate any existing streams
-        
+        self.pInput = pIn
     }
     
     func setOutStream(_ pOut: String, _ takeOwnership: Bool = false) {
-        
+        self.pOutput = pOut
     }
     
     /// Sets the formats from their ids, e g CML
