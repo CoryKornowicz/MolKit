@@ -72,11 +72,6 @@ class MKPlugin: Equatable {
         return false
     }
     
-    static func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
-    //        MARK IMPL and throw proper error
-        return self.display(txt, &param, ID)
-    }
-    
     func makeInstance(_ v: [String]) -> MKPlugin? {
         return nil
     }
@@ -92,7 +87,7 @@ class MKPlugin: Equatable {
         
         //When Type==NULL, search all types for matching ID and stop when found
         for plug in MKPlugin.pluginMap {
-            var mapp = plug.value.getMap()
+            let mapp = plug.value.getMap()
             if (type(of: mapp) == PluginMapType<MKPlugin>.self) {
                 let res = MKPlugin.baseFindType(mapp!, ID)
                 if res != nil { return res }
@@ -132,7 +127,7 @@ class MKPlugin: Equatable {
     
     static func getPluginIterator(_ pluginID: String) -> PluginMapType<MKPlugin>? {
         if pluginID != "plugins" || MKPlugin.getTypeMap(pluginID) != MKPlugin.pluginMap {
-            var typemap = MKPlugin.getTypeMap(pluginID)
+            let typemap = MKPlugin.getTypeMap(pluginID)
             return typemap
         } else {
             return MKPlugin.pluginMap

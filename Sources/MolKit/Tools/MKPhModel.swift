@@ -122,7 +122,7 @@ class MKChemTsfm {
         
         mol.beginModify()
         
-        var mlist = _bgn.getUMapList()
+        let mlist = _bgn.getUMapList()
         
         if !_vchrg.isEmpty {  //modify charges
             for i in mlist {
@@ -149,7 +149,7 @@ class MKChemTsfm {
                     bond.setBondOrder(UInt(j.1))
                     for k in 0..<2 {
                         let atom = k == 0 ? bond.getBeginAtom() : bond.getEndAtom()
-                        var new_hcount = atom.getImplicitHCount() - (UInt(j.1) - old_bond_order)
+                        let new_hcount = atom.getImplicitHCount() - (UInt(j.1) - old_bond_order)
 //                        MARK: using UInt here could throw and underflow error!!
                         atom.setImplicitHCount(UInt(new_hcount))
                     }

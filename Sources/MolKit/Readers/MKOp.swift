@@ -85,7 +85,7 @@ class MKOp: MKPlugin, MKPluginProtocol {
         return "ops"
     }
     
-    static func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
+    override func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
         return false
     }
     

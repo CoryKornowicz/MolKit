@@ -20,6 +20,8 @@ enum Option_Type {
 /// @brief Class to convert from one format to another.
 
 class MKConversion {
+
+    
     fileprivate typealias MKAMapType = OrderedDictionary<String, Int>
     
     // Utilize base datatype as String, could be replaced with a class later that handles streaming to a live Stream and uses InputStream and OutputStream and conforms to StreamDelegate
@@ -60,10 +62,10 @@ class MKConversion {
     
     var OptionsArray: OrderedDictionary<Option_Type, Dictionary<String, String?>> = .init(minimumCapacity: 3)
     
-    var Index: Int
-    var StartsNumber: Int
-    var EndNumber: Int
-    var Count: Int
+    var Index: Int?
+    var StartsNumber: Int?
+    var EndNumber: Int?
+    var Count: Int?
     var m_IsFirstInput: Bool 
     var m_IsLast: Bool 
     var MoreFilesToCome: Bool 
@@ -86,8 +88,50 @@ class MKConversion {
     var SupportedInputFormat:  [String] = [] ///< list of supported input format
     var SupportedOutputFormat: [String] = []///< list of supported output format
     
-    
-    init(_ inFilename: String, _ outFilename: String) {
+//
+//    init(_ inFilename: String, _ outFilename: String) {
+//        self.pInput = nil
+//        self.pOutput = nil
+//        self.pInFormat = nil
+//        self.pOutFormat = nil
+//        self.Index = 0
+//        self.StartsNumber = 1
+//        self.EndNumber = 0
+//        self.Count = -1
+//        self.m_IsFirstInput = true
+//        self.m_IsLast = true
+//        self.MoreFilesToCome = false
+//        self.OneObjectOnly = false
+//        self.SkippedMolecules = false
+//        self.inFormatGzip = false
+//        self.outFormatGzip = false
+//        self.pOb = nil
+//        self.wInpos = 0
+//        self.wInlen = 0
+//        self.pAuxConv = nil
+//        self.inFilename = inFilename
+//        self.outFilename = outFilename
+//
+//        MKConversion.registerOptionParam("f", nil, 1, .GENOPTIONS)
+//        MKConversion.registerOptionParam("l", nil, 1, .GENOPTIONS)
+//
+//        setInStream(inFilename)
+//        setOutStream(outFilename)
+//
+//        openInAndOutFiles(inFilename, outFilename)
+//    }
+    internal init(inFilename: String = "", outFilename: String = "", pInput: String? = nil, ownedInStreams: [String] = [], pOutput: String? = nil, ownedOutStreams: [String] = [], pInFormat: MKFormat? = nil, pOutFormat: MKFormat? = nil, OptionsArray: OrderedDictionary<Option_Type, Dictionary<String, String?>> = .init(minimumCapacity: 3), Index: Int? = nil, StartsNumber: Int? = nil, EndNumber: Int? = nil, Count: Int? = nil, m_IsFirstInput: Bool, m_IsLast: Bool, MoreFilesToCome: Bool, OneObjectOnly: Bool, ReadyToInput: Bool, SkippedMolecules: Bool, inFormatGzip: Bool = false, outFormatGzip: Bool = false, pOb: MKBase? = nil, wInpos: Int? = nil, rInpos: Int? = nil, wInlen: Int? = nil, rInlen: Int? = nil, pAuxConv: MKConversion? = nil, SupportedInputFormat: [String] = [], SupportedOutputFormat: [String] = []) {
+        self.inFilename = inFilename
+        self.outFilename = outFilename
+        self.ownedInStreams = ownedInStreams
+        self.ownedOutStreams = ownedOutStreams
+        self.OptionsArray = OptionsArray
+        self.ReadyToInput = ReadyToInput
+        self.rInpos = rInpos
+        self.rInlen = rInlen
+        self.SupportedInputFormat = SupportedInputFormat
+        self.SupportedOutputFormat = SupportedOutputFormat
+        
         self.pInput = nil
         self.pOutput = nil
         self.pInFormat = nil
@@ -107,17 +151,13 @@ class MKConversion {
         self.wInpos = 0
         self.wInlen = 0
         self.pAuxConv = nil
-        self.inFilename = inFilename
-        self.outFilename = outFilename
+
         
         MKConversion.registerOptionParam("f", nil, 1, .GENOPTIONS)
         MKConversion.registerOptionParam("l", nil, 1, .GENOPTIONS)
-        
+
         setInStream(inFilename)
         setOutStream(outFilename)
-        
-        openInAndOutFiles(inFilename, outFilename)
-        
     }
 
     
@@ -136,22 +176,31 @@ class MKConversion {
     }
 
     
-    
     ///@brief Searches registered formats
     static func findFormat(_ ID: String) -> MKFormat {
-        
+        fatalError()
     }
     /// @brief Searches registered formats for an ID the same as the file extension
-    static func formatFromExt(_ filename: String) -> MKFormat {}
-    static func formatFromExt(_ filename: String, _ isgzip: Bool) -> MKFormat {}
+    static func formatFromExt(_ filename: String) -> MKFormat {
+        fatalError()
+    }
+    static func formatFromExt(_ filename: String, _ isgzip: Bool) -> MKFormat {
+        fatalError()
+    }
    /// @brief Searches registered formats for a MIME the same as the chemical MIME type passed
-    static func formatFromMIME(_ MIME: String) -> MKFormat {}
+    static func formatFromMIME(_ MIME: String) -> MKFormat {
+        fatalError()
+    }
     
-    static func getNextFormat(_ itr: any IteratorProtocol<MKPlugin>, _ str: String, _ pFormat: MKFormat) -> Bool {}
+    static func getNextFormat(_ itr: any IteratorProtocol<MKPlugin>, _ str: String, _ pFormat: MKFormat) -> Bool {
+        fatalError()
+    }
     
     /// @name Information
       //@{
-    static func description() -> String {} //generic conversion options
+    static func description() -> String {
+        fatalError()
+    } //generic conversion options
     //@}
     
     /// These return a filtered stream for reading/writing (possible filters include compression, decompression, and newline transformation)
@@ -173,16 +222,24 @@ class MKConversion {
     }
     
     /// Sets the formats from their ids, e g CML
-    func setInAndOutFormats(_ inID: String, _ outID: String, ingzip: Bool = false, outgzip: Bool = false) -> Bool {}
-    func setInAndOutFormats(_ pIn: MKFormat, _ pOut: MKFormat, ingzip: Bool = false, outgzip: Bool = false) -> Bool {}
+    func setInAndOutFormats(_ inID: String, _ outID: String, ingzip: Bool = false, outgzip: Bool = false) -> Bool { return false }
+    func setInAndOutFormats(_ pIn: MKFormat, _ pOut: MKFormat, ingzip: Bool = false, outgzip: Bool = false) -> Bool { return false }
     
     /// Sets the input format from an id e.g. CML
-    func setInFormat(_ inID: String, isgzip: Bool = false) -> Bool {}
-    func setInFormat(_ pIn: MKFormat, isgzip: Bool = false) -> Bool {}
+    func setInFormat(_ inID: String, isgzip: Bool = false) -> Bool {
+        fatalError()
+    }
+    func setInFormat(_ pIn: MKFormat, isgzip: Bool = false) -> Bool {
+        fatalError()
+    }
 
     /// Sets the output format from an id e.g. CML
-    func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {}
-    func setOutFormat(_ pOut: MKFormat, isgzip: Bool = false) -> Bool {}
+    func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {
+        fatalError()
+    }
+    func setOutFormat(_ pOut: MKFormat, isgzip: Bool = false) -> Bool {
+        fatalError()
+    }
 
     func getInFormat() -> MKFormat? { return pInFormat }
     func getOutFormat() -> MKFormat? { return pOutFormat }
@@ -200,7 +257,9 @@ class MKConversion {
     func getInLen() -> Int? { return wInlen }
 
     /// \return a default title which is the filename
-    func getTitle() -> String {  }
+    func getTitle() -> String {
+        fatalError()
+    }
 
     ///@brief Extension method: deleted in ~OBConversion()
     func getAuxConv() -> MKConversion? { return pAuxConv }
@@ -243,7 +302,7 @@ class MKConversion {
        GENOPTIONS for OBMol objects are listed in OBMol::ClassDescription() which
        is in transform.cpp and also in this documentation under AddOption().
        */
-      //@{
+    //@{
 
     ///@brief Determine whether an option is set. \return NULL if option not and a pointer to the associated text if it is
     func isOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS) -> String? {
@@ -272,58 +331,94 @@ class MKConversion {
     }
 
     ///@brief Set several single character options of specified type from string like ab"btext"c"ctext"
-    func setOptions(_ opt: String, _ opttype: Option_Type) {}
+    func setOptions(_ opt: String, _ opttype: Option_Type) {
+        fatalError()
+    }
 
     ///@brief For example -h takes 0 parameters; -f takes 1. Call in a format constructor.
-    static func registerOptionParam(_ name: String, _ pFormat: MKFormat?, _ numParams: Int, _ typ: Option_Type = .OUTOPTIONS) {}
+    static func registerOptionParam(_ name: String, _ pFormat: MKFormat?, _ numParams: Int, _ typ: Option_Type = .OUTOPTIONS) {
+        fatalError()
+    }
 
     /// \return the number of parameters registered for the option, or 0 if not found
-    static func getOptionParams(_ name: String, _ typ: Option_Type) -> Int {}
+    static func getOptionParams(_ name: String, _ typ: Option_Type) -> Int {
+        fatalError()
+    }
 
     ///@brief Copies the options (by default of all types) from one OBConversion Object to another.
-    func copyOptions(_ pConv: MKConversion, _ opttype: Option_Type = .ALL) {}
+    func copyOptions(_ pConv: MKConversion, _ opttype: Option_Type = .ALL) {
+        fatalError()
+    }
 
     /// @name Supported file format
     //@{
     // @brief Set and return the list of supported input format
-    func getSupportedInputFormat() -> [String] {}
+    func getSupportedInputFormat() -> [String] {
+        fatalError()
+    }
     // @brief Set and return the list of supported output format
-    func getSupportedOutputFormat() -> [String] {}
+    func getSupportedOutputFormat() -> [String] {
+        fatalError()
+    }
     //@}
 
     // MARK: Conversion
     //@{
     /// @brief Conversion for single input and output stream
-    func convert(_ iss: String, _ oss: String) -> Int {}
+    func convert(_ iss: String, _ oss: String) -> Int {
+        fatalError()
+    }
 
     /// @brief Conversion with existing streams
-    func convert() -> Int {}
+    func convert() -> Int {
+        fatalError()
+    }
 
     /// @brief Conversion with multiple input/output files:
     /// makes input and output streams, and carries out normal, batch, aggregation, and splitting conversion.
-    func fullConvert(_ fileList: [String], _ outputFileName: String, _ outputFileList: [String]) -> Int {}
+    func fullConvert(_ fileList: [String], _ outputFileName: String, _ outputFileList: [String]) -> Int {
+        fatalError()
+    }
     //@}
 
      /// @name Conversion loop control
     //@{
     ///< @brief Adds to internal array during input
-    func addChemObject(_ pOb: MKBase) -> Int {} 
+    func addChemObject(_ pOb: MKBase) -> Int {
+        fatalError()
+    }
     ///< @brief Retrieve from internal array during output
-    func getChemObject() -> MKBase? {}
+    func getChemObject() -> MKBase? {
+        fatalError()
+    }
     ///< @brief True if no more objects to be output
-    func isLast() -> Bool {}
+    func isLast() -> Bool {
+        fatalError()
+    }
       ///< @brief True if the first input object is being processed
-    func isFirstInput() -> Bool {}
+    func isFirstInput() -> Bool {
+        fatalError()
+    }
       ///< @brief Setwhether or not is the first input
-    func setFirstInput(_ b: Bool = true) {}
+    func setFirstInput(_ b: Bool = true) {
+        fatalError()
+    }
       ///< @brief Retrieves number of ChemObjects that have been actually output
-    func getOutputIndex() -> Int {}
+    func getOutputIndex() -> Int {
+        fatalError()
+    }
       ///< @brief Sets output index (maybe to control whether seen as first object)
-    func setOutputIndex(_ indx: Int) {}
+    func setOutputIndex(_ indx: Int) {
+        fatalError()
+    }
       ///<@brief Used with multiple input files. Off by default.
-    func setMoreFilesToCome() {}
+    func setMoreFilesToCome() {
+        fatalError()
+    }
       ///< @brief Used with multiple input files. Off by default.
-    func setOneObjectOnly(_ b: Bool = true) {}
+    func setOneObjectOnly(_ b: Bool = true) {
+        fatalError()
+    }
       ///< @brief Synonym for SetOneObjectOnly()
     func setLast(_ b: Bool = true) { setOneObjectOnly(b) }
       ///< @brief True if no more files to be read
@@ -331,7 +426,7 @@ class MKConversion {
 
     /// @brief Number of objects read and processed
     /// Incremented after options are processed, so 0 for first object.  Returns -1 if Convert interface not used. 
-    func getCount() -> Int { return Count}
+    func getCount() -> Int { return Count ?? 0}
     //@}
 
     /// @name Convenience functions
@@ -339,7 +434,7 @@ class MKConversion {
     static func getDefaultFormat() -> MKFormat? {
         if let res = MKFormat.findType(nil) {
             if type(of: res) == MKFormat.self {
-                return res as? MKFormat
+                return res
             }
         }
         return nil
@@ -349,7 +444,7 @@ class MKConversion {
     /// Part of "API" interface.
     /// The output stream can be specified and the change is retained in the OBConversion instance
     func write(_ pOb: MKBase, _ pout: String?) -> Bool {
-        
+        fatalError()
     }
 
     /// @brief Outputs an object of a class derived from OBBase as a string
@@ -358,21 +453,27 @@ class MKConversion {
       /// This method is primarily intended for scripting languages without "stream" classes
       /// The optional "trimWhitespace" parameter allows trailing whitespace to be removed
       /// (e.g., in a SMILES string or InChI, etc.)
-    func writeString(_ pOb: MKBase, _ trimWhitespace: Bool = true) -> String {}
+    func writeString(_ pOb: MKBase, _ trimWhitespace: Bool = true) -> String {
+        fatalError()
+    }
     
     /// @brief Outputs an object of a class derived from OBBase as a file (with the supplied path)
       /// Part of "API" interface.
       /// The output stream is changed to the supplied file and the change is retained in the
       /// OBConversion instance.
       /// This method is primarily intended for scripting languages without "stream" classes
-    func writeFile(_ pOb: MKBase, _ filePath: String) -> Bool {}
+    func writeFile(_ pOb: MKBase, _ filePath: String) -> Bool {
+        fatalError()
+    }
     
     
     /// @brief Manually closes and deletes the output stream
     /// The file is closed anyway when in the OBConversion destructor or when WriteFile
     /// is called again.
     /// \since version 2.1
-    func closeOutFile() {}
+    func closeOutFile() {
+        fatalError()
+    }
     
     /// @brief Reads an object of a class derived from OBBase into pOb.
     
@@ -380,7 +481,7 @@ class MKConversion {
     /// The input stream can be specified and the change is retained in the OBConversion instance
     /// \return false and pOb=NULL on error
     func read(_ pOb: MKBase, _ pin: String? = nil) -> Bool {
-        
+        fatalError()
     }
     
     
@@ -391,7 +492,7 @@ class MKConversion {
     /// This method is primarily intended for scripting languages without "stream" classes
     /// Any existing input stream will be replaced by stringstream.
     func readString(_ pOb: MKBase, _ input: String) -> Bool {
-        
+        fatalError()
     }
     
     /// @brief Reads an object of a class derived from OBBase into pOb from the file specified
@@ -402,7 +503,9 @@ class MKConversion {
     /// can be read by repeatedly calling the Read() method.
     /// \return false and pOb=NULL on error
     /// This method is primarily intended for scripting languages without "stream" classes
-    func readFile(_ pOb: MKBase, _ filePath: String) -> Bool {}
+    func readFile(_ pOb: MKBase, _ filePath: String) -> Bool {
+        fatalError()
+    }
 
     /// Part of the "Convert" interface.
     /// Open the files and update the streams in the OBConversion object.
@@ -411,40 +514,52 @@ class MKConversion {
     /// Will set format from file extension if format has not already been set.
     /// Files will be opened even if format cannot be determined, but not if file path is empty.
     /// \return false if unsuccessful.
-    func openInAndOutFiles(_ infilepath: String, _ outfilepath: String) -> Bool {}
+    func openInAndOutFiles(_ infilepath: String, _ outfilepath: String) -> Bool {
+        fatalError()
+    }
     
     /// @brief Sends a message like "2 molecules converted" to clog
     /// The type of object is taken from the TargetClassDescription
     /// of the specified class (or the output format if not specified)and
     /// is appropriately singular or plural.
-    func reportNumberConverted(_ count: Int, _ pFormat: MKFormat? = nil) {}
+    func reportNumberConverted(_ count: Int, _ pFormat: MKFormat? = nil) {
+        fatalError()
+    }
     
     /// \return the number of objects in the inputstream,
     /// or -1 if error or if SkipObjects for the input format is not implemented
     /// Adjusts for the value of -f and -l options (first and last objects).
-    func numInputObjects() -> Int {}
+    func numInputObjects() -> Int {
+        fatalError()
+    }
 
 //    MARK: Protected methods
     ///Replaces * in BaseName by InFile without extension and path
     static func batchFileName(_ baseName: String, _ inFile: String) -> String {
-        
+        fatalError()
     }
     ///Replaces * in BaseName by Count
     static func incrementedFilename(_ baseName: String, _ Count: Int) -> String {
-        
+        fatalError()
     }
     ///Checks for misunderstandings when using the -m option
-    static func checkForUnintendedBatch(_ inFile: String, _ outFile: String) -> Bool {}
+    static func checkForUnintendedBatch(_ inFile: String, _ outFile: String) -> Bool {
+        fatalError()
+    }
     
     func clearInStreams() {}
     
     func setStartAndEnd() -> Bool {
-        
+        fatalError()
     }
 
-    fileprivate static func optionParamArray(_ typ: Option_Type) -> MKAMapType {}
+    fileprivate static func optionParamArray(_ typ: Option_Type) -> MKAMapType {
+        fatalError()
+    }
     
-    func openAndSetFormat(_ setFormat: Bool, _ iss: String, _ ss: String? = nil) -> Bool {}
+    func openAndSetFormat(_ setFormat: Bool, _ iss: String, _ ss: String? = nil) -> Bool {
+        fatalError()
+    }
     
 }
 

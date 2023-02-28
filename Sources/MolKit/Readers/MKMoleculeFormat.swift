@@ -80,7 +80,7 @@ class MKMoleculeFormat: MKFormat {
             pOb.setTitle(newS)
         }
         
-        if var pmol = pOb as? MKMol {
+        if let pmol = pOb as? MKMol {
             if pConv.isOption("writeconformers", .GENOPTIONS) != nil {
                 //The last conformer is written in the calling function
                 var c = 0

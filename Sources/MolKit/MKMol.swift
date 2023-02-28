@@ -2103,7 +2103,7 @@ class MKMol: MKBase {
         }
         
         // Cleanup -- delete long bonds that exceed max valence
-        var bond, maxbond : MKBond
+        var maxbond : MKBond
         var maxlength: Double
         var valCount: Int
         var changed: Bool
@@ -2179,8 +2179,6 @@ class MKMol: MKBase {
         
         if _dimension != 3 { return }
         
-        var atom, b, c: MKAtom
-        var v1, v2: Vector<Double>
         var angle: Double
         
         //  BeginModify();
@@ -2301,7 +2299,7 @@ class MKMol: MKBase {
         
         var needs_kekulization: Bool = false
         var typed: Bool
-        var loop, loopSize: Int
+        var loopSize: Int
         
         for ringit in rlist {
             typed = false

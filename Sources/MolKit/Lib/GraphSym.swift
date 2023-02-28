@@ -78,10 +78,10 @@ class MKGraphSymPrivate {
         ring_atoms.resize(UInt32(_pmol.numAtoms()))
         ring_atoms.clear()
 
-        var sssRings: [MKRing] = _pmol.getSSSR()
+        let sssRings: [MKRing] = _pmol.getSSSR()
 
         for ri in sssRings {
-            var btmp: MKBitVec = _frag_atoms & ri._pathSet // intersection: fragment and ring
+            let btmp: MKBitVec = _frag_atoms & ri._pathSet // intersection: fragment and ring
             if btmp == ri._pathSet { //                       all ring atoms are in the fragment?
                 ring_atoms |= ri._pathSet //                  yes - add this ring's atoms
             }
@@ -113,7 +113,7 @@ class MKGraphSymPrivate {
         var idx2index: [Int] = [Int](repeating: -1, count: _pmol.numAtoms()+1)
         var index = 0
         for vp_iter in vp1 {
-            var idx = vp_iter.0.getIdx()
+            let idx = vp_iter.0.getIdx()
             idx2index[idx] = index
             index += 1
         }
@@ -157,7 +157,7 @@ class MKGraphSymPrivate {
         var idx2index: [Int] = [Int](repeating: -1, count: mol.numAtoms()+1)
         var index = 0
         for vp_iter in vp1 {
-            var idx = vp_iter.0.getIdx()
+            let idx = vp_iter.0.getIdx()
             idx2index[idx] = index
             index += 1
         }
@@ -253,7 +253,7 @@ class MKGraphSymPrivate {
         gtd.removeAll()
         gtd.reserveCapacity(_pmol.numAtoms())
 
-        var next: MKBitVec = MKBitVec()
+        let next: MKBitVec = MKBitVec()
         var curr: MKBitVec = MKBitVec()
         var used: MKBitVec = MKBitVec()
         var gtdcount: Int = 0
@@ -350,7 +350,7 @@ class MKGraphSymPrivate {
         // How many classes are we starting with?  (The "renumber" part isn't relevant.)
         MKGraphSymPrivate.countAndRenumberClasses(&symmetry_classes, &nclasses1)
 
-        var nfragatoms = _frag_atoms.countBits()
+        let nfragatoms = _frag_atoms.countBits()
 
         // LOOP: Do extended sum-of-invarients until no further changes are
         // noted.  (Note: This is inefficient, as it re-computes extended sums
@@ -359,7 +359,7 @@ class MKGraphSymPrivate {
         // initially.  But it's a lot more code.)
         if nclasses1 < nfragatoms {
             // TODO: why is this a for loop?
-            for i in 0..<100 { //sanity check - shouldn't ever hit this number
+            for _ in 0..<100 { //sanity check - shouldn't ever hit this number
                 createNewClassVector(symmetry_classes, &tmp_classes)
                 MKGraphSymPrivate.countAndRenumberClasses(&tmp_classes, &nclasses2)
                 symmetry_classes = tmp_classes
@@ -502,7 +502,7 @@ class MKGraphSym {
     func getSymmetry(_ symmetry_classes: inout [Int]) -> Int {
         clearSymmetry() // For the moment just recalculate the symmetry classes
         // Check to see whether we have already calculated the symmetry classes
-        var pd: MKPairData<String>? = d._pmol.getData("OpenBabel Symmetry Classes") as? MKPairData<String>
+        let pd: MKPairData<String>? = d._pmol.getData("OpenBabel Symmetry Classes") as? MKPairData<String>
         
         var nclasses = 0 
         if pd == nil {

@@ -157,7 +157,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
             }
             param = "verbose"
         }
-        return MKPlugin.display(&txt, &param, ID)
+        return super.display(&txt, &param, ID)
     }
     
     func makeInstance(_ v: [String]) -> (any MKPluginProtocol)? {
@@ -171,9 +171,9 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
     
     /// \return the value of the descriptor and adds it to the object's OBPairData
     func predictAndSave(_ pOb: MKBase, _ param: inout String?) -> Double {
-        var attr = getID()
+        let attr = getID()
         var svalue: String? = ""
-        var val: Double = getStringValue(pOb, &svalue, &param)
+        let val: Double = getStringValue(pOb, &svalue, &param)
         var dp = pOb.getData(attr) as? MKPairData<String>
         var previouslySet = true
         if dp == nil {
@@ -260,7 +260,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
                     retFromCompare = compareStringWithFilter(optionText, &value, noEval, true)
                 } else {
                     //if no existing data see if it is an OBDescriptor
-                    let pDesc = MKDescriptor.findType(descID) as? MKDescriptor
+                    let pDesc = MKDescriptor.findType(descID)
                     if pDesc != nil && !noEval {
                         retFromCompare = pDesc!.compare(pOb, optionText, noEval, param)
                     } else {
@@ -310,7 +310,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
                 noEval = !ret //if ret is false keep parsing but don't bother to evaluate
             }
         }//go for next conditional expression
-        return false //never come here
+//        return false //never come here
     }
     
     ///Reads list of descriptor IDs and calls PredictAndSave() for each.
@@ -319,7 +319,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
         var pDescr: MKDescriptor? = nil
         while !ss.isEmpty() {
             var spair = getIdentifier(ss)
-            pDescr = MKDescriptor.findType(spair.0) as? MKDescriptor
+            pDescr = MKDescriptor.findType(spair.0)
             if pDescr != nil {
                 pDescr!.predictAndSave(pOb, &spair.1)
             } else {
@@ -331,7 +331,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
     
     ///Deletes all the OBPairDatas whose attribute names are in the list (if they exist).
     static func deleteProperties(_ pOb: MKBase, _ DescrList: String) {
-        var vs: [String] = DescrList.components(separatedBy: CharacterSet(charactersIn: "\t\r\n,/-*&;:|%+"))
+        let vs: [String] = DescrList.components(separatedBy: CharacterSet(charactersIn: "\t\r\n,/-*&;:|%+"))
         for var token in vs {
             if matchPairData(pOb, &token) {
                 pOb.deleteData(token)
@@ -371,7 +371,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
             if matchPairData(pOb, &spair.0) {
                 thisvalue = (pOb.getData(spair.0)! as! MKPairData<String>).getValue()
             } else {
-                pDescr = MKDescriptor.findType(spair.0) as? MKDescriptor
+                pDescr = MKDescriptor.findType(spair.0)
                 if pDescr != nil {
                     pDescr!.getStringValue(pOb, &thisvalue, &spair.1)
                 } else {
@@ -587,7 +587,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
             return true // means that the identifier exists
         }
         
-        var val: Double? = Iterator<Character>([Character](sval)).parseDouble()
+        let val: Double? = Iterator<Character>([Character](sval)).parseDouble()
         // parse next double value from the string by using Iterator
         if val != nil && !filterval.isNaN {
             // Do a numerical comparison if both values are numbers
