@@ -70,7 +70,7 @@ class MKTetraNonPlanarStereo: MKStereoBase {
         }
         
         // copy the internal refs
-        var result: U = U()
+        var result: U = cfg as! U
         
         result.center = cfg.center
         result.refs = cfg.refs

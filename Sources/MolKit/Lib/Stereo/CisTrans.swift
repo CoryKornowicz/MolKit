@@ -95,7 +95,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
             var u1: Config 
             var u2: Config 
 
-            if !(MKStereo.containsSameRef(lhs.refs, rhs.refs)) {
+            if !(MKStereo.containsSameRefs(lhs.refs, rhs.refs)) {
                 for i in lhs.refs {
                     if MKStereo.containsRef(rhs.refs, i) {
                         u1 = MKTetraPlanarStereo.toConfig(lhs, i, .ShapeU) // refs[0] = u1.refs[0]

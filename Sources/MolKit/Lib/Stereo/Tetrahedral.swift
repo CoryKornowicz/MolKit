@@ -43,8 +43,8 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             
             // Convert both Config's refs to same from, winding and view while
             // avoiding having an ImplicitRef in the 'from' position of either
-            var lhsConfig: Config 
-            var rhsConfig: Config 
+            var lhsConfig: Config
+            var rhsConfig: Config
             
             if lhs.from_or_towrds == .from(.ImplicitRef) { // not check the towards parameter (could it ever be there?)
                 lhsConfig = MKTetraNonPlanarStereo.toConfig(lhs, .from(lhs.refs[0]), lhs.winding, lhs.view)
@@ -57,7 +57,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
                 rhsConfig = MKTetraNonPlanarStereo.toConfig(rhs, lhsConfig.from_or_towrds, lhs.winding, lhs.view)
             }
             
-            if !MKStereo.containsSameRef(lhsConfig.refs, rhsConfig.refs) {
+            if !MKStereo.containsSameRefs(lhsConfig.refs, rhsConfig.refs) {
                 if MKStereo.containsRef(lhsConfig.refs, .ImplicitRef) {
                     // if both refs already contain ImplicitRef, return false
                     if MKStereo.containsRef(rhsConfig.refs, .ImplicitRef) {
@@ -67,7 +67,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
                     //          otherConfig = 234 --> 23H
                     // for each ref in otherConfig
                     for i in 0..<rhsConfig.refs.count {
-                        var found: Bool = false 
+                        var found: Bool = false
                         for ref in lhsConfig.refs {
                             if rhsConfig.refs[i] == ref {
                                 found = true
@@ -89,7 +89,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
                         //          otherConfig = 23H
                         // for each ref in this config
                         for i in 0..<lhsConfig.refs.count {
-                            var found: Bool = false 
+                            var found: Bool = false
                             for ref in rhsConfig.refs {
                                 if lhsConfig.refs[i] == ref {
                                     found = true

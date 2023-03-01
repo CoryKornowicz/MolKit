@@ -1,6 +1,5 @@
 
 
-
 enum NeighborSymmetryClasses: Int {
     // Tetrahedral
     case T1234 = 1234 // 4 different symmetry classes
@@ -11,4 +10,5 @@ enum NeighborSymmetryClasses: Int {
     // CisTrans
     case C12     = 12 // 2 different symmetry classes
     case C11     = 11 // the same symmetry class
-  };
+  }
+  

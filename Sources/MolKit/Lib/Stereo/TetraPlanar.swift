@@ -63,8 +63,7 @@ class MKTetraPlanarStereo: MKStereoBase {
     
     static func toConfig<T: ConfigPlanar, U: ConfigPlanar>(_ cfg: T, _ start: Ref, _ shape: MKStereo.Shape = MKStereo.Shape.ShapeU) -> U {
         
-        var result: U = U()
-        result.refs = cfg.refs
+        var result: U = cfg as! U
         result.shape = shape
         
         // convert from U/Z/4 to U shape

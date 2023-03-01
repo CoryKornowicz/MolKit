@@ -138,7 +138,7 @@ public struct MKStereo {
         }
     }
     
-    static func containsSameRef(_ refs1: Refs, _ refs2: Refs) -> Bool {
+    static func containsSameRefs(_ refs1: Refs, _ refs2: Refs) -> Bool {
         if refs1.count != refs2.count {
             return false
         }
