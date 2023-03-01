@@ -142,9 +142,12 @@ class MKMol: MKBase {
         return self._vatom[idx - 1]
     }
     
-    func getAtomById(_ id: Int) -> MKAtom? {
-        if id >= self._vatomIds.count { return nil }
-        return self._vatomIds[id]
+    func getAtomById(_ id: Ref) -> MKAtom? {
+        guard id != .NoRef else { return nil }
+        guard id != .ImplicitRef else { return nil }
+        
+        if id.intValue! >= self._vatomIds.count { return nil }
+        return self._vatomIds[id.intValue!]
     }
     
     func getFirstAtom() -> MKAtom? {
@@ -526,7 +529,7 @@ class MKMol: MKBase {
     // private func destroyAtom(_ atom: MKAtom) { }
     // private func destroyBond(_ bond: MKBond) { }
     // private func destroyResidue(_ residue: MKResidue) { }
-
+    @discardableResult
     func deleteAtom(_ atom: MKAtom, _ destroyAtom: Bool = false) -> Bool {
         if atom.getAtomicNum() == 1 {
             return self.deleteHydrogen(atom)
@@ -537,7 +540,7 @@ class MKMol: MKBase {
         //BeginModify() blows away coordinates
         
         //delete bonds to neighbors
-        if var bonds = atom.getBondIterator() {
+        if let bonds = atom.getBondIterator() {
             for bond in bonds {
                 self.deleteBond(bond)
             }
@@ -548,7 +551,7 @@ class MKMol: MKBase {
         
         //reset all the indices to the atoms
         var _idx = 0
-        for atomi in self.getAtomIterator() {
+        for atom in self.getAtomIterator() {
             atom.setIdx(_idx)
             _idx += 1
         }
@@ -564,9 +567,10 @@ class MKMol: MKBase {
         self.setLSSRPerceived(false)
         return true
     }
-
+    
+    @discardableResult
     func deleteResidue(_ residue: MKResidue, _ destroyResidue: Bool = false) -> Bool {
-        var idx = residue.getIdx()
+        let idx = residue.getIdx()
         self._residue.remove(at: Int(idx))
         var _idx = 0
 
@@ -580,6 +584,7 @@ class MKMol: MKBase {
         return true
     }
     
+    @discardableResult
     func deleteBond(_ bond: MKBond, _ destroyBond: Bool = false) -> Bool {
         self.beginModify()
 
@@ -813,6 +818,7 @@ class MKMol: MKBase {
         return true
     }
     
+    @discardableResult
     func addBond(_ first: Int, _ second: Int, _ order: Int, _ flags: Int = 0, insertpos: Int = -1) -> Bool {
         
 //       Does not invoke beginModify/endModify
@@ -978,6 +984,7 @@ class MKMol: MKBase {
         return true
     }
     
+    @discardableResult
     func deleteHydrogens() -> Bool {
         var delatoms: [MKAtom] = []
         
@@ -1112,7 +1119,7 @@ class MKMol: MKBase {
     /*
       this has become a wrapper for backward compatibility
     */
-    
+    @discardableResult
     func addHydrogens(_ polaronly: Bool, _ correctForPH: Bool, _ pH: Double = 0.0) -> Bool {
         return self.addNewHydrogens(polaronly ? .PolarHydrogen : .AllHydrogen, correctForPH, pH)
     }
@@ -1159,7 +1166,7 @@ class MKMol: MKBase {
             return true
         }
         
-        var hasChiralityPerceived = self.hasChiralityPerceived()
+        let hasChiralityPerceived = self.hasChiralityPerceived()
         
         /*
         //
@@ -1346,7 +1353,7 @@ class MKMol: MKBase {
             
             if dataType == .CisTrans {
                 let ct = (dat as? MKCisTransStereo)
-                let ct_cfg: MKCisTransStereo.Config? = ct?.getConfig()
+                let _: MKCisTransStereo.Config? = ct?.getConfig()
 //                let ct_cfg = ct.getConfig()
 //                TODO: IMPL
             } else if dataType == .Tetrahedral {
@@ -1585,7 +1592,7 @@ class MKMol: MKBase {
     }
 
     func setCoordinates(_ newCoords: Array<Double>) {
-        var noCptr = self._c.isEmpty
+        let noCptr = self._c.isEmpty
         if noCptr {
             self._c.reserveCapacity(3)
         }
@@ -1908,7 +1915,7 @@ class MKMol: MKBase {
             self.findRingAtomsAndBonds()
             
             //restrict search for rings around closure bonds
-            var cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
+            let cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
                 bond.isClosure() ? bond : nil
             }
             
@@ -1956,7 +1963,7 @@ class MKMol: MKBase {
             self.findRingAtomsAndBonds()
             
             //restrict search for rings around closure bonds
-            var cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
+            let cbonds: [MKBond] = self.getBondIterator().compactMap { bond in
                 bond.isClosure() ? bond : nil
             }
             
@@ -2219,7 +2226,7 @@ class MKMol: MKBase {
             findSSSR()
         }
         
-        var rlist: [MKRing] = getSSSR()
+        let rlist: [MKRing] = getSSSR()
         for ring in rlist {
             if ring.size() == 5 {
                 path = ring._path
@@ -2334,7 +2341,7 @@ class MKMol: MKBase {
                     bond.getEndAtom().setAromatic()
                 }
             }
-            var ok: Bool = MKKekulize(self)
+            let ok: Bool = MKKekulize(self)
             if !ok {
 //                TODO: Handle this error with more indepth error codes for sure
                 print("Failed to kekulize aromatic bonds in OBMol::PerceiveBondOrders")
@@ -2932,8 +2939,8 @@ Additional options :
 --addoutindex Append output index to title
 """
         
-        //Append lines from OBOp plugins that work with OBMol
-        var dummymol = MKMol()
+        //Append lines from MKOp plugins that work with MKMol
+        let dummymol = MKMol()
         ret += MKOp.opOptions(dummymol)
         return ret
     }

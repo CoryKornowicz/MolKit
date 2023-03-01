@@ -21,11 +21,14 @@ public class MolKit {
     
     static let _plugin_ids: [String] = []
     
+    static let theSMIFormat: SMIFormat = SMIFormat()
+    static let theCANSMIFormat: CANSMIFormat = CANSMIFormat()
+    
     init() {
         
 //        Enable Plugins??
-//        MolKit._plugin_ids.append()
-        
+//        MolKit._plugin_ids.append([MolKit.theSMIFormat,
+//                                   MolKit.theCANSMIFormat])
     }
     
 }

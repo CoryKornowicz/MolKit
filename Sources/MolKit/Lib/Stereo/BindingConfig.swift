@@ -6,37 +6,56 @@ enum from_or_towrds: Equatable {
     case from(_ value: Ref)
     case towards(_ value: Ref)
     
-    static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {
-        switch lhs {
-        case .from(let lhsf):
-            switch rhs {
-            case .from(let rhsf):
-                return lhsf == rhsf
-            case .towards:
-                return false
+    var value: Int? {
+        switch self {
+        case .from(var ref):
+            switch ref {
+            case .NoRef:
+                return nil
+            case .ImplicitRef:
+                return nil
+            case .Ref(var intValue):
+                return intValue
             }
-        case .towards(let lhst):
-            switch rhs {
-            case .from:
-                return false
-            case .towards(let rhst):
-                return lhst == rhst
+        case .towards(var ref):
+            switch ref {
+            case .NoRef:
+                return nil
+            case .ImplicitRef:
+                return nil
+            case .Ref(var intValue):
+                return intValue
             }
         }
+    }
+    
+    static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {
+        return lhs.value == rhs.value
+    }
+    
+    static func == (_ lhs: from_or_towrds, _ rhs: RefValue) -> Bool {
+        return lhs.value == rhs.intValue
+    }
+    
+    static func != (_ lhs: from_or_towrds, _ rhs: RefValue) -> Bool {
+        return lhs.value != rhs.intValue
     }
     
 }
 
 protocol ConfigPlanar {
-    var shape: MKStereo.Shape { get }
-    var refs: Refs { get }
+    init()
+    var shape: MKStereo.Shape { get set }
+    var refs: Refs { get set }
 }
 
 protocol ConfigNonPlanar {
-    var from_or_towrds: from_or_towrds { get }
-    var winding: MKStereo.Winding { get }
-    var view: MKStereo.View { get }
-    var refs: Refs { get }
+    init()
+    var center: Ref { get set }
+    var from_or_towrds: from_or_towrds { get set }
+    var winding: MKStereo.Winding { get set }
+    var view: MKStereo.View { get set }
+    var refs: Refs { get set }
 }
 
 enum ConfigType {

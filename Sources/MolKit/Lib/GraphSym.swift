@@ -249,6 +249,7 @@ class MKGraphSymPrivate {
     * (which happens to be the graph-theoretical distance) to that atom.
     * The name "Graph Theoretical Distance" is thus misleading.
     */
+    @discardableResult
     func getGTDVector(_ gtd: inout [Int]) -> Bool {
         gtd.removeAll()
         gtd.reserveCapacity(_pmol.numAtoms())

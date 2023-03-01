@@ -194,9 +194,7 @@ class MKRingSearch {
     }
     
     //! Starting with a full ring set - reduce to SSSR set
-    func removeRedundant(_ frj: Int) {
-        var i,j: Int
-        
+    func removeRedundant(_ frj: Int) {        
         //remove identical rings
         for i in (1..._rlist.count-1).reversed() {
             for j in (0...i-1).reversed() {
@@ -211,7 +209,7 @@ class MKRingSearch {
         
         // handle LSSR
         if frj < 0 {
-            guard var mol = _rlist[0].getParent() else { return }
+            guard let mol = _rlist[0].getParent() else { return }
             var rlist: [MKRing] = []
             var rignored: [MKRing] = []
             for i in 0..<_rlist.count {
@@ -222,7 +220,7 @@ class MKRingSearch {
                 // in c++ this would free the pointer which arises from _rlist
                 // in swift we will simply delete the ring from _rlist
                 // TODO: this may have unforseen consequences
-                var delRing = rignored[i]
+                let delRing = rignored[i]
                 if let delindex = rlist.firstIndex(of: delRing) {
                     rlist.remove(at: delindex)
                 }
@@ -263,8 +261,8 @@ class MKRingSearch {
     func addRingFromClosure(_ mol: MKMol, _ cbond: MKBond) {
         var t1: [MKRTree] = []
         var t2: [MKRTree] = []
-        var bv1: MKBitVec = MKBitVec()
-        var bv2: MKBitVec = MKBitVec()
+        let bv1: MKBitVec = MKBitVec()
+        let bv2: MKBitVec = MKBitVec()
         
         var pathok: Bool = false
         
@@ -332,6 +330,7 @@ class MKRingSearch {
         }
     }
     
+    @discardableResult
     func saveUniqueRings(_ d1: Deque<Int>, _ d2: Deque<Int>) -> Bool {
         var path: [Int] = []
         let bv = MKBitVec()
@@ -407,8 +406,8 @@ func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored:
     let containsSmallerAtomRing = mask == ring._pathSet ? true : false
     
     // Translate ring atom indexes to ring bond indexes.
-    var bonds = atomRingToBondRing(mol, ring._path)
-    var bondset : MKBitVec = MKBitVec()
+    let bonds = atomRingToBondRing(mol, ring._path)
+    let bondset : MKBitVec = MKBitVec()
     bonds.forEach { bd in
         bondset.setBitOn(UInt32(bd))
     }
@@ -418,8 +417,8 @@ func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored:
     //
     mask.clear()
     for j in 0..<rlist.count {
-        var otherBonds = atomRingToBondRing(mol, rlist[j]._path)
-        var bs = MKBitVec()
+        let otherBonds = atomRingToBondRing(mol, rlist[j]._path)
+        let bs = MKBitVec()
         otherBonds.forEach { bd in
             bs.setBitOn(UInt32(bd))
         }
@@ -431,7 +430,7 @@ func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored:
     
     mask = mask & bondset
     
-    var containsSmallerBondRing = mask == bondset ? true : false
+    let containsSmallerBondRing = mask == bondset ? true : false
     
     // The ring is part of the LSSR if all it's atoms and bonds are not
     // found in smaller rings.
@@ -458,20 +457,19 @@ func determineFRJ(_ mol: MKMol) -> Int {
 }
 
 /* A recursive O(N) traversal of the molecule */
+@discardableResult
 func findRings(_ atom: MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ frj: inout UInt, _ depth: Int) -> Int {
-    
-    var bond: MKBond
     var result = -1
     
     guard let bonds = atom.getBondIterator() else { return result }
     
     for bond in bonds {
-        var bidx = bond.getIdx()
+        let bidx = bond.getIdx()
         
         if bvisit[Int(bidx)] == 0 {
             bvisit[Int(bidx)] = 1
-            var nbor = bond.getNbrAtom(atom)
-            var nidx = nbor.getIdx()
+            let nbor = bond.getNbrAtom(atom)
+            let nidx = nbor.getIdx()
             var nvisit = avisit[nidx]
             if nvisit == 0 {
                 avisit[nidx] = depth+1
@@ -495,13 +493,12 @@ func findRings(_ atom: MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ f
     return result
 }
 
+@discardableResult
 func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
     
     mol.setRingAtomsAndBondsPerceived()  // mol.SetFlag(OB_RINGFLAGS_MOL);
     mol.setClosureBondsPerceived()       // mol.SetFlag(OB_CLOSURE_MOL);
-    
-    var atom: MKAtom
-    
+        
     for atom in mol.getAtomIterator() {
         atom.setInRing(false)
     }
@@ -510,11 +507,11 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
         bond.setClosure(false)
     }
     
-    var bsize = mol.numBonds() + 1
+    let bsize = mol.numBonds() + 1
     var bvisit: [Int] = Array<Int>.init(repeating: 0, count: bsize)
     
-    var acount = mol.numAtoms()
-    var asize = acount+1
+    let acount = mol.numAtoms()
+    let asize = acount+1
     var avisit: [Int] = Array<Int>.init(repeating: 0, count: asize)
     
     var frj: UInt = 0

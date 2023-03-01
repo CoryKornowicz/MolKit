@@ -181,6 +181,10 @@ public class MKGenericData: NSObject {
         self.attr = attr
     }
     
+    func clone<T: MKBase>(_ mol: T) -> MKGenericData? {
+        return nil
+    }
+    
 }
 
 public class MKCommentData: MKGenericData {

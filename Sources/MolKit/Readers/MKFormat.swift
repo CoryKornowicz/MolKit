@@ -1,20 +1,18 @@
 
 
+public let NOTREADABLE     = 0x01
+public let READONEONLY     = 0x02
+public let READBINARY      = 0x04
+public let ZEROATOMSOK     = 0x08
+public let NOTWRITABLE     = 0x10
+public let WRITEONEONLY    = 0x20
+public let WRITEBINARY     = 0x40
+public let READXML         = 0x80
+public let DEPICTION2D     = 0x100
+public let DEFAULTFORMAT   = 0x4000
+
 class MKFormat: MKPlugin, MKPluginProtocol {
     
-        
-    private let NOTREADABLE     = 0x01
-    private let READONEONLY     = 0x02
-    private let READBINARY      = 0x04
-    private let ZEROATOMSOK     = 0x08
-    private let NOTWRITABLE     = 0x10
-    private let WRITEONEONLY    = 0x20
-    private let WRITEBINARY     = 0x40
-    private let READXML         = 0x80
-    private let DEPICTION2D     = 0x100
-    private let DEFAULTFORMAT   = 0x4000
-    
-        
     var pMime: String = ""
     
     static var Default: MKFormat?
@@ -79,9 +77,8 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     /// Possibly reads multiple new objects on the heap and subjects them
     /// to its DoTransformations() function, which may delete them again.
     /// Sends result to pConv->AddChemObject()
-    func readChemObject(_ pConv: MKConversion) -> Bool {
-        print("Not a valid input format")
-        return false
+    open func readChemObject(_ pConv: MKConversion) throws -> Bool {
+        fatalError("Not implemented in superclass")
     }
     
     /// @brief The "API" interface Write function.
@@ -115,17 +112,20 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     /// @brief A decription of the chemical object converted by this format.
     /// If not provided, the object type used by the default format is used (usually MKMol).
     func targetClassDescription() -> String {
-        if let res = T.findType(nil) {
-            if type(of: res) == MKFormat.self {
-                return res.targetClassDescription()
-            }
+        if let res = MKFormat.findType(nil) {
+            return res.targetClassDescription()
         }
         return ""
     }
     /// \return the type of chemical object used by the format.
     /// Defaults to that used by the default format. Useful for checking
     /// that a format can handle a particular object.
-    func getType() -> String { return "" } // ??
+    func getType() -> String {
+        if let res = MKFormat.findType(nil) {
+            return res.getType()
+        }
+        return ""
+    } // ??
     
     /// @brief Web address where the format is defined.
     func specificationURL() -> String { return "" }
@@ -138,8 +138,8 @@ class MKFormat: MKPlugin, MKPluginProtocol {
         return nil
     }
     
-    override func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
-        return false
+    override func display(_ txt: inout String, _ param: inout String?, _ ID: String?) -> Bool {
+        fatalError()
     }
     
     static func findType(_ ID: String?) -> MKFormat? {

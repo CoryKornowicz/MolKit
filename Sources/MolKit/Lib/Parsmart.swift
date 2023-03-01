@@ -250,6 +250,7 @@ class MKSmartsPattern {
         _pat = nil
     }
     
+    @discardableResult
     func initialize(_ pattern: String) -> Bool {
         _str = pattern
         _pat = self.parseSMARTSRecord(pattern)
@@ -1548,6 +1549,7 @@ func createAtom(_ pat: inout Pattern, _ expr: _MKAtomExpr, _ part: Int, _ vb: In
     return pat.acount - 1
 }
 
+@discardableResult
 func createBond(_ pat: inout Pattern, _ expr: _BondExpr, _ src: Int, _ dst: Int) -> Int {
     pat.bond.append(BondSpec(expr: expr, src: src, dst: dst))
     return pat.bcount - 1
@@ -1965,7 +1967,8 @@ class MKSmartsMatcher {
         }
 
     }
-
+    
+    @discardableResult
     public func match(_ mol: MKMol, _ pat: inout Pattern, _ mlist: inout [[Int]], _ single: Bool = false) -> Bool {
         
         mlist.removeAll()

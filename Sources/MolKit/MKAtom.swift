@@ -465,6 +465,7 @@ public class MKAtom: MKBase {
     }
 
     //! Find @p bond and remove it from the internal list. Does not update the bond.
+    @discardableResult
     func deleteBond(_ bond: MKBond) -> Bool {
         guard var bonds = self._vbond else { return false }
         if let index = bonds.firstIndex(of: bond) {

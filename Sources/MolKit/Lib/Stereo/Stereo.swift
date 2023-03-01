@@ -13,6 +13,17 @@ public enum RefValue: Equatable {
         self = .Ref(rawValue)
     }
     
+    var intValue: Int? {
+        switch self {
+        case .NoRef:
+            return nil
+        case .ImplicitRef:
+            return -9999 // SMARTS ImplicitRef number
+        case .Ref(var value):
+            return value
+        }
+    }
+    
     public static func == (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
         switch lhs {
         case .NoRef:
@@ -47,6 +58,10 @@ public enum RefValue: Equatable {
                 return value < rvalue
             }
         }
+    }
+    
+    static func == (_ lhs: RefValue, _ rhs: from_or_towrds) -> Bool {
+        return lhs.intValue == rhs.value
     }
 }
 
@@ -281,15 +296,31 @@ class MKStereoBase: MKGenericData {
     }
 
     func getType() -> MKStereo.TType {
-        return .CisTrans
+        fatalError("not implemented in base class")
     }
 }
+
+
+/**
+* @class OBStereoFacade stereo.h <openbabel/stereo/stereo.h>
+* @brief Facade to simplify retrieval of OBStereoBase derived objects.
+*
+* The OBStereoFacade helps with retrieving OBStereoBase derived objects
+* (i.e. OBTetrahedralStereo, OBCisTransStereo, ...) from an OBMol. This
+* is done by iterating over all OBGenericData objects with data type
+* OBGenericDataType::StereoData and checking the OBStereo::Type using
+* OBStereoBase::GetType.
+*
+* @sa OBStereo OBStereoBase
+* @since version 2.3
+*/
 
 class MKStereoFacade {
     
     var m_mol: MKMol
     var m_init: Bool = false
-    var m_perceive: Bool
+    var m_perceive: Bool = false
+    var m_init: Bool = false
     
     var m_tetrahedralMap: OrderedDictionary<Int, MKTetrahedralStereo> = [:]
     var m_cistransMap: OrderedDictionary<Int, MKCisTransStereo> = [:]
@@ -300,23 +331,118 @@ class MKStereoFacade {
         self.m_mol = m_mol
         self.m_perceive = m_perceive
     }
+
+    @inlinable private func ensureInit() {}
+    func intialize() {}
     
+    ///@name Tetrahedral stereochemistry
+      ///@{
+      /**
+       * Get the number of tetrahedral stereocenters.
+       */
     func numTetrahedralStereo() -> UInt {
         return UInt(0)
     }
     
+    /**
+       * Get all the OBTetrahedralStereo objects.
+       */
     func getAllTetrahedralStereo() -> [MKTetrahedralStereo] {
         return []
     }
     
+    /**
+       * Check if atom with @p id is a tetrahedral center.
+       * @return True if the atom with @p id has tetrahedral stereochemistry.
+       */
     func hasTetrahedralStereo(_ atomId: Int) -> Bool {
         return false
     }
-        
+    
+    /**
+       * Get the OBTetrahedralStereo object with @p atomId as center. This
+       * function returns 0 if there is no OBTetrahedralStereo object found
+       * with the specified center.
+       */
     func getTetrahedralStereo(_ atomId: Int) -> MKTetrahedralStereo? {
         return nil
     }
     
+    ///@name Cis/Trans stereochemistry
+      ///@{
+      /**
+       * Get the number of cis/trans stereocenters.
+       */
+    func numCisTransStereo() -> UInt {
+        return UInt(0)
+    }
+
+    /**
+       * Get all the OBCisTransStereo objects.
+       */
+    func getAllCisTransStereo() -> [MKCisTransStereo] {
+        return []
+    }
+
+    /**
+       * Check if bond with @p id is a stereogenic cis/trans double bond.
+       * @return True if the bond with @p id has cis/trans stereochemistry.
+       */
+    func hasCisTransStereo(_ bondId: Int) -> Bool {
+        return false
+    }
+
+    /**
+       * Get the OBTetrahedralStereo object with @p bondId as double bond.
+       * This function returns 0 if there is no OBCisTransStereo object found
+       * with the specified bond.
+       */
+    func getCisTransStereo(_ bondId: Int) -> MKCisTransStereo? {
+        return nil
+    }
+
+    ///@name SquarePlanar stereochemistry
+      ///@{
+      /**
+       * Get the number of square-planar stereocenters.
+       */
+    func numSquarePlanarStereo() -> UInt {
+        return UInt(0)
+    }
+
+    /**
+    * Get all the OBSquarePlanarStereo objects.
+    */
+    func getAllSquarePlanarStereo() -> [MKSquarePlanarStereo] {
+        return []
+    }
+
+    /**
+       * Check if atom with @p id is a stereogenic square-planar atom.
+       * @return True if the atom with @p id has square-planar stereochemistry.
+       */
+    func hasSquarePlanarStereo(_ atomId: Int) -> Bool {
+        return false
+    }
+
+    /**
+       * Get the OBSquarePlanarStereo object with @p atomId as center. This
+       * function returns 0 if there is no OBSquarePlanarStereo object found
+       * with the specified center.
+       */
+    func getSquarePlanarStereo(_ atomId: Int) -> MKSquarePlanarStereo? {
+        return nil
+    }
+
+    typealias StereoType = Int
+    func hasStereo(_ type: StereoType) -> Bool {
+        return false
+    }
+
+    func getStereo<T: MKStereoBase>(_ type: StereoType) -> T? {
+        return nil
+    }
+
     
 }
 

@@ -146,6 +146,16 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
         if idx < self.collection.count { return self.collection[idx] }
         else { return self.collection.last }
     }
+    
+//    subscript (_ idxRange: Range<Int>) -> [T]? {
+//
+//        guard idxRange.startIndex > 0 && idxRange.startIndex < idxRange.endIndex else { return nil }
+//
+//        guard idxRange.endIndex < self.collection.endIndex && idxRange.endIndex > idxRange.startIndex else { return nil }
+//
+//        return self.collection
+//
+//    }
 
     func isEmpty() -> Bool {
         return self.collection.isEmpty || self.index >= self.collection.count
@@ -153,6 +163,10 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
 
     func setEmpty() {
         self.index = self.collection.count
+    }
+    
+    func constructToEnd() -> ArraySlice<T> {
+        return self.collection.suffix(from: self.index)
     }
     
 }

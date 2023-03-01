@@ -58,11 +58,11 @@ class MKMoleculeFormat: MKFormat {
     
     //! Static routine,  which can be called from elsewhere
     static func readChemObjectImpl(_ pConv: MKConversion, _ format : MKFormat) -> Bool {
-        return false
+        fatalError()
     }
     
     static func writeChemObjectImpl(_ pConv: MKConversion, _ format : MKFormat) -> Bool {
-        return false
+        fatalError()
     }
     
     override func readChemObject(_ pConv: MKConversion) -> Bool {

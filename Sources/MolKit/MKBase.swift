@@ -236,6 +236,7 @@ public class MKBase: NSObject {
     }
 
     //! Deletes the generic data with the specified attribute, returning false if not found
+    @discardableResult
     func deleteData(_ attr: String) -> Bool {
         if let vdata = self._vdata {
             for (idx, data) in vdata.enumerated() {
@@ -260,7 +261,19 @@ public class MKBase: NSObject {
         return ""
     }
     
-    // func doTransformations(_ map: Dictionary<String,String>, _ conversion: OBConversion)
+    func castAndClear<T: MKBase>(_ clear: Bool) -> T? {
+        if let t = self as? T {
+            if clear {
+                self.clear()
+            }
+            return t
+        }
+        return nil
+    }
+
+    func doTransformations(_ map: Dictionary<String,String>, _ conversion: MKConversion) { 
+        fatalError("Not implemented in the base class")
+    }
 
     deinit {
         _vdata = nil

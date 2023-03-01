@@ -327,6 +327,7 @@ public class MKBitVec: Equatable {
         vec.append(contentsOf: self._set)
     }
     
+    @discardableResult
     func resize(_ size_in_bits: UInt32) -> Bool {
         return self.resizeWords(WORDSIZE_OF_BITSIZE(size_in_bits))
     }

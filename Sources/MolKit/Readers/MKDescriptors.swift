@@ -146,16 +146,18 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
     ///Write information on a plugin class to the string txt.
     ///If the parameter is a descriptor ID, displays the verbose description for that descriptor only
     /// e.g. babel -L descriptors HBA1
-    override func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
+    override func display(_ txt: inout String, _ param: inout String?, _ ID: String?) -> Bool {
         //Use the base class version except when the parameter is a descriptor ID.
         //For a parameter which is the matching descriptor set verbose.
         //No display for other descriptors.
         //Allows babel descriptors HBA1
-        if !param.isEmpty && (MKDescriptor.findType(param) != nil) {
-            if ID == param {
-                return false
+        if param != nil {
+            if !param!.isEmpty && (MKDescriptor.findType(param) != nil) {
+                if ID == param {
+                    return false
+                }
+                param = "verbose"
             }
-            param = "verbose"
         }
         return super.display(&txt, &param, ID)
     }
@@ -170,6 +172,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
     }
     
     /// \return the value of the descriptor and adds it to the object's OBPairData
+    @discardableResult
     func predictAndSave(_ pOb: MKBase, _ param: inout String?) -> Double {
         let attr = getID()
         var svalue: String? = ""
@@ -423,6 +426,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
         return (descID, param)
     }
     
+    @discardableResult
     func getStringValue(_ pOb: MKBase, _ svalue: inout String?, _ param: inout String?) -> Double {
         let val: Double = predict(pOb, param)
         if svalue != nil {
@@ -456,6 +460,7 @@ class MKDescriptor: MKPlugin, MKPluginProtocol, MKDescriptorProtocol {
     }
     
     // static double ParsePredicate(std::istream& optionText, char& ch1, char& ch2, std::string& svalue);
+    @discardableResult
     static func parsePredicate(_ optionText: Iterator<Character>, _ ch1: inout Character?, _ ch2: inout Character?, _ svalue: inout String) -> Double {
         var val: Double = Double.nan
         ch2 = nil

@@ -146,7 +146,7 @@ class Kekulizer {
             // is abstracted away. Once a double-bond is added that generates more
             // degree one nodes, then the iterator is exited
             
-            var iterator: NodeIterator = NodeIterator(m_degrees: degrees, m_atomArraySize: atomArraySize)
+            let iterator: NodeIterator = NodeIterator(m_degrees: degrees, m_atomArraySize: atomArraySize)
             var change = false
             var atomIdx = iterator.next()
             repeat {
@@ -201,8 +201,8 @@ class Kekulizer {
     
     func backTrack() -> Bool {
         // With an odd number of bits, it's never going to kekulize fully, but let's fill in as many as we can
-        guard var needs_dbl_bond = needs_dbl_bond else { return false }
-        guard var doubleBonds = doubleBonds else { return false }
+        guard let needs_dbl_bond = needs_dbl_bond else { return false }
+        guard let doubleBonds = doubleBonds else { return false }
         let cound = needs_dbl_bond.countBits()
         var total_handled = 0
         var idx = needs_dbl_bond.firstBit()
@@ -316,7 +316,7 @@ extension Kekulizer {
         guard let bonds = atom.getBondIterator() else { return false }
         for bond in bonds {
             if bond.isAromatic() { continue }
-            let nbr = bond.getNbrAtom(atom)
+            _ = bond.getNbrAtom(atom)
             switch bond.getBondOrder() {
             case 0, 1:
                 continue

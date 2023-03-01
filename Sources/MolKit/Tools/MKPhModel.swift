@@ -116,6 +116,7 @@ class MKChemTsfm {
         return true
     }
     
+    @discardableResult
     func apply(_ mol: MKMol) -> Bool {
         
         if !_bgn.match(mol) { return false }

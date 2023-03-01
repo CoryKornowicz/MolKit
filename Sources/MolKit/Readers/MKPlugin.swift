@@ -67,9 +67,23 @@ class MKPlugin: Equatable {
         return "plugins"
     }
     
-    func display(_ txt: inout String, _ param: inout String, _ ID: String?) -> Bool {
-//        MARK IMPL and throw proper error
-        return false
+    func display(_ txt: inout String, _ param: inout String?, _ ID: String?) -> Bool {
+        if ID != nil {
+            txt = ID!
+        } else {
+            txt = getID()
+        }
+        txt += "    "
+//        MARK: needs locale updating here
+        if param != nil && param == "verbose" {
+            guard let description = description() else { return false }
+            txt += description
+            txt += "\n"
+        } else {
+            guard let description = description() else { return false }
+            txt += MKPlugin.firstLine(description)
+        }
+        return true
     }
     
     func makeInstance(_ v: [String]) -> MKPlugin? {
@@ -134,7 +148,6 @@ class MKPlugin: Equatable {
         }
     }
     
-        
     ///\brief Returns the type with the specified ID, or NULL if not found.
     ///Needs to be cast to the appropriate class in the calling routine.
     static func baseFindType<T>(_ map: PluginMapType<T>, _ ID: String) -> MKPlugin? where T: MKPlugin {
@@ -151,6 +164,65 @@ class MKPlugin: Equatable {
             return nil
         }
     }
+    
+    func List(_ pluginID: String, _ param: inout String?, _ os: inout any TextOutputStream) { // Needs to be a real output stream
+        var vlist: [String] = []
+        if !MKPlugin.ListAsVector(pluginID, &param, &vlist) {
+            os.write("\(pluginID) is not a recognized plugin type. Those with instances of sub-types loaded are:\n")
+        }
+//        for each string in vlist, append it to os with "\n" as the separator
+        for val in vlist {
+            os.write(val)
+            os.write("\n")
+        }
+    }
+    
+    @discardableResult
+    static func ListAsVector(_ pluginID: String?, _ param: inout String?,_ vlist: inout [String]) -> Bool {
+        var ret = true
+        
+        // Make sure the plugins are loaded
+        if (MKPlugin.allPluginsLoaded == 0) {
+            MKPlugin.loadAllPlugins()
+        }
+        
+        if(pluginID != nil) {
+            if(pluginID!.first != "0" && pluginID != "plugins") {
+                //List the sub classes of the specified type
+                guard let itr = MKPlugin.pluginMap[pluginID!] else { return false }
+                let onlyIDs: Bool = param == "ids"
+                    //Get map of plugin type (like OBFingerprint) and output its contents
+                guard let Map = itr.getMap() else { return false }
+                for itrM in Map {
+                    if (itrM.key == "_" ) { continue } //no listing when ID starts with '_'
+                    if (onlyIDs) {
+                        vlist.append(itrM.key)
+                    } else {
+                        var txt: String = ""
+                        if(itrM.value.display(&txt, &param, itrM.key)) {
+                            vlist.append(txt)
+                        }
+                    }
+                }
+                return true
+            }
+        } else {
+            ret = false //asked for a type not available; provide plugin types instead
+            //List the plugin types
+            for itr in MKPlugin.pluginMap {
+                vlist.append(itr.key)
+            }
+        }
+        
+        return ret
+    }
+    
+    func ListAsString(_ pluginID: String,_ param: inout String?) -> String {
+        var ss: TextOutputStream = ""
+        List(pluginID, &param, &ss)
+        return ss as! String
+    }
+    
     
     static func firstLine(_ text: String) -> String {
 //        Return the first set of characters up until the newline character

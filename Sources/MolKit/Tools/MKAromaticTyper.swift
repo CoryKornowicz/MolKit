@@ -17,7 +17,7 @@ func findExocyclicAtom(_ atom: MKAtom) -> ExocyclicAtom {
     guard let bonds = atom.getBondIterator() else { return .NO_EXOCYCLIC_ATOM }
     for bond in bonds {
         if bond.getBondOrder() == 2 && !bond.isInRing() {
-            var atomicnum = bond.getNbrAtom(atom).getAtomicNum()
+            let atomicnum = bond.getNbrAtom(atom).getAtomicNum()
             switch atomicnum {
                 case MKElements.getAtomicNum("O"):
                     return .EXO_OXYGEN
@@ -33,7 +33,7 @@ func hasExocyclicBondToOxygenMinus(_ atom: MKAtom) -> Bool {
     guard let bonds = atom.getBondIterator() else { return false }
     for bond in bonds {
         if bond.getBondOrder() == 1 && !bond.isInRing() {
-            var nbr = bond.getNbrAtom(atom)
+            let nbr = bond.getNbrAtom(atom)
             if nbr.getAtomicNum() == MKElements.getAtomicNum("O") && nbr.getFormalCharge() == -1 {
                 return true
             }
@@ -56,7 +56,7 @@ func hasExocyclicDblBondToHet(_ atom: MKAtom) -> Bool {
     guard let bonds = atom.getBondIterator() else { return false }
     for bond in bonds {
         if bond.getBondOrder() == 2 && !bond.isInRing() {
-            var atomicnum = bond.getNbrAtom(atom).getAtomicNum()
+            let atomicnum = bond.getNbrAtom(atom).getAtomicNum()
             switch atomicnum {
             case MKElements.getAtomicNum("C"), MKElements.getAtomicNum("H"):
                 break
@@ -153,7 +153,7 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 }
             case 5:
                 if deg == 3 {
-                    var exoatom = findExocyclicAtom(atm)
+                    let exoatom = findExocyclicAtom(atm)
                     switch exoatom {
                         case .EXO_OXYGEN:
                             min = 1
@@ -401,7 +401,7 @@ class MKAromaticTyperMolState {
     */
     func selectRootAtoms(_ avoidInnerRingAtoms: Bool = true) {
         
-        var sssRings = mol.getSSSR()
+        let sssRings = mol.getSSSR()
 
         var cbonds: [MKBond] = []
         var tmpRootAtoms: [Int] = []
@@ -424,7 +424,7 @@ class MKAromaticTyperMolState {
         if avoidInnerRingAtoms {
             //for every atom fill vector with ring pointer it's associated with
             for k in sssRings {
-                var tmp = k._path
+                let tmp = k._path
                 for j in tmp {
                     ringAtoms[j].append(k)
                 }
@@ -439,7 +439,7 @@ class MKAromaticTyperMolState {
             // pick beginning atom at closure bond
             // this is really ready, isn't it ! ;-)
 
-            var rootAtom = bond.getBeginAtomIdx()
+            let rootAtom = bond.getBeginAtomIdx()
             _root[rootAtom] = true
 
             // EXTENDED APPROACH
@@ -615,7 +615,7 @@ class MKAromaticTyperMolState {
         
         var result = false
         
-        var depth = depth - 1
+        let depth = depth - 1
         
         er.0 += _velec[atom.getIdx()].0
         er.1 += _velec[atom.getIdx()].1
