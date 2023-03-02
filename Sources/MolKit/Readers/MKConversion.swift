@@ -166,7 +166,7 @@ class MKConversion {
 
     }
     
-    init(_ inStream: InputFileHandler, _ outStream: OutputFileHandler) {
+    init(_ inStream: InputFileHandler? = nil, _ outStream: OutputFileHandler? = nil) {
         defaultInit()
         setInStream(inStream)
         setOutStream(outStream)
@@ -176,6 +176,8 @@ class MKConversion {
         defaultInit()
         openInAndOutFiles(inFilename, outFilename)
     }
+    
+    
     
 //    MARK: Functions
     
@@ -303,15 +305,18 @@ Conversion options
     /// //////////////////////////////////////////////////////
     /// If inID is NULL, the input format is left unchanged. Similarly for outID
     /// Returns true if both formats have been successfully set at sometime
+    @discardableResult
     func setInAndOutFormats(_ inID: String, _ outID: String, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
         return setInFormat(inID, isgzip: ingzip) && setOutFormat(outID, isgzip: outgzip)
     }
     
+    @discardableResult
     func setInAndOutFormats(_ pIn: MKFormat, _ pOut: MKFormat, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
         return setInFormat(pIn, isgzip: ingzip) && setOutFormat(pOut, isgzip: outgzip)
     }
     
     /// Sets the input format from an id e.g. CML
+    @discardableResult
     func setInFormat(_ inID: String, isgzip: Bool = false) -> Bool {
         inFormatGzip = isgzip
         if let format = MKConversion.findFormat(inID) {
@@ -321,6 +326,8 @@ Conversion options
             return false
         }
     }
+    
+    @discardableResult
     func setInFormat(_ pIn: MKFormat, isgzip: Bool = false) -> Bool {
         inFormatGzip = isgzip
         pInFormat = pIn
@@ -328,6 +335,7 @@ Conversion options
     }
 
     /// Sets the output format from an id e.g. CML
+    @discardableResult
     func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {
         outFormatGzip = isgzip
         if let format = MKConversion.findFormat(outID) {
@@ -833,7 +841,7 @@ Conversion options
     /// @brief Outputs an object of a class derived from OBBase.
     /// Part of "API" interface.
     /// The output stream can be specified and the change is retained in the OBConversion instance
-    func write(_ pOb: MKBase, _ pout: OutputFileHandler?) -> Bool {
+    func write<T: MKBase>(_ pOb: T, _ pout: OutputFileHandler?) -> Bool {
         
         if(pout != nil) { setOutStream(pout, false) }
 
@@ -871,14 +879,14 @@ Conversion options
       /// This method is primarily intended for scripting languages without "stream" classes
       /// The optional "trimWhitespace" parameter allows trailing whitespace to be removed
       /// (e.g., in a SMILES string or InChI, etc.)
-    func writeString(_ pOb: MKBase, _ trimWhitespace: Bool = true) -> String { fatalError("writeString is not implemented in base class MKConversion") }
+    func writeString<T: MKBase>(_ pOb: T, _ trimWhitespace: Bool = true) -> String { fatalError("writeString is not implemented in base class MKConversion") }
     
     /// @brief Outputs an object of a class derived from OBBase as a file (with the supplied path)
       /// Part of "API" interface.
       /// The output stream is changed to the supplied file and the change is retained in the
       /// OBConversion instance.
       /// This method is primarily intended for scripting languages without "stream" classes
-    func writeFile(_ pOb: MKBase, _ filePath: String) -> Bool { fatalError("writeFile is not implemented in base class MKConversion") }
+    func writeFile<T: MKBase>(_ pOb: T, _ filePath: String) -> Bool { fatalError("writeFile is not implemented in base class MKConversion") }
     
     
     /// @brief Manually closes and deletes the output stream
@@ -894,7 +902,7 @@ Conversion options
     /// Part of "API" interface.
     /// The input stream can be specified and the change is retained in the OBConversion instance
     /// \return false and pOb=NULL on error
-    open func read(_ pOb: MKBase, _ pin: InputFileHandler? = nil) -> Bool {
+    open func read<T: MKBase>(_ pOb: inout T, _ pin: InputFileHandler? = nil) -> Bool {
 //        if(pin != nil) {
           //for backwards compatibility, attempt to detect a gzip file
 //    #ifdef HAVE_LIBZ
@@ -965,7 +973,8 @@ Conversion options
     /// \return false and pOb=NULL on error
     /// This method is primarily intended for scripting languages without "stream" classes
     /// Any existing input stream will be replaced by stringstream.
-    open func readString(_ pOb: MKBase, _ input: String) -> Bool { fatalError("readString is not implemented in base class MKConversion")  }
+    @discardableResult
+    open func readString<T: MKBase>(_ pOb: inout T, _ input: String) -> Bool { fatalError("readString is not implemented in base class MKConversion")  }
     
     /// @brief Reads an object of a class derived from OBBase into pOb from the file specified
     
@@ -975,7 +984,8 @@ Conversion options
     /// can be read by repeatedly calling the Read() method.
     /// \return false and pOb=NULL on error
     /// This method is primarily intended for scripting languages without "stream" classes
-    open func readFile(_ pOb: MKBase, _ filePath: String) -> Bool { fatalError("readFile is not implemented in base class MKConversion") }
+    @discardableResult
+    open func readFile<T: MKBase>(_ pOb: inout T, _ filePath: String) -> Bool { fatalError("readFile is not implemented in base class MKConversion") }
 
     /// Part of the "Convert" interface.
     /// Open the files and update the streams in the OBConversion object.

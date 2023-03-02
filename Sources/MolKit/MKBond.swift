@@ -51,8 +51,8 @@ class MKBond: MKBase {
     }
 
     // TODO: Need to write implementations
-    func getId() -> Int {
-        return self._id.rawValue
+    func getId() -> Ref {
+        return self._id.ref
     }
 
     func setId(_ id: Int) {
