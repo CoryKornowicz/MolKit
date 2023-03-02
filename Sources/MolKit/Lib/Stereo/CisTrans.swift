@@ -92,8 +92,8 @@ class MKCisTransStereo: MKTetraPlanarStereo {
             if lhs.end != rhs.begin && lhs.end != rhs.end { return false }
             if lhs.refs.count != 4 || rhs.refs.count != 4 { return false }
             
-            var u1: Config 
-            var u2: Config 
+            var u1: Config?
+            var u2: Config?
 
             if !(MKStereo.containsSameRefs(lhs.refs, rhs.refs)) {
                 for i in lhs.refs {
@@ -103,7 +103,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
                     }
                 }
                 // check if they actualy share an id...
-                if u1.refs.isEmpty { return false }
+                if u1!.refs.isEmpty { return false }
             } else {
                 // normalize the other Config struct
                 u1 = MKTetraPlanarStereo.toConfig(lhs, lhs.refs[0], .ShapeU) // refs[0] = u1.refs[0]
@@ -116,7 +116,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
                 //   |   |        |   |      <- in any case, refs[0] & refs[2] remain unchanged
                 //   1 2 3 4      1 4 3 2
                 //
-                return (u1.refs[2] == u2.refs[2])
+                return (u1!.refs[2] == u2!.refs[2])
             }
 
             // possibilities:
@@ -132,20 +132,16 @@ class MKCisTransStereo: MKTetraPlanarStereo {
             //   1 2 3 4
             //   | |        <- refs[0] & refs[1] remain unchanged
             //   1 2 H H
-            if u1.refs[2] == .ImplicitRef || u2.refs[2] == .ImplicitRef {
-                if u1.refs[3] == .ImplicitRef || u2.refs[3] == .ImplicitRef {
-                    return (u1.refs[1] == u2.refs[1]) // 1 2 H H
+            if u1!.refs[2] == .ImplicitRef || u2!.refs[2] == .ImplicitRef {
+                if u1!.refs[3] == .ImplicitRef || u2!.refs[3] == .ImplicitRef {
+                    return (u1!.refs[1] == u2!.refs[1]) // 1 2 H H
                 } else {
-                    return (u1.refs[3] == u2.refs[3]) // 1 H H 4
+                    return (u1!.refs[3] == u2!.refs[3]) // 1 H H 4
                 }
             } else {
-                return (u1.refs[2] == u2.refs[2]) // 1 2 3 4  &  1 H 3 4  &  1 2 3 H
+                return (u1!.refs[2] == u2!.refs[2]) // 1 2 3 4  &  1 H 3 4  &  1 2 3 H
             }
-            return false
         }
-
-
-        
     }
     
     private var m_cfg: Config? //!< internal configuration
@@ -235,7 +231,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
     
     override func clone<T>(_ mol: T) -> MKGenericData? where T : MKBase {
         guard m_cfg != nil else { return nil }
-        var data = MKCisTransStereo(mol as! MKMol)
+        let data = MKCisTransStereo(mol as! MKMol)
         data.setConfig(m_cfg!)
         return data
     }

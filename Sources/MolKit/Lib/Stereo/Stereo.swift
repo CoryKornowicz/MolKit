@@ -300,7 +300,6 @@ class MKStereoBase: MKGenericData {
     }
 }
 
-
 /**
 * @class OBStereoFacade stereo.h <openbabel/stereo/stereo.h>
 * @brief Facade to simplify retrieval of OBStereoBase derived objects.
@@ -320,7 +319,6 @@ class MKStereoFacade {
     var m_mol: MKMol
     var m_init: Bool = false
     var m_perceive: Bool = false
-    var m_init: Bool = false
     
     var m_tetrahedralMap: OrderedDictionary<Int, MKTetrahedralStereo> = [:]
     var m_cistransMap: OrderedDictionary<Int, MKCisTransStereo> = [:]
@@ -332,8 +330,70 @@ class MKStereoFacade {
         self.m_perceive = m_perceive
     }
 
-    @inlinable private func ensureInit() {}
-    func intialize() {}
+    private func ensureInit() {
+        if !m_init { intialize() }
+    }
+    
+    func intialize() {
+        
+        if (m_perceive && !m_mol.hasChiralityPerceived()) {
+            perceiveStereo(m_mol)
+        }
+        
+        guard var stereoData = m_mol.getDataVector(.StereoData) else {
+            fatalError("FAILED to retrieve stereo data for mol")
+        }
+
+        for data in stereoData {
+            let type: MKStereo.TType = (data as! MKStereoBase).getType()
+            if (type == .Tetrahedral) {
+                let ts: MKTetrahedralStereo = (data as! MKTetrahedralStereo)
+                let config: MKTetrahedralStereo.Config = ts.getConfig()
+                if (config.center == .NoRef) {
+                    continue
+                }
+                m_tetrahedralMap[config.center.intValue!] = ts
+            } else {
+                if (type == .SquarePlanar) {
+                    let sp: MKSquarePlanarStereo = (data as! MKSquarePlanarStereo)
+                    let config: MKSquarePlanarStereo.Config = sp.getConfig()
+                    if (config.center == .NoRef) {
+                        continue
+                    }
+                    m_squarePlanarMap[config.center.intValue!] = sp
+                } else {
+                    if (type == .CisTrans) {
+                        let ct: MKCisTransStereo = (data as! MKCisTransStereo)
+                        let config: MKCisTransStereo.Config = ct.getConfig()
+                        // find the bond id from begin & end atom ids
+                        var id: RefValue = .NoRef
+                        let a: MKAtom? = m_mol.getAtomById(config.begin)
+                        if (a == nil) {
+                            continue
+                        }
+                        guard let bonds = a?.getBondIterator() else {
+                            print("ERROR: No bonds for atom in stereo data??")
+                            continue
+                        }
+                        for bond in bonds {
+                            let beginId: Ref = bond.getBeginAtom().getId().ref
+                            let endId: Ref = bond.getEndAtom().getId().ref
+                            if ((beginId == config.begin && endId == config.end) ||
+                                (beginId == config.end && endId == config.begin)) {
+                                id = bond.getId()
+                                break
+                            }
+                        }
+                        if (id == .NoRef) {
+                            continue
+                        }
+                        m_cistransMap[id.intValue!] = ct
+                    }
+                }
+            }
+        }
+        m_init = true
+    }
     
     ///@name Tetrahedral stereochemistry
       ///@{
@@ -341,14 +401,20 @@ class MKStereoFacade {
        * Get the number of tetrahedral stereocenters.
        */
     func numTetrahedralStereo() -> UInt {
-        return UInt(0)
+        ensureInit()
+        return UInt(m_tetrahedralMap.count)
     }
     
     /**
        * Get all the OBTetrahedralStereo objects.
        */
     func getAllTetrahedralStereo() -> [MKTetrahedralStereo] {
-        return []
+        ensureInit()
+        var result: [MKTetrahedralStereo] = []
+        for (_, value) in m_tetrahedralMap {
+            result.append(value)
+        }
+        return result
     }
     
     /**
@@ -356,7 +422,10 @@ class MKStereoFacade {
        * @return True if the atom with @p id has tetrahedral stereochemistry.
        */
     func hasTetrahedralStereo(_ atomId: Int) -> Bool {
-        return false
+        ensureInit()
+        return m_tetrahedralMap.contains { (key: Int, value: MKTetrahedralStereo) in
+            key == atomId
+        }
     }
     
     /**
@@ -365,7 +434,10 @@ class MKStereoFacade {
        * with the specified center.
        */
     func getTetrahedralStereo(_ atomId: Int) -> MKTetrahedralStereo? {
-        return nil
+        if !hasTetrahedralStereo(atomId) {
+            return nil
+        }
+        return m_tetrahedralMap[atomId]
     }
     
     ///@name Cis/Trans stereochemistry
@@ -374,14 +446,20 @@ class MKStereoFacade {
        * Get the number of cis/trans stereocenters.
        */
     func numCisTransStereo() -> UInt {
-        return UInt(0)
+        ensureInit()
+        return UInt(m_cistransMap.count)
     }
 
     /**
        * Get all the OBCisTransStereo objects.
        */
     func getAllCisTransStereo() -> [MKCisTransStereo] {
-        return []
+        ensureInit()
+        var result: [MKCisTransStereo] = []
+        for (_, value) in m_cistransMap {
+            result.append(value)
+        }
+        return result
     }
 
     /**
@@ -389,7 +467,10 @@ class MKStereoFacade {
        * @return True if the bond with @p id has cis/trans stereochemistry.
        */
     func hasCisTransStereo(_ bondId: Int) -> Bool {
-        return false
+        ensureInit()
+        return m_cistransMap.contains { (key: Int, value: MKCisTransStereo) in
+            key == bondId
+        }
     }
 
     /**
@@ -398,7 +479,10 @@ class MKStereoFacade {
        * with the specified bond.
        */
     func getCisTransStereo(_ bondId: Int) -> MKCisTransStereo? {
-        return nil
+        if !hasCisTransStereo(bondId) {
+            return nil
+        }
+        return m_cistransMap[bondId]
     }
 
     ///@name SquarePlanar stereochemistry
@@ -407,14 +491,20 @@ class MKStereoFacade {
        * Get the number of square-planar stereocenters.
        */
     func numSquarePlanarStereo() -> UInt {
-        return UInt(0)
+        ensureInit()
+        return UInt(m_squarePlanarMap.count)
     }
 
     /**
     * Get all the OBSquarePlanarStereo objects.
     */
     func getAllSquarePlanarStereo() -> [MKSquarePlanarStereo] {
-        return []
+        ensureInit()
+        var result: [MKSquarePlanarStereo] = []
+        for (_, value) in m_squarePlanarMap {
+            result.append(value)
+        }
+        return result
     }
 
     /**
@@ -422,7 +512,10 @@ class MKStereoFacade {
        * @return True if the atom with @p id has square-planar stereochemistry.
        */
     func hasSquarePlanarStereo(_ atomId: Int) -> Bool {
-        return false
+        ensureInit()
+        return m_squarePlanarMap.contains { (key: Int, value: MKSquarePlanarStereo) in
+            key == atomId
+        }
     }
 
     /**
@@ -431,18 +524,38 @@ class MKStereoFacade {
        * with the specified center.
        */
     func getSquarePlanarStereo(_ atomId: Int) -> MKSquarePlanarStereo? {
-        return nil
+        if !hasSquarePlanarStereo(atomId) {
+            return nil
+        }
+        return m_squarePlanarMap[atomId]
     }
 
-    typealias StereoType = Int
-    func hasStereo(_ type: StereoType) -> Bool {
-        return false
-    }
-
-    func getStereo<T: MKStereoBase>(_ type: StereoType) -> T? {
-        return nil
-    }
     
+    func hasStereo(_ T: MKStereo.TType, _ id: Int) -> Bool {
+        switch T {
+        case .Tetrahedral:
+            return self.hasTetrahedralStereo(id)
+        case .CisTrans:
+            return self.hasCisTransStereo(id)
+        case .SquarePlanar:
+            return self.hasSquarePlanarStereo(id)
+        default:
+            return false
+        }
+    }
+
+    func getStereo<U: MKStereoBase>(_ T: MKStereo.TType, _ id: Int) -> U? {
+        switch T {
+        case .Tetrahedral:
+            return self.getTetrahedralStereo(id) as? U
+        case .CisTrans:
+            return self.getCisTransStereo(id) as? U
+        case .SquarePlanar:
+            return self.getSquarePlanarStereo(id) as? U
+        default:
+            return nil
+        }
+    }
 }
 
 ///@name High level functions
@@ -570,7 +683,7 @@ func stereoFrom0D(_ mol: MKMol) {
 * @since version 2.3
 */
 func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
-
+    fatalError()
 }
 /**
 * Get a vector with all OBTetrahedralStereo objects for the molecule. This
@@ -617,7 +730,7 @@ func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @since version 2.3
 */
 func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
-
+    fatalError()
 }
 /**
 * Get a vector with all OBTetrahedralStereo objects for the molecule. This
@@ -639,7 +752,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @since version 2.3
 */
 func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
-
+    fatalError()
 }
 /**
 * Get a vector with all OBCisTransStereo objects for the molecule. This
@@ -678,7 +791,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @since version 2.3
 */
 func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
-
+    fatalError()
 }
 /**
 * Get a vector with all OBCisTransStereo objects for the molecule. This
@@ -711,7 +824,7 @@ func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
 * @since version 2.3
 */
 func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKBond: MKStereo.BondDirection]? = nil, _ addToMol: Bool = true) -> [MKCisTransStereo] {
-
+    fatalError()
 }
 /**
 * Convert a molecule's OBTetrahedralStereo objects to a series of hash or
@@ -740,7 +853,7 @@ func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKB
 * @since version 2.3
 */
 func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDirection], _ from: inout [MKBond: Ref]) -> Bool {
-
+    fatalError()
 }
 /**
 * Return a set of double bonds corresponding to the OBCisTransStereo objects
@@ -753,33 +866,10 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
 * @return A set of bonds with unspecified cis/trans stereochemistry
 * @since version 2.3
 */
-OBAPI std::set<OBBond*> GetUnspecifiedCisTrans(OBMol& mol);
-/**
-* Convert any reference to @p atomId in a stereo object to an OBStereo::ImplicitRef.
-* This function is called from OBMol::DeleteHydrogens()
-* (via OBMol::DeleteHydrogen()) to remove any explicit references to a
-* hydrogen atom that has been deleted. However, the code is not specific
-* to hydrogen atoms and could be used for other atoms.
-*
-* @param mol The molecule
-* @param atomId The Id of the atom to be converted to an OBStereo::ImplicitRef
-* @since version 2.3
-*/
-OBAPI void StereoRefToImplicit(OBMol& mol, OBStereo::Ref atomId);
-/**
-* Convert any reference to an OBStereo::ImplicitRef attached to @p centerId
-* in a stereo object to an explicit reference to @p newId.
-* This function is called from OBMol::AddHydrogens() and
-* OBMol::AddHydrogen() to convert any implicit references to a
-* hydrogen atom that has just been added. However, the code is not specific
-* to hydrogen atoms and could be used for other atoms.
-*
-* @param mol The molecule
-* @param centerId The Id of the atom to which the new explicit atom is attached
-* @param newId The Id of the atom which was previously an OBStereo::ImplicitRef
-* @since version 2.4
-*/
-OBAPI void ImplicitRefToStereo(OBMol& mol, OBStereo::Ref centerId, OBStereo::Ref newId);
+func getUnspecifiedCisTrans(_ mol: MKMol) -> Set<MKBond> {
+    fatalError()
+}
+
 /**
 * Get a vector with all OBCisTransStereo objects for the molecule. This
 * function is used by StereoFrom0D() with the @p addToMol parameter is set
@@ -799,9 +889,9 @@ OBAPI void ImplicitRefToStereo(OBMol& mol, OBStereo::Ref centerId, OBStereo::Ref
 * @sa StereoFrom0D FindStereogenicUnits
 * @since version 2.3
 */
-OBAPI std::vector<OBCisTransStereo*> CisTransFrom0D(OBMol *mol,
-    const OBStereoUnitSet &stereoUnits,
-    bool addToMol = true);
+func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
+    fatalError()
+}
 ///@}
 
 
@@ -887,8 +977,9 @@ OBAPI std::vector<OBCisTransStereo*> CisTransFrom0D(OBMol *mol,
     Comput. Sci. 1993, 33, 812-825
     @endverbatim
 */
-OBAPI OBStereoUnitSet FindStereogenicUnits(OBMol *mol,
-    const std::vector<unsigned int> &symClasses);
+func findStereogenicUnits(_ mol: MKMol, symClasses: [UInt]) -> MKStereoUnitSet {
+    fatalError()
+}
 /**
 * @brief Find the stereogenic units in a molecule making use of the automorphisms.
 *
@@ -965,8 +1056,9 @@ OBAPI OBStereoUnitSet FindStereogenicUnits(OBMol *mol,
     Tetrahedron: Asymmetry, 1994, Vol. 5, No. 5, 835-861
     @endverbatim
 */
-// OBAPI OBStereoUnitSet FindStereogenicUnits(OBMol *mol, const std::vector<unsigned int> &symClasses, const Automorphisms &automorphisms);
-func findStereogenicUnits(_ mol: MKMol, )
+func findStereogenicUnits(_ mol: MKMol, _ symClasses: [UInt], _ automorphisms: Automorphisms) -> MKStereoUnitSet {
+    fatalError()
+}
 ///@}
 
 /**

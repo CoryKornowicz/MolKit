@@ -591,7 +591,7 @@ class MKMol: MKBase {
         bond.getBeginAtom().deleteBond(bond)
         bond.getEndAtom().deleteBond(bond)
         self._vbond.remove(at: Int(bond.getIdx()))
-        self._vbondIds.remove(at: bond.getId())
+        self._vbondIds.remove(at: bond.getId().intValue!)
 
         //reset all the indices to the atoms
         var _idx = 0

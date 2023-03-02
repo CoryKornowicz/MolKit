@@ -80,7 +80,7 @@ public class FileHandler : FileHandlerProtocol {
                 print("FileHandle.close() failed")
                 self.streamStatus = .error
             }
-        case .none: break
+        case .none:
             self.streamStatus = .notOpen
         }
     }

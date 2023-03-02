@@ -8,22 +8,22 @@ enum from_or_towrds: Equatable {
     
     var value: Int? {
         switch self {
-        case .from(var ref):
+        case .from(let ref):
             switch ref {
             case .NoRef:
                 return nil
             case .ImplicitRef:
                 return nil
-            case .Ref(var intValue):
+            case .Ref(let intValue):
                 return intValue
             }
-        case .towards(var ref):
+        case .towards(let ref):
             switch ref {
             case .NoRef:
                 return nil
             case .ImplicitRef:
                 return nil
-            case .Ref(var intValue):
+            case .Ref(let intValue):
                 return intValue
             }
         }

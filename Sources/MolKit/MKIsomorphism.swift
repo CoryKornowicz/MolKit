@@ -54,7 +54,7 @@ class MKIsomorphMapper {
      * @typedef std::vector< std::pair<unsigned int,unsigned int> > Mapping
      * Type for an individual mapping.
      */
-    typealias Mapping = [(UInt, UInt)]
+    typealias Mapping = [Pair<UInt, UInt>]
     
     /**
      * @typedef std::vector<OBIsomorphismMapper::Mapping> Mappings
@@ -68,8 +68,8 @@ class MKIsomorphMapper {
      * @param query The search query.
      */
     
-    private var m_query: MKQuery //!< The search query.
-    private var m_timeout: UInt = 0  //!< The timeout in seconds
+    var m_query: MKQuery //!< The search query.
+    var m_timeout: UInt = 0  //!< The timeout in seconds
     
     init(_ query: MKQuery) {
         self.m_query = query
@@ -141,7 +141,7 @@ class MKIsomorphMapper {
      * @see @ref MapGeneric
      * @since 2.3
      */
-    class Functor {
+    open class Functor {
         /**
          * This function is called every time an isomorphism is discovered.
          * Returing true, will abort the mapping process. The map is passed
@@ -151,6 +151,7 @@ class MKIsomorphMapper {
          */
         init () {}
         
+        @discardableResult
         open func operate(_ map: Mapping) -> Bool {
             fatalError("Not implemented in base class")
         }
@@ -163,7 +164,7 @@ class MKIsomorphMapper {
      * The default empty mask will result in all atoms being considered. The mask
      * indexes start from 1 (i.e. OBAtom::GetIdx()).
      */
-    open func mapGeneric(_ functor: MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
+    open func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
         fatalError("Not implemented in base class")
     }
     
@@ -238,9 +239,77 @@ func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ m
 * @since version 2.3
 */
 func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) {
-    fatalError()
+    // set all atoms to 1 if the mask is empty
+    // OBBitVec queriedMask = mask;
+    // if (!queriedMask.CountBits())
+    //   for (unsigned int i = 0; i < mol->NumAtoms(); ++i)
+    //     queriedMask.SetBitOn(i + 1);
 
+    // if (DEBUG)
+    // for (unsigned int i = 0; i < symClasses.size(); ++i)
+    //   cout << i << ": " << symClasses[i] << endl;
+
+    // // compute the connected fragments
+    // OBBitVec visited;
+    // std::vector<OBBitVec> fragments;
+    // for (std::size_t i = 0; i < mol->NumAtoms(); ++i) {
+    //   if (!queriedMask.BitIsSet(i+1) || visited.BitIsSet(i+1))
+    //     continue;
+    //   fragments.push_back(getFragment(mol->GetAtom(i+1), queriedMask));
+    //   visited |= fragments.back();
+    // }
+
+    // // count the symmetry classes
+    // std::vector<int> symClassCounts(symClasses.size() + 1, 0);
+    // for (unsigned int i = 0; i < symClasses.size(); ++i) {
+    //   if (!queriedMask.BitIsSet(i + 1))
+    //     continue;
+    //   unsigned int symClass = symClasses[i];
+    //   symClassCounts[symClass]++;
+    // }
+
+    // for (std::size_t i = 0; i < fragments.size(); ++i) {
+    //   OBQuery *query = CompileAutomorphismQuery(mol, fragments[i], symClasses);
+    //   OBIsomorphismMapper *mapper = OBIsomorphismMapper::GetInstance(query);
+
+    //   AutomorphismFunctor autFunctor(functor, fragments[i], mol->NumAtoms());
+    //   mapper->MapGeneric(autFunctor, mol, fragments[i]);
+    //   delete mapper;
+    //   delete query;
+    // }
+
+    fatalError()
 }
+
+// Helper Declarations
+
+class AutomorphismFunctor: MKIsomorphMapper.Functor {
+    private var m_functor: MKIsomorphMapper.Functor
+    private var m_fragment: MKBitVec
+    private var m_indexes: [UInt] = []
+    
+    init(_ functor: MKIsomorphMapper.Functor, _ fragment: MKBitVec, _ numAtoms: UInt) {
+        m_functor = functor
+        m_fragment = fragment
+        for j in 0..<numAtoms {
+            if m_fragment.bitIsSet(Int(j) + 1) {
+                m_indexes.append(j)
+            }
+        }
+    }
+    override func operate(_ map: MKIsomorphMapper.Mapping) -> Bool {
+        // convert the continuous mapping map to a mapping with gaps (considering key values)
+        for var iter in map {
+            iter.0 = m_indexes[Int(iter.0)]
+        }
+        return m_functor.operate(map)
+    }
+}
+
+func compuleAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) -> MKQuery {
+    fatalError()
+}
+
 /**
 * @page substructure Substructure Search
 * @since version 2.3
@@ -432,7 +501,7 @@ class VF2Mapper: MKIsomorphMapper {
 
     }
 
-    var m_startTime: Darwin.time_t?
+    var m_startTime: Darwin.time_t = Darwin.time_t(0)
 
     override init(_ query: MKQuery) {
         super.init(query)
@@ -491,327 +560,310 @@ class VF2Mapper: MKIsomorphMapper {
     /**
     * Match the candidate atoms and bonds.
     */
-    func matchCandidate(_ state: inout State, _ queryAtom: MKQueryAtom, _ queryBond: MKQueryBond) -> Bool {
-    //     if (!queryAtom->Matches(queriedAtom))
-    //       return false;
-
-    //     // add the neighbors to the paths
-    //     state.queryPath.push_back(queryAtom->GetIndex());
-    //     state.queriedPath.push_back(queriedAtom->GetIndex());
-    //     // update the terminal sets
-    //     state.queryPathBits.SetBitOn(queryAtom->GetIndex());
-    //     state.queriedPathBits.SetBitOn(queriedAtom->GetIndex());
-    //     // update mapping
-    //     state.mapping[queryAtom->GetIndex()] = queriedAtom;
-
-    //     //
-    //     // update queryDepths
-    //     //
-    //     if (!state.queryDepths[queryAtom->GetIndex()])
-    //       state.queryDepths[queryAtom->GetIndex()] = state.queryPath.size();
-
-    //     std::vector<OBQueryAtom*> queryNbrs = queryAtom->GetNbrs();
-    //     for (unsigned int i = 0; i < queryNbrs.size(); ++i) {
-    //       unsigned int index = queryNbrs[i]->GetIndex();
-    //       if (!state.queryDepths[index])
-    //         state.queryDepths[index] = state.queryPath.size();
-    //     }
-
-    //     //
-    //     // update queriedDepths
-    //     //
-    //     if (!state.queriedDepths[queriedAtom->GetIndex()])
-    //       state.queriedDepths[queriedAtom->GetIndex()] = state.queriedPath.size();
-
-    //     FOR_NBORS_OF_ATOM (nbr, queriedAtom) {
-    //       unsigned int index = nbr->GetIndex();
-    //       // skip atoms not in the mask
-    //       if (!state.queriedMask.BitIsSet(index + 1))
-    //         continue;
-    //       if (!state.queriedDepths[index])
-    //         state.queriedDepths[index] = state.queriedPath.size();
-    //     }
-
-    //     // check if the bonds match
-    //     if (!checkBonds(state, queryAtom)) {
-    //       Backtrack(state);
-    //       return false;
-    //     }
-
-    //     //
-    //     // Feasibility rules for the VF2 algorithm:
-    //     //
-    //     //  size( T1(s) ) <= size( T2(s) )
-    //     //
-    //     //  size( N1 - M1(s) - T1(s) ) <= size( N2 - M2(s) - T2(s) )
-    //     //
-
-    //     // compute T1(s) size
-    //     unsigned int numT1 = 0;
-    //     for (unsigned int i = 0; i < state.query->NumAtoms(); ++i)
-    //       if (isInTerminalSet(state.queryDepths, state.queryPathBits, i))
-    //           numT1++;
-    //     // compute T2(s) size
-    //     unsigned int numT2 = 0;
-    //     for (unsigned int i = 0; i < state.queried->NumAtoms(); ++i)
-    //       if (isInTerminalSet(state.queriedDepths, state.queriedPathBits, i))
-    //           numT2++;
-
-    //     // T1(s) > T()
-    //     if (numT1 > numT2) {
-    //       Backtrack(state);
-    //       return false;
-    //     }
-    //     //  N1 - M1(s) - T1(s) > N2 - M2(s) - T2(s)
-    //     if ((state.query->NumAtoms() - state.queryPath.size() - numT1) > (state.queried->NumAtoms() - state.queriedPath.size() - numT2)) {
-    //       Backtrack(state);
-    //       return false;
-    //     }
-
-    //     // Check if there is a mapping found
-    //     state.abort = checkForMap(state);
-
-    //     return true
-    //   }
+    func matchCandidate(_ state: inout State, _ queryAtom: MKQueryAtom, _ queriedAtom: MKAtom) -> Bool {
+        if !queryAtom.matches(queriedAtom) {
+            return false
+        }
+        // add the neighbors to the paths
+        state.queryPath.append(UInt(queryAtom.getIndex()))
+        state.queriedPath.append(UInt(queriedAtom.getIndex()))
+        // update the terminal sets
+        state.queryPathBits.setBitOn(UInt32(queryAtom.getIndex()))
+        state.queriedPathBits.setBitOn(UInt32(queriedAtom.getIndex()))
+        // update mapping
+        state.mapping[Int(queryAtom.getIndex())] = queriedAtom
+        //
+        // update queryDepths
+        //
+        if (state.queryDepths[Int(queryAtom.getIndex())] == 0) {
+            state.queryDepths[Int(queryAtom.getIndex())] = UInt(state.queryPath.count)
+        }
+        var queryNbrs = queryAtom.getNbrs()
+        for i in 0..<queryNbrs.count {
+            let index = queryNbrs[i].getIndex()
+            if (state.queryDepths[Int(index)] == 0) {
+                state.queryDepths[Int(index)] = UInt(state.queryPath.count)
+            }
+        }
+        //
+        // update queriedDepths
+        //
+        if (state.queriedDepths[Int(queriedAtom.getIndex())] == 0) {
+            state.queriedDepths[Int(queriedAtom.getIndex())] = UInt(state.queriedPath.count)
+        }
+        guard let nbors = queriedAtom.getNbrAtomIterator() else { return false }
+//        TODO: Throw error here
+        for nbor in nbors {
+            let index = nbor.getIndex()
+            if !state.queriedMask.bitIsSet(Int(index + 1)) {
+                continue
+            }
+            if state.queriedDepths[Int(index)] == 0 {
+                state.queriedDepths[Int(index)] = UInt(state.queriedPath.count)
+            }
+        }
+        // check if the bonds match
+        if (!checkBonds(&state, queryAtom)) {
+            backtrack(state: &state)
+            return false
+        }
+        //
+        // Feasibility rules for the VF2 algorithm:
+        //
+        //  size( T1(s) ) <= size( T2(s) )
+        //
+        //  size( N1 - M1(s) - T1(s) ) <= size( N2 - M2(s) - T2(s) )
+        //
+        // compute T1(s) size
+        var numT1 = 0
+        for i in 0..<state.query.numAtoms() {
+            if isInTerminalSet(state.queryDepths, state.queryPathBits, UInt(i)) {
+                numT1 += 1
+            }
+        }
+        // compute T2(s) size
+        var numT2 = 0
+        for i in 0..<state.queried.numAtoms() {
+            if isInTerminalSet(state.queriedDepths, state.queriedPathBits, UInt(i)) {
+                numT2 += 1
+            }
+        }
+        // T1(s) > T()
+        if numT1 > numT2 {
+            backtrack(state: &state)
+            return false
+        }
+        //  N1 - M1(s) - T1(s) > N2 - M2(s) - T2(s)
+        if (state.query.numAtoms() - state.queryPath.count - numT1) > (state.queried.numAtoms() - state.queriedPath.count - numT2) {
+            backtrack(state: &state)
+            return false
+        }
+        // Check if there is a mapping found
+        state.abort = checkForMap(&state)
+        return true
     }
 
     func nextCandidate(_ state: inout State, _ lastCandidate: inout Candidate) -> Candidate {
-        // std::size_t lastQueryAtom = lastCandidate.queryAtom ? lastCandidate.queryAtom->GetIndex() : 0;
-        // std::size_t lastQueriedAtom = lastCandidate.queriedAtom ? lastCandidate.queriedAtom->GetIndex() + 1 : 0;
+        var lastQueryAtom = lastCandidate.queryAtom?.getIndex() ?? 0
+        var lastQueriedAtom = (lastCandidate.queriedAtom != nil) ? lastCandidate.queriedAtom!.getIndex() + 1 : 0
 
-        // std::size_t querySize = state.query->NumAtoms();
-        // std::size_t queriedSize = state.queried->NumAtoms();
+        let querySize = state.query.numAtoms()
+        let queriedSize = state.queried.numAtoms()
 
-        // std::size_t queryTerminalSize = state.queryDepths.size() - std::count(state.queryDepths.begin(), state.queryDepths.end(), 0);
-        // std::size_t queriedTerminalSize = state.queriedDepths.size() - std::count(state.queriedDepths.begin(), state.queriedDepths.end(), 0);
+        let queryTerminalSize = state.queryDepths.count - state.queryDepths.filter({ $0 == 0 }).count
+        let queriedTerminalSize = state.queriedDepths.count - state.queriedDepths.filter({ $0 == 0 }).count
 
-        // std::size_t mappingSize = state.queryPath.size();
+        let mappingSize = state.queryPath.count
 
-        // if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
-        //     while (lastQueryAtom < querySize && (state.queryPathBits.BitIsSet(lastQueryAtom) || !state.queryDepths[lastQueryAtom])) {
-        //     lastQueryAtom++;
-        //     lastQueriedAtom = 0;
-        //     }
-        // } else {
-        //     while(lastQueryAtom < querySize && state.queryPathBits.BitIsSet(lastQueryAtom)) {
-        //     lastQueryAtom++;
-        //     lastQueriedAtom = 0;
-        //     }
-        // }
+        if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
+            while (lastQueryAtom < querySize && (state.queryPathBits.bitIsSet(lastQueryAtom) || (state.queryDepths[lastQueryAtom] == 0))) {
+                lastQueryAtom += 1
+                lastQueriedAtom = 0 
+            }
+        } else {
+            while(lastQueryAtom < querySize && state.queryPathBits.bitIsSet(lastQueryAtom)) {
+                lastQueryAtom += 1
+                lastQueriedAtom = 0
+            }
+        }
 
-        // if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
-        //     while (lastQueriedAtom < queriedSize && (state.queriedPathBits.BitIsSet(lastQueriedAtom) || !state.queriedDepths[lastQueriedAtom]))
-        //     lastQueriedAtom++;
-        // } else {
-        //     while(lastQueriedAtom < queriedSize && state.queriedPathBits[lastQueriedAtom])
-        //     lastQueriedAtom++;
-        // }
+        if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
+            while (lastQueriedAtom < queriedSize && (state.queriedPathBits.bitIsSet(lastQueriedAtom) || (state.queriedDepths[lastQueriedAtom] == 0))) {
+                lastQueriedAtom += 1
+            }
+        } else {
+            while(lastQueriedAtom < queriedSize && state.queriedPathBits[lastQueriedAtom]) {
+                lastQueriedAtom += 1
+            }
+        }
 
-        // if (lastQueryAtom < querySize && lastQueriedAtom < queriedSize)
-        //     return Candidate(state.query->GetAtoms()[lastQueryAtom], state.queried->GetAtom(lastQueriedAtom + 1));
-
-        // return Candidate();
+        if (lastQueryAtom < querySize && lastQueriedAtom < queriedSize) {
+            return Candidate(state.query.getAtoms()[lastQueryAtom], state.queried.getAtom(lastQueriedAtom + 1)!)
+        }
         
+        return Candidate()
     }
 
     /**
-       * The depth-first isomorphism algorithm.
-       */
-    //   void MapNext(State &state, OBQueryAtom *queryAtom, OBAtom *queriedAtom)
-    //   {
-    //     if (time(nullptr) - m_startTime > m_timeout)
-    //       return;
-    //     if (state.abort)
-    //       return;
+    * The depth-first isomorphism algorithm.
+    */
+    func mapNext(_ state: inout State, _ queryAtom: MKQueryAtom, _ queriedAtom: MKAtom) {
+        if (Darwin.time_t() - m_startTime > m_timeout) {
+            return
+        }
+        if (state.abort) {
+            return
+        }
+        var candidate = Candidate() 
+        while (!state.abort) {
+            candidate = nextCandidate(&state, &candidate)
+            if (candidate.queryAtom == nil) {
+                return
+            }
+            if (matchCandidate(&state, candidate.queryAtom!, candidate.queriedAtom!)) {
+                mapNext(&state, candidate.queryAtom!, candidate.queriedAtom!)
+                backtrack(state: &state)
+            }
+        }
+    }
+   
+    func backtrack(state: inout State) {
+        // remove last atoms from the mapping
+        if (state.queryPath.count > 0) {
+            state.mapping[Int(state.queryPath.last!)] = nil
+            state.queryPathBits.setBitOff(UInt32(state.queryPath.last!))
+            state.queryPath.removeLast()
+        }
+        if state.queriedPath.count > 0 {
+            state.queriedPathBits.setBitOff(UInt32(state.queriedPath.last!))
+            state.queriedPath.removeLast()
+        }
+        // restore queryDepths and queriedDepths
+        let depth: UInt = UInt(state.queryPath.count + 1)
+        state.queryDepths.replace(depth, with: 0)
+        state.queriedDepths.replace(depth, with: 0) // O(n)  n = # vertices in the queried
+    }
 
-    //     Candidate candidate;
-    //     while (!state.abort) {
-    //       candidate = NextCandidate(state, candidate);
+    class MapFirstFunctor : MKIsomorphMapper.Functor {
+        private var m_map: MKIsomorphMapper.Mapping
+    
+        init(_ map: MKIsomorphMapper.Mapping) {
+            self.m_map = map
+        }
+        
+        override func operate(_ map: MKIsomorphMapper.Mapping) -> Bool {
+            self.m_map = map
+            // stop mapping
+            return true
+        }
+    }
 
-    //       if (!candidate.queryAtom)
-    //         return;
+    /**
+    * Get the first mappings of the query on the queried molecule.
+    * @param queried The queried molecule.
+    * @return The mapping.
+    */
+    override func mapFirst(_ queried: MKMol, _ map: inout MKIsomorphMapper.Mapping, _ mask: MKBitVec = MKBitVec()) {
+        var functor: MKIsomorphMapper.Functor = MapFirstFunctor(map)
+        mapGeneric(&functor, queried, mask)
+    }
 
-    //       if (DEBUG)
-    //         cout << yellow << "candidate: " << candidate.queryAtom->GetIndex() << " -> " << candidate.queriedAtom->GetIndex() << normal << endl;
+    class MapUniqueFunctor: MKIsomorphMapper.Functor  {
+          
+            private var m_maps: MKIsomorphMapper.Mappings
+            
+            init(_ maps: MKIsomorphMapper.Mappings) {
+                self.m_maps = maps
+            }
+        
+            override func operate(_ map: MKIsomorphMapper.Mapping) -> Bool {
+                // get the values from the map
+                var values: [UInt] = []
+                for (_, value) in map {
+                    values.append(value)
+                }
+                values.sort()
+                // print_vector("values ", values);
 
+                var isUnique = true
+                for k in 0..<m_maps.count {
+                    var kValues: [UInt] = []
+                    for (_, value) in m_maps[k] {
+                        kValues.append(value)
+                    }
+                    kValues.sort()
 
-    //       if (matchCandidate(state, candidate.queryAtom, candidate.queriedAtom)) {
-    //         MapNext(state, candidate.queryAtom, candidate.queriedAtom);
-    //         Backtrack(state);
-    //       }
-    //     }
+                    //  print_vector("kValues", kValues);
+                    if (values == kValues) {
+                        isUnique = false
+                    }
+                }
 
-    //   }
+                if (isUnique) {
+                    m_maps.append(map)
+                }
 
-    //   void Backtrack(State &state)
-    //   {
-    //     if (DEBUG)
-    //       cout << red << "backtrack... " << normal << state.queryPath.size()-1 << endl;
-    //     // remove last atoms from the mapping
-    //     if (state.queryPath.size()) {
-    //       state.mapping[state.queryPath.back()] = nullptr;
-    //       state.queryPathBits.SetBitOff(state.queryPath.back());
-    //       state.queryPath.pop_back();
-    //     }
-    //     if (state.queriedPath.size()) {
-    //       state.queriedPathBits.SetBitOff(state.queriedPath.back());
-    //       state.queriedPath.pop_back();
-    //     }
-    //     // restore queryDepths and queriedDepths
-    //     unsigned int depth = state.queryPath.size() + 1;
-    //     std::replace(state.queryDepths.begin(), state.queryDepths.end(), depth, static_cast<unsigned int>(0));
-    //     std::replace(state.queriedDepths.begin(), state.queriedDepths.end(), depth, static_cast<unsigned int>(0)); // O(n)  n = # vertices in the queried
-    //   }
+                // continue mapping
+                return false
+            }
+        }
 
-    //   /**
-    //    * Get the first mappings of the query on the queried molecule.
-    //    * @param queried The queried molecule.
-    //    * @return The mapping.
-    //    */
-    //   void MapFirst(const OBMol *queried, Mapping &map, const OBBitVec &mask) override
-    //   {
-    //     class MapFirstFunctor : public Functor
-    //     {
-    //       private:
-    //         Mapping &m_map;
-    //       public:
-    //         MapFirstFunctor(Mapping &map) : m_map(map)
-    //         {
-    //         }
-    //         bool operator()(Mapping &map) override
-    //         {
-    //           m_map = map;
-    //           // stop mapping
-    //           return true;
-    //         }
-    //     };
+    /**
+    * Get all unique mappings of the query on the queried molecule.
+    * @param queried The queried molecule.
+    * @return The unique mappings
+    */
+    override func mapUnique(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: MKBitVec = MKBitVec()) {
+        maps.removeAll()
+        var functor: MKIsomorphMapper.Functor = MapUniqueFunctor(maps)
+        mapGeneric(&functor, queried, mask)
+    }
 
-    //     MapFirstFunctor functor(map);
-    //     MapGeneric(functor, queried, mask);
-    //   }
+    /**
+    * Get all mappings of the query on the queried molecule. Duplicates are
+    * ignored but unlinke MapUnique, multiple mappings of the query on the same
+    * part of the queried structure are allowed. This makes it possible to use
+    * MapAll for finding the automorphism group.
+    * @param queried The queried molecule.
+    * @return The mappings.
+    */
+    override func MapAll(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) {
+        maps.removeAll()
+        var functor: MKIsomorphMapper.Functor = MapAllFunctor(maps, maxMemory)
+        mapGeneric(&functor, queried, mask)
+        // TODO: Maybe add debugging here if it is needed
+        //     if (DEBUG)
+        //       for (unsigned int i =0; i < maps.size(); ++i) {
+        //         cout << "mapping:" << endl;
+        //         for (Mapping::iterator it = maps[i].begin(); it != maps[i].end(); ++it)
+        //           cout << "    " << it->first << " -> " << it->second << endl;
+        //       }
+    }
 
-    //   /**
-    //    * Get all unique mappings of the query on the queried molecule.
-    //    * @param queried The queried molecule.
-    //    * @return The unique mappings
-    //    */
-    //   void MapUnique(const OBMol *queried, Mappings &maps, const OBBitVec &mask) override
-    //   {
-    //     class MapUniqueFunctor : public OBIsomorphismMapper::Functor
-    //     {
-    //       private:
-    //         OBIsomorphismMapper::Mappings &m_maps;
-    //       public:
-    //         MapUniqueFunctor(OBIsomorphismMapper::Mappings &maps) : m_maps(maps)
-    //         {
-    //         }
-    //         bool operator()(OBIsomorphismMapper::Mapping &map) override
-    //         {
-    //           // get the values from the map
-    //           std::vector<unsigned int> values;
-    //           for (OBIsomorphismMapper::Mapping::const_iterator it = map.begin(); it != map.end(); ++it)
-    //             values.push_back(it->second);
-    //           std::sort(values.begin(), values.end());
-    //            // print_vector("values ", values);
+    override func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
+        m_startTime = Darwin.time_t()
+        if (m_query.numAtoms() == 0) {
+            return
+        }
+        // set all atoms to 1 if the mask is empty
+        var queriedMask = mask
+        if (queriedMask.countBits() == 0) {
+            for i in 0..<queried.numAtoms() {
+                queriedMask.setBitOn(UInt32(i + 1))
+            }
+        }
+        var queryAtom = m_query.getAtoms()[0]
+        for i in 0..<queried.numAtoms() {
+            if (!queriedMask.bitIsSet(Int(i + 1))) {
+                continue
+            }
+            var state = State(&functor, m_query, queried, queriedMask)
+            guard let queriedAtom = queried.getAtom(i+1) else { continue }
+            if (!queryAtom.matches(queriedAtom)) {
+                continue
+            }
+            if (m_query.numAtoms() > 1) {
+                if (matchCandidate(&state, queryAtom, queriedAtom)) {
+                    mapNext(&state, queryAtom, queriedAtom)
+                }
+            } else {
+                var map: MKIsomorphMapper.Mapping = []
+                map.append((UInt(queryAtom.getIndex()), UInt(queriedAtom.getIndex())))
+                functor.operate(map)
+            }
+        }
 
-    //           bool isUnique = true;
-    //           for (unsigned int k = 0; k < m_maps.size(); ++k) {
-    //             std::vector<unsigned int> kValues;
-    //             for (OBIsomorphismMapper::Mapping::iterator it = m_maps[k].begin(); it != m_maps[k].end(); ++it)
-    //               kValues.push_back(it->second);
-    //             std::sort(kValues.begin(), kValues.end());
-
-    //           //  print_vector("kValues", kValues);
-    //             if (values == kValues)
-    //               isUnique = false;
-    //           }
-
-    //           if (isUnique)
-    //             m_maps.push_back(map);
-
-    //           // continue mapping
-    //           return false;
-    //         }
-    //     };
-
-
-    //     maps.clear();
-    //     MapUniqueFunctor functor(maps);
-    //     MapGeneric(functor, queried, mask);
-
-    //     if (DEBUG)
-    //       for (unsigned int i =0; i < maps.size(); ++i) {
-    //         cout << "mapping:" << endl;
-    //         for (Mapping::iterator it = maps[i].begin(); it != maps[i].end(); ++it)
-    //           cout << "    " << it->first << " -> " << it->second << endl;
-    //       }
-    //   }
-
-    //   /**
-    //    * Get all mappings of the query on the queried molecule. Duplicates are
-    //    * ignored but unlinke MapUnique, multiple mappings of the query on the same
-    //    * part of the queried structure are allowed. This makes it possible to use
-    //    * MapAll for finding the automorphism group.
-    //    * @param queried The queried molecule.
-    //    * @return The mappings.
-    //    */
-    //   void MapAll(const OBMol *queried, Mappings &maps, const OBBitVec &mask, std::size_t maxMemory) override
-    //   {
-    //     maps.clear();
-    //     MapAllFunctor functor(maps, maxMemory);
-    //     MapGeneric(functor, queried, mask);
-
-    //     if (DEBUG)
-    //       for (unsigned int i =0; i < maps.size(); ++i) {
-    //         cout << "mapping:" << endl;
-    //         for (Mapping::iterator it = maps[i].begin(); it != maps[i].end(); ++it)
-    //           cout << "    " << it->first << " -> " << it->second << endl;
-    //       }
-
-    //   }
-
-    //   void MapGeneric(Functor &functor, const OBMol *queried, const OBBitVec &mask) override
-    //   {
-    //     m_startTime = time(nullptr);
-    //     if(m_query->NumAtoms() == 0) return;
-    //     // set all atoms to 1 if the mask is empty
-    //     OBBitVec queriedMask = mask;
-    //     if (!queriedMask.CountBits())
-    //       for (unsigned int i = 0; i < queried->NumAtoms(); ++i)
-    //         queriedMask.SetBitOn(i + 1);
-
-    //     OBQueryAtom *queryAtom = m_query->GetAtoms()[0];
-    //     for (unsigned int i = 0; i < queried->NumAtoms(); ++i) {
-    //       if (!queriedMask.BitIsSet(i + 1)) {
-    //         continue;
-    //       }
-    //       State state(functor, m_query, queried, queriedMask);
-    //       OBAtom *queriedAtom = queried->GetAtom(i+1);
-    //       if (!queryAtom->Matches(queriedAtom)) {
-    //         continue;
-    //       }
-    //       if (DEBUG)
-    //         std::cout << blue << "START: 0 -> " << queriedAtom->GetIndex() << normal << std::endl;
-
-    //       if (m_query->NumAtoms() > 1) {
-    //         if (matchCandidate(state, queryAtom, queriedAtom))
-    //           MapNext(state, queryAtom, queriedAtom);
-    //       } else {
-    //         Mapping map;
-    //         map.push_back(std::make_pair(queryAtom->GetIndex(), queriedAtom->GetIndex()));
-    //         functor(map);
-    //       }
-    //     }
-
-    //     if (time(nullptr) - m_startTime > m_timeout)
-    //       obErrorLog.ThrowError(__FUNCTION__, "time limit exceeded...", obError);
-
-    //   }
+        if (Darwin.time_t() - m_startTime > m_timeout) {
+            print("ERROR: Time limi exceeded...")
+//            TODO: Maybe throw catchable error here to gracely exit from
+            return
+        }
+    }
 }
 
 class MKAutomorphismQueryAtom: MKQueryAtom {
 
-    var symClass: UInt 
+    var symClass: UInt = 0
     var symClasses: [UInt] = []
 
     init(_ symClass: UInt, _ symClasses: [UInt]) {

@@ -22,9 +22,9 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
     
     struct Config: ConfigPlanar, Equatable {
         
-        var shape: MKStereo.Shape
+        var shape: MKStereo.Shape = .ShapeU
         var center: Ref
-        var specified: Bool
+        var specified: Bool = true
         var refs: Refs
 
         init() {
@@ -33,9 +33,10 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
             refs = []
         }
 
-        init(center: Ref, from_or_towrds: from_or_towrds, winding: MKStereo.Winding, view: MKStereo.View, specified: Bool, refs: Refs) {
+        init(center: Ref, shape: MKStereo.Shape = .ShapeU, refs: Refs) {
             self.center = center
-            self.specified = specified
+            self.shape = shape
+            self.specified = true
             self.refs = refs
         }
 
@@ -106,8 +107,8 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
         static func == (lhs: MKSquarePlanarStereo.Config, rhs: MKSquarePlanarStereo.Config) -> Bool {
             if lhs.center != rhs.center { return false }
             if lhs.refs.count != 4 || rhs.refs.count != 4 { return false }
-            var u1: Config
-            var u2: Config
+            var u1: Config?
+            var u2: Config?
 
             if !MKStereo.containsSameRefs(lhs.refs, rhs.refs) {
                 // find a ref that occurs in both
@@ -118,7 +119,7 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
                     }
                 }
                 // check if they actually share an id...
-                if u1.refs.isEmpty {
+                if u1!.refs.isEmpty {
                     return false
                 }
             } else {
@@ -133,7 +134,7 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
                 //   |   |        |   |      <- in any case, refs[0] & refs[2] remain unchanged
                 //   1 2 3 4      1 4 3 2
                 //
-                return (u1.refs[2] == u2.refs[2])
+                return (u1!.refs[2] == u2!.refs[2])
             }
 
             // possibilities:
@@ -149,16 +150,15 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
             //   1 2 3 4
             //   | |        <- refs[0] & refs[1] remain unchanged
             //   1 2 H H
-            if u1.refs[2] == .ImplicitRef || u2.refs[2] == .ImplicitRef {
-                if u1.refs[3] == .ImplicitRef || u2.refs[3] == .ImplicitRef {
-                    return (u1.refs[1] == u2.refs[1]) // 1 2 H H
+            if u1!.refs[2] == .ImplicitRef || u2!.refs[2] == .ImplicitRef {
+                if u1!.refs[3] == .ImplicitRef || u2!.refs[3] == .ImplicitRef {
+                    return (u1!.refs[1] == u2!.refs[1]) // 1 2 H H
                 } else {
-                    return (u1.refs[3] == u2.refs[3]) // 1 H H 4
+                    return (u1!.refs[3] == u2!.refs[3]) // 1 H H 4
                 }
             } else {
-                return (u1.refs[2] == u2.refs[2]) // 1 2 3 4  &  1 H 3 4  &  1 2 3 H
+                return (u1!.refs[2] == u2!.refs[2]) // 1 2 3 4  &  1 H 3 4  &  1 2 3 H
             }
-            return false
         }
     }
     

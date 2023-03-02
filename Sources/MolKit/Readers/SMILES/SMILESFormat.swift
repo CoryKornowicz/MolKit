@@ -54,24 +54,25 @@ class SMIBaseFormat: MKMoleculeFormat {
         var pos: String.Index
         
         //Ignore lines that start with #
-        while(ifs != nil && ifs!.peek() == "#") {
-            if(!getline(ifs, ln))
-                return false;
-        }
-
-        //Get title
-        if(getline(ifs, ln)) {
-            pos = ln.find_first_of(" \t");
-            if(pos!=string::npos)
-            {
-                smiles = ln.substr(0,pos);
-                title = ln.substr(pos+1);
-                Trim(title);
-                pmol->SetTitle(title.c_str());
-            } else {
-                smiles = ln
-            }
-        }
+        fatalError()
+//        while(ifs != nil && ifs!.peek() == "#") {
+//            if(!getline(ifs, ln))
+//                return false;
+//        }
+//
+//        //Get title
+//        if(getline(ifs, ln)) {
+//            pos = ln.find_first_of(" \t");
+//            if(pos!=string::npos)
+//            {
+//                smiles = ln.substr(0,pos);
+//                title = ln.substr(pos+1);
+//                Trim(title);
+//                pmol->SetTitle(title.c_str());
+//            } else {
+//                smiles = ln
+//            }
+//        }
 
         pmol.setDimension(0)
         var sp = MKSmilesParser(preserve_aromaticity: (pConv.isOption("a", .INOPTIONS) != nil))
@@ -288,322 +289,339 @@ class MKSmilesParser {
     var _stereorbond: OrderedDictionary<MKBond, StereoRingBond> // Remember info on the stereo ring closure bonds
     
     // stereochimistry
-    var chiralWatch: Bool  // set when a tetrahedral atom is read
+    var chiralWatch: Bool = false // set when a tetrahedral atom is read
     var _tetrahedralMap: OrderedDictionary<MKAtom, MKTetrahedralStereo.Config>  // map of tetrahedral atoms and their data
     var _upDownMap: OrderedDictionary<MKBond, Character>  // store the '/' & '\' as they occurred in smiles
     var _chiralLonePair: OrderedDictionary<UInt, Character> // for atoms with potential chiral lone pairs, remember when the l.p. was encountered
-    var squarePlanarWatch: Bool  // set when a square planar atom is read
+    var squarePlanarWatch: Bool = false  // set when a square planar atom is read
     var _squarePlanarMap: OrderedDictionary<MKAtom, MKSquarePlanarStereo.Config>
         
     init(preserve_aromaticity: Bool = false) {
         self._preserve_aromaticity = preserve_aromaticity
         self._rxnrole = 1
+        self._updown = " "
+        self._order = 0
+        self._prev = 0
+        self._vprev = Array<Int>()
+        self._rclose = Array<RingClosureBond>()
+        self._extbond = Array<ExternalBond>()
+        self._path = Array<Int>()
+        self._avisit = Array<Bool>()
+        self._bvisit = Array<Bool>()
+        self._hcount = Array<Int>()
+        self.posDouble = Array<Int>()
+        self._stereorbond = OrderedDictionary<MKBond, StereoRingBond>()
+        self._tetrahedralMap = OrderedDictionary<MKAtom, MKTetrahedralStereo.Config>()
+        self._upDownMap = OrderedDictionary<MKBond, Character>()
+        self._chiralLonePair = OrderedDictionary<UInt, Character>()
+        self._squarePlanarMap = OrderedDictionary<MKAtom, MKSquarePlanarStereo.Config>()
     }
 
     
     func smiToMol(_ mol: MKMol, _ name: String) -> Bool {
-        _vprev.clear();
-        _rclose.clear();
-        _prev=0;
-        chiralWatch=false;
-        squarePlanarWatch = false;
-
-        // We allow the empty reaction (">>") but not the empty molecule ("")
-        if (!ParseSmiles(mol, s) || (!mol.IsReaction() && mol.NumAtoms() == 0))
-        {
-            mol.Clear();
-            return(false);
-        }
-
-        // TODO: Is the following a memory leak? - there are return statements above
-        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator i;
-        for (i = _tetrahedralMap.begin(); i != _tetrahedralMap.end(); ++i)
-        delete i->second;
-        _tetrahedralMap.clear();
-
-        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator j;
-        for (j = _squarePlanarMap.begin(); j != _squarePlanarMap.end(); ++j)
-        delete j->second;
-        _squarePlanarMap.clear();
-
-        mol.SetAutomaticFormalCharge(false);
-
-        return(true);
+//        _vprev.clear();
+//        _rclose.clear();
+//        _prev=0;
+//        chiralWatch=false;
+//        squarePlanarWatch = false;
+//
+//        // We allow the empty reaction (">>") but not the empty molecule ("")
+//        if (!ParseSmiles(mol, s) || (!mol.IsReaction() && mol.NumAtoms() == 0))
+//        {
+//            mol.Clear();
+//            return(false);
+//        }
+//
+//        // TODO: Is the following a memory leak? - there are return statements above
+//        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator i;
+//        for (i = _tetrahedralMap.begin(); i != _tetrahedralMap.end(); ++i)
+//        delete i->second;
+//        _tetrahedralMap.clear();
+//
+//        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator j;
+//        for (j = _squarePlanarMap.begin(); j != _squarePlanarMap.end(); ++j)
+//        delete j->second;
+//        _squarePlanarMap.clear();
+//
+//        mol.SetAutomaticFormalCharge(false);
+//
+//        return(true);
+        fatalError()
     } 
 
-    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
-        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
-        mol.BeginModify();
-
-        for (_ptr=smiles.c_str();*_ptr;_ptr++)
-        {
-        switch(*_ptr)
-        {
-        case '\r':
-            if (*(_ptr+1) == '\0') // may have a terminating '\r' due to Windows line-endings
-            break;
-            return false;
-        case '0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
-        case '%':  //ring open/close
-            if (_prev == 0)
-            return false;
-            if (!ParseRingBond(mol))
-            return false;
-            break;
-        case '&': //external bond
-            if (_prev == 0)
-            return false;
-            if (!ParseExternalBond(mol))
-            return false;
-            break;
-        case '.':
-            _prev=0;
-            break;
-        case '>':
-            _prev = 0;
-            _rxnrole++;
-            if (_rxnrole == 2) {
-            mol.SetIsReaction();
-            // Handle all the reactant atoms
-            // - the remaining atoms will be handled on-the-fly
-            FOR_ATOMS_OF_MOL(atom, mol) {
-                OBPairInteger *pi = new OBPairInteger();
-                pi->SetAttribute("rxnrole");
-                pi->SetValue(1);
-                atom->SetData(pi);
-            }
-            }
-            else if (_rxnrole == 4) {
-            stringstream errorMsg;
-            errorMsg << "Too many greater-than signs in SMILES string";
-            std::string title = mol.GetTitle();
-            if (!title.empty())
-                errorMsg << " (title is " << title << ")";
-            errorMsg << endl;
-            obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-            return false;
-            }
-            break;
-        case '(':
-            _vprev.push_back(_prev);
-            break;
-        case ')':
-            if(_vprev.empty()) //CM
-            return false;
-            _prev = _vprev.back();
-            _vprev.pop_back();
-            break;
-        case '[':
-            if (!ParseComplex(mol))
-            {
-            mol.EndModify();
-            mol.Clear();
-            return false;
-            }
-            break;
-        case '-':
-            if (_prev == 0)
-            return false;
-            _order = 1;
-            break;
-        case '=':
-            if (_prev == 0)
-            return false;
-            _order = 2;
-            break;
-        case '#':
-            if (_prev == 0)
-            return false;
-            _order = 3;
-            break;
-        case '$':
-            if (_prev == 0)
-            return false;
-            _order = 4;
-            break;
-        case ':':
-            if (_prev == 0)
-            return false;
-            _order = 0; // no-op
-            break;
-        case '/':
-            if (_prev == 0)
-            return false;
-            _order = 1;
-            _updown = BondDownChar;
-            break;
-        case '\\':
-            if (_prev == 0)
-            return false;
-            _order = 1;
-            _updown = BondUpChar;
-            break;
-        default:
-            if (!ParseSimple(mol))
-            {
-            mol.EndModify();
-            mol.Clear();
-            return false;
-            }
-        } // end switch
-        } // end for _ptr
-
-        // place dummy atoms for each unfilled external bond
-        if(!_extbond.empty())
-        CapExternalBonds(mol);
-
-        // Check to see if we've balanced out all ring closures
-        // They are removed from _rclose when matched
-        if (!_rclose.empty()) {
-        mol.EndModify();
-        mol.Clear();
-
-        stringstream errorMsg;
-        errorMsg << "Invalid SMILES string: " << _rclose.size() << " unmatched "
-                << "ring bonds." << endl;
-        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-        return false; // invalid SMILES since rings aren't properly closed
-        }
-
-        // Check to see if we've the right number of '>' for reactions
-        if (_rxnrole > 1 && _rxnrole !=3) {
-        mol.EndModify();
-        stringstream errorMsg;
-        errorMsg << "Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).";
-        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-        return false; // invalid SMILES since rings aren't properly closed
-        }
-        if (mol.IsReaction()) {
-        OBReactionFacade facade(&mol);
-        facade.AssignComponentIds();
-        }
-
-        // Apply the SMILES valence model
-        FOR_ATOMS_OF_MOL(atom, mol) {
-        unsigned int idx = atom->GetIdx();
-        int hcount = _hcount[idx - 1];
-        if (hcount == -1) { // Apply SMILES implicit valence model
-            unsigned int bosum = 0;
-            FOR_BONDS_OF_ATOM(bond, &(*atom)) {
-            bosum += bond->GetBondOrder();
-            }
-            unsigned int impval = SmilesValence(atom->GetAtomicNum(), bosum);
-            unsigned int imph = impval - bosum;
-            if (imph > 0 && atom->IsAromatic())
-            imph--;
-            atom->SetImplicitHCount(imph);
-        }
-        else // valence is explicit e.g. [CH3]
-            atom->SetImplicitHCount(hcount);
-        }
-
-        mol.EndModify(false);
-
-        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
-        // This is rather subtle, but it's correct and reduces the burden of kekulization
-        FOR_BONDS_OF_MOL(bond, mol) {
-        if (bond->IsAromatic() && !bond->IsInRing()) {
-            if (bond->GetBeginAtom()->IsInRing() && bond->GetEndAtom()->IsInRing())
-            bond->SetAromatic(false);
-        }
-        }
-
-        // TODO: Only Kekulize if the molecule has a lower case atom
-        bool ok = OBKekulize(&mol);
-        if (!ok) {
-        stringstream errorMsg;
-        errorMsg << "Failed to kekulize aromatic SMILES";
-        std::string title = mol.GetTitle();
-        if (!title.empty())
-            errorMsg << " (title is " << title << ")";
-        errorMsg << endl;
-        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-        // return false; // Should we return false for a kekulization failure?
-        }
-
-        // Add the data stored inside the _tetrahedralMap to the atoms now after end
-        // modify so they don't get lost.
-        if(!_tetrahedralMap.empty()) {
-        OBAtom* atom;
-        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator ChiralSearch;
-        for(ChiralSearch = _tetrahedralMap.begin(); ChiralSearch != _tetrahedralMap.end(); ++ChiralSearch) {
-            atom = ChiralSearch->first;
-            OBTetrahedralStereo::Config *ts = ChiralSearch->second;
-            if (!ts)
-            continue;
-            if (ts->refs.size() != 3)
-            continue;
-            if (ts->refs[2] == OBStereo::NoRef) {
-            // This happens where there is chiral lone pair or where there simply aren't enough connections
-            // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
-            // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
-            // a lone pair, think of C[S@](=X)(=Y)Cl.
-
-            // We have remembered where to insert the lone pair in the _chiralLonePair map
-            map<unsigned int, char>::iterator m_it = _chiralLonePair.find(atom->GetIdx());
-            if (CanHaveLonePair(atom->GetAtomicNum()) && m_it != _chiralLonePair.end()) {
-                ts->refs[2] = ts->refs[1]; ts->refs[1] = ts->refs[0];
-                if (m_it->second == 0) { // Insert in the 'from' position
-                ts->refs[0] = ts->from;
-                ts->from = OBStereo::ImplicitRef;
-                }
-                else // Insert in the refs[0] position
-                ts->refs[0] = OBStereo::ImplicitRef;
-            }
-            else { // Ignored by Open Babel
-                stringstream ss;
-                ss << "Ignoring stereochemistry. Not enough connections to this atom. " << mol.GetTitle();
-                obErrorLog.ThrowError(__FUNCTION__, ss.str(), obWarning);
-                continue;
-            }
-            }
-
-            // cout << "*ts = " << *ts << endl;
-            OBTetrahedralStereo *obts = new OBTetrahedralStereo(&mol);
-            obts->SetConfig(*ts);
-            mol.SetData(obts);
-        }
-        }
-
-        // Add the data stored inside the _squarePlanarMap to the atoms now after end
-        // modify so they don't get lost.
-        if(!_squarePlanarMap.empty()) {
-        OBAtom* atom;
-        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator ChiralSearch;
-        for(ChiralSearch = _squarePlanarMap.begin(); ChiralSearch != _squarePlanarMap.end(); ++ChiralSearch) {
-            atom = ChiralSearch->first;
-            OBSquarePlanarStereo::Config *sp = ChiralSearch->second;
-            if (!sp)
-            continue;
-            if (sp->refs.size() != 4)
-            continue;
-
-            // cout << "*ts = " << *ts << endl;
-            OBSquarePlanarStereo *obsp = new OBSquarePlanarStereo(&mol);
-            obsp->SetConfig(*sp);
-            mol.SetData(obsp);
-        }
-        }
-
-        if (!_preserve_aromaticity)
-        mol.SetAromaticPerceived(false);
-
-        createCisTrans(mol);
-
-        return(true);
-    
-
-     bool ParseSimple(OBMol&);
-     bool ParseComplex(OBMol&);
-     bool ParseRingBond(OBMol&);
-     bool ParseExternalBond(OBMol&);
-     bool CapExternalBonds(OBMol &mol);
-     int  NumConnections(OBAtom *, bool isImplicitRef=false);
-            func createCisTrans(_ mol: inout MKMol) {}
-     char SetRingClosureStereo(StereoRingBond rcstereo, OBBond* dbl_bond);
-     void InsertTetrahedralRef(OBMol &mol, unsigned long id);
-     void InsertSquarePlanarRef(OBMol &mol, unsigned long id);
+//    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
+//        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
+//        mol.BeginModify();
+//
+//        for (_ptr=smiles.c_str();*_ptr;_ptr++)
+//        {
+//        switch(*_ptr)
+//        {
+//        case '\r':
+//            if (*(_ptr+1) == '\0') // may have a terminating '\r' due to Windows line-endings
+//            break;
+//            return false;
+//        case '0': case '1': case '2': case '3': case '4':
+//        case '5': case '6': case '7': case '8': case '9':
+//        case '%':  //ring open/close
+//            if (_prev == 0)
+//            return false;
+//            if (!ParseRingBond(mol))
+//            return false;
+//            break;
+//        case '&': //external bond
+//            if (_prev == 0)
+//            return false;
+//            if (!ParseExternalBond(mol))
+//            return false;
+//            break;
+//        case '.':
+//            _prev=0;
+//            break;
+//        case '>':
+//            _prev = 0;
+//            _rxnrole++;
+//            if (_rxnrole == 2) {
+//            mol.SetIsReaction();
+//            // Handle all the reactant atoms
+//            // - the remaining atoms will be handled on-the-fly
+//            FOR_ATOMS_OF_MOL(atom, mol) {
+//                OBPairInteger *pi = new OBPairInteger();
+//                pi->SetAttribute("rxnrole");
+//                pi->SetValue(1);
+//                atom->SetData(pi);
+//            }
+//            }
+//            else if (_rxnrole == 4) {
+//            stringstream errorMsg;
+//            errorMsg << "Too many greater-than signs in SMILES string";
+//            std::string title = mol.GetTitle();
+//            if (!title.empty())
+//                errorMsg << " (title is " << title << ")";
+//            errorMsg << endl;
+//            obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+//            return false;
+//            }
+//            break;
+//        case '(':
+//            _vprev.push_back(_prev);
+//            break;
+//        case ')':
+//            if(_vprev.empty()) //CM
+//            return false;
+//            _prev = _vprev.back();
+//            _vprev.pop_back();
+//            break;
+//        case '[':
+//            if (!ParseComplex(mol))
+//            {
+//            mol.EndModify();
+//            mol.Clear();
+//            return false;
+//            }
+//            break;
+//        case '-':
+//            if (_prev == 0)
+//            return false;
+//            _order = 1;
+//            break;
+//        case '=':
+//            if (_prev == 0)
+//            return false;
+//            _order = 2;
+//            break;
+//        case '#':
+//            if (_prev == 0)
+//            return false;
+//            _order = 3;
+//            break;
+//        case '$':
+//            if (_prev == 0)
+//            return false;
+//            _order = 4;
+//            break;
+//        case ':':
+//            if (_prev == 0)
+//            return false;
+//            _order = 0; // no-op
+//            break;
+//        case '/':
+//            if (_prev == 0)
+//            return false;
+//            _order = 1;
+//            _updown = BondDownChar;
+//            break;
+//        case '\\':
+//            if (_prev == 0)
+//            return false;
+//            _order = 1;
+//            _updown = BondUpChar;
+//            break;
+//        default:
+//            if (!ParseSimple(mol))
+//            {
+//            mol.EndModify();
+//            mol.Clear();
+//            return false;
+//            }
+//        } // end switch
+//        } // end for _ptr
+//
+//        // place dummy atoms for each unfilled external bond
+//        if(!_extbond.empty())
+//        CapExternalBonds(mol);
+//
+//        // Check to see if we've balanced out all ring closures
+//        // They are removed from _rclose when matched
+//        if (!_rclose.empty()) {
+//        mol.EndModify();
+//        mol.Clear();
+//
+//        stringstream errorMsg;
+//        errorMsg << "Invalid SMILES string: " << _rclose.size() << " unmatched "
+//                << "ring bonds." << endl;
+//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+//        return false; // invalid SMILES since rings aren't properly closed
+//        }
+//
+//        // Check to see if we've the right number of '>' for reactions
+//        if (_rxnrole > 1 && _rxnrole !=3) {
+//        mol.EndModify();
+//        stringstream errorMsg;
+//        errorMsg << "Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).";
+//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+//        return false; // invalid SMILES since rings aren't properly closed
+//        }
+//        if (mol.IsReaction()) {
+//        OBReactionFacade facade(&mol);
+//        facade.AssignComponentIds();
+//        }
+//
+//        // Apply the SMILES valence model
+//        FOR_ATOMS_OF_MOL(atom, mol) {
+//        unsigned int idx = atom->GetIdx();
+//        int hcount = _hcount[idx - 1];
+//        if (hcount == -1) { // Apply SMILES implicit valence model
+//            unsigned int bosum = 0;
+//            FOR_BONDS_OF_ATOM(bond, &(*atom)) {
+//            bosum += bond->GetBondOrder();
+//            }
+//            unsigned int impval = SmilesValence(atom->GetAtomicNum(), bosum);
+//            unsigned int imph = impval - bosum;
+//            if (imph > 0 && atom->IsAromatic())
+//            imph--;
+//            atom->SetImplicitHCount(imph);
+//        }
+//        else // valence is explicit e.g. [CH3]
+//            atom->SetImplicitHCount(hcount);
+//        }
+//
+//        mol.EndModify(false);
+//
+//        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
+//        // This is rather subtle, but it's correct and reduces the burden of kekulization
+//        FOR_BONDS_OF_MOL(bond, mol) {
+//        if (bond->IsAromatic() && !bond->IsInRing()) {
+//            if (bond->GetBeginAtom()->IsInRing() && bond->GetEndAtom()->IsInRing())
+//            bond->SetAromatic(false);
+//        }
+//        }
+//
+//        // TODO: Only Kekulize if the molecule has a lower case atom
+//        bool ok = OBKekulize(&mol);
+//        if (!ok) {
+//        stringstream errorMsg;
+//        errorMsg << "Failed to kekulize aromatic SMILES";
+//        std::string title = mol.GetTitle();
+//        if (!title.empty())
+//            errorMsg << " (title is " << title << ")";
+//        errorMsg << endl;
+//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+//        // return false; // Should we return false for a kekulization failure?
+//        }
+//
+//        // Add the data stored inside the _tetrahedralMap to the atoms now after end
+//        // modify so they don't get lost.
+//        if(!_tetrahedralMap.empty()) {
+//        OBAtom* atom;
+//        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator ChiralSearch;
+//        for(ChiralSearch = _tetrahedralMap.begin(); ChiralSearch != _tetrahedralMap.end(); ++ChiralSearch) {
+//            atom = ChiralSearch->first;
+//            OBTetrahedralStereo::Config *ts = ChiralSearch->second;
+//            if (!ts)
+//            continue;
+//            if (ts->refs.size() != 3)
+//            continue;
+//            if (ts->refs[2] == OBStereo::NoRef) {
+//            // This happens where there is chiral lone pair or where there simply aren't enough connections
+//            // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
+//            // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
+//            // a lone pair, think of C[S@](=X)(=Y)Cl.
+//
+//            // We have remembered where to insert the lone pair in the _chiralLonePair map
+//            map<unsigned int, char>::iterator m_it = _chiralLonePair.find(atom->GetIdx());
+//            if (CanHaveLonePair(atom->GetAtomicNum()) && m_it != _chiralLonePair.end()) {
+//                ts->refs[2] = ts->refs[1]; ts->refs[1] = ts->refs[0];
+//                if (m_it->second == 0) { // Insert in the 'from' position
+//                ts->refs[0] = ts->from;
+//                ts->from = OBStereo::ImplicitRef;
+//                }
+//                else // Insert in the refs[0] position
+//                ts->refs[0] = OBStereo::ImplicitRef;
+//            }
+//            else { // Ignored by Open Babel
+//                stringstream ss;
+//                ss << "Ignoring stereochemistry. Not enough connections to this atom. " << mol.GetTitle();
+//                obErrorLog.ThrowError(__FUNCTION__, ss.str(), obWarning);
+//                continue;
+//            }
+//            }
+//
+//            // cout << "*ts = " << *ts << endl;
+//            OBTetrahedralStereo *obts = new OBTetrahedralStereo(&mol);
+//            obts->SetConfig(*ts);
+//            mol.SetData(obts);
+//        }
+//        }
+//
+//        // Add the data stored inside the _squarePlanarMap to the atoms now after end
+//        // modify so they don't get lost.
+//        if(!_squarePlanarMap.empty()) {
+//        OBAtom* atom;
+//        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator ChiralSearch;
+//        for(ChiralSearch = _squarePlanarMap.begin(); ChiralSearch != _squarePlanarMap.end(); ++ChiralSearch) {
+//            atom = ChiralSearch->first;
+//            OBSquarePlanarStereo::Config *sp = ChiralSearch->second;
+//            if (!sp)
+//            continue;
+//            if (sp->refs.size() != 4)
+//            continue;
+//
+//            // cout << "*ts = " << *ts << endl;
+//            OBSquarePlanarStereo *obsp = new OBSquarePlanarStereo(&mol);
+//            obsp->SetConfig(*sp);
+//            mol.SetData(obsp);
+//        }
+//        }
+//
+//        if (!_preserve_aromaticity)
+//        mol.SetAromaticPerceived(false);
+//
+//        createCisTrans(mol);
+//
+//        return(true);
+//
+//
+//     bool ParseSimple(OBMol&);
+//     bool ParseComplex(OBMol&);
+//     bool ParseRingBond(OBMol&);
+//     bool ParseExternalBond(OBMol&);
+//     bool CapExternalBonds(OBMol &mol);
+//     int  NumConnections(OBAtom *, bool isImplicitRef=false);
+//            func createCisTrans(_ mol: inout MKMol) {}
+//     char SetRingClosureStereo(StereoRingBond rcstereo, OBBond* dbl_bond);
+//     void InsertTetrahedralRef(OBMol &mol, unsigned long id);
+//     void InsertSquarePlanarRef(OBMol &mol, unsigned long id);
     
     func isUp(_ bond: MKBond) -> Bool {
         if _upDownMap[bond] == BondUpChar {

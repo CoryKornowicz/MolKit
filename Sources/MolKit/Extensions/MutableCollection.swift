@@ -40,6 +40,12 @@ extension Sequence where Iterator.Element: Hashable {
     }
 }
 
+extension Collection where Element: Equatable {
+    public mutating func replace(_ element: Element, with new: Element) {
+        self = self.map { $0 == element ? new : $0 } as! Self
+    }
+}
+
 
 // MARK: Simple Iterator class
 public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
