@@ -212,8 +212,11 @@ typealias Automorphisms = MKIsomorphMapper.Mappings
 *
 * @since version 2.3
 */
-func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) -> Bool {
-    fatalError()
+func findAutomorphisms(_ mol: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) -> Bool {
+    maps.removeAll()
+    var functor: MKIsomorphMapper.Functor = MapAllFunctor(maps, maxMemory)
+    findAutomorhphisms(&functor, mol, symmetry_classes, mask)
+    return !maps.isEmpty
 }
 /**
 * Find the automorphisms of a molecule by using an OBIsomorphismMapper. This
@@ -223,9 +226,19 @@ func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ s
 *
 * @since version 2.3
 */
-func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) -> Bool {
-    fatalError()
-
+func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ mask: inout MKBitVec, _ maxMemory: Int = 3000000) -> Bool {
+    // set all atoms to 1 if the mask is empty
+    var queriedMask: MKBitVec? = mask
+    if queriedMask!.countBits() == 0 {
+        for i in 0..<mol.numAtoms() {
+            queriedMask!.setBitOn(UInt32(i + 1))
+        }
+    }
+    // get the symmetry classes
+    let gs = MKGraphSym(mol, &queriedMask)
+    var symClasses = [UInt]()
+    gs.getSymmetry(&symClasses)
+    return findAutomorphisms(mol, &aut, symClasses, queriedMask!, maxMemory) // TODO: Check if using queriedMask here is bad. In default impl they had mask instead
 }
 /**
 * Find the automorphisms of a molecule by using an OBIsomorphismMapper. This
@@ -240,45 +253,42 @@ func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ m
 */
 func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) {
     // set all atoms to 1 if the mask is empty
-    // OBBitVec queriedMask = mask;
-    // if (!queriedMask.CountBits())
-    //   for (unsigned int i = 0; i < mol->NumAtoms(); ++i)
-    //     queriedMask.SetBitOn(i + 1);
+    var queriedMask = mask
+    if queriedMask.countBits() == 0 {
+        for i in 0..<mol.numAtoms() {
+            queriedMask.setBitOn(UInt32(i + 1))
+        }
+    }
+    // compute the connected fragments
+    var visited: MKBitVec = MKBitVec()
+    var fragments: [MKBitVec] = []
 
-    // if (DEBUG)
-    // for (unsigned int i = 0; i < symClasses.size(); ++i)
-    //   cout << i << ": " << symClasses[i] << endl;
+    for i in 0..<mol.numAtoms() {
+        if !queriedMask.bitIsSet(i + 1) || visited.bitIsSet(i + 1) {
+            continue
+        }
+        fragments.append(getFragment(mol.getAtom(i + 1)!, &queriedMask))
+        visited |= fragments.last!
+    }
 
-    // // compute the connected fragments
-    // OBBitVec visited;
-    // std::vector<OBBitVec> fragments;
-    // for (std::size_t i = 0; i < mol->NumAtoms(); ++i) {
-    //   if (!queriedMask.BitIsSet(i+1) || visited.BitIsSet(i+1))
-    //     continue;
-    //   fragments.push_back(getFragment(mol->GetAtom(i+1), queriedMask));
-    //   visited |= fragments.back();
-    // }
-
-    // // count the symmetry classes
-    // std::vector<int> symClassCounts(symClasses.size() + 1, 0);
-    // for (unsigned int i = 0; i < symClasses.size(); ++i) {
-    //   if (!queriedMask.BitIsSet(i + 1))
-    //     continue;
-    //   unsigned int symClass = symClasses[i];
-    //   symClassCounts[symClass]++;
-    // }
-
-    // for (std::size_t i = 0; i < fragments.size(); ++i) {
-    //   OBQuery *query = CompileAutomorphismQuery(mol, fragments[i], symClasses);
-    //   OBIsomorphismMapper *mapper = OBIsomorphismMapper::GetInstance(query);
-
-    //   AutomorphismFunctor autFunctor(functor, fragments[i], mol->NumAtoms());
-    //   mapper->MapGeneric(autFunctor, mol, fragments[i]);
-    //   delete mapper;
-    //   delete query;
-    // }
-
-    fatalError()
+    // count the symmetry classes
+    var symClassCounts: [UInt] = [UInt].init(repeating: 0, count: symmetry_classes.count + 1)
+    for i in 0..<symmetry_classes.count {
+        if !queriedMask.bitIsSet(i + 1) {
+            continue
+        }
+        let symClass = symmetry_classes[i]
+        symClassCounts[Int(symClass)] += 1
+    }
+    for i in 0..<fragments.count {
+        let query = compileAutomorphismQuery(mol, symmetry_classes, fragments[i])
+        guard let mapper = MKIsomorphMapper.getInstance(query) else {
+            print("ERROR: in generating MKIsomorph instance")
+            fatalError()
+        }
+        var autFunctor: MKIsomorphMapper.Functor = AutomorphismFunctor(functor, fragments[i], UInt(mol.numAtoms()))
+        mapper.mapGeneric(&autFunctor, mol, fragments[i])
+    }
 }
 
 // Helper Declarations
@@ -306,8 +316,31 @@ class AutomorphismFunctor: MKIsomorphMapper.Functor {
     }
 }
 
-func compuleAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) -> MKQuery {
-    fatalError()
+func compileAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) -> MKQuery {
+    let query: MKQuery = MKQuery()
+    var offset: UInt = 0
+    var indexes = [UInt]()
+    for atom in mol.getAtomIterator() {
+        indexes.append(UInt(atom.getIndex()) - offset)
+        if !mask.bitIsSet(atom.getIndex() + 1) {
+            offset += 1
+            continue
+        }
+        query.addAtom(MKAutomorphismQueryAtom(symmetry_classes[Int(atom.getIndex())], symmetry_classes))
+    }
+    for bond in mol.getBondIterator() {
+        if isFerroceneBond(bond) {
+            continue
+        }
+        let beginIndex = bond.getBeginAtom().getIndex()
+        let endIndex = bond.getEndAtom().getIndex()
+        if !mask.bitIsSet(beginIndex + 1) || !mask.bitIsSet(endIndex + 1) {
+            continue
+        }
+        query.addBond(MKQueryBond(query.getAtoms()[Int(indexes[beginIndex])], query.getAtoms()[Int(indexes[endIndex])], Int(bond.getBondOrder()), bond.isAromatic()))
+    }
+
+    return query;
 }
 
 /**

@@ -219,7 +219,7 @@ class MKGraphSymPrivate {
         findRingAtoms(&ring_atoms)
         var i = 0 
         for atom in _pmol.getAtomIterator() {
-            vid[i] = MKGraphSym.NoSymmetryClass
+            vid[i] = Int(MKGraphSym.NoSymmetryClass)
             if _frag_atoms.bitIsSet(atom.getIdx()) {
                 vid[i] = 
                 v[i]                                                   // 10 bits: graph-theoretical distance
@@ -265,7 +265,7 @@ class MKGraphSymPrivate {
         for atom in _pmol.getAtomIterator() {
             let idx = atom.getIdx()
             if !_frag_atoms.bitIsSet(idx) {
-                gtd[idx-1] = MKGraphSym.NoSymmetryClass
+                gtd[idx-1] = Int(MKGraphSym.NoSymmetryClass)
                 continue
             }
             gtdcount = 0 
@@ -396,7 +396,7 @@ class MKGraphSymPrivate {
     * the fragment.  Symmetry is computed as though the fragment is the
     * only part that exists.
     */
-    func calculateSymmetry(_ atom_sym_classes: inout [Int]) -> Int { 
+    func calculateSymmetry(_ atom_sym_classes: inout [UInt]) -> Int {
 
         // Get vector of graph invariants.  These are the starting "symmetry classes".
 
@@ -422,9 +422,9 @@ class MKGraphSymPrivate {
         // Convert to a vector indexed by Index
         // Atoms not in the fragment will have a value of OBGraphSym::NoSymmetryClass
         atom_sym_classes.removeAll()
-        atom_sym_classes = [Int](repeating: MKGraphSym.NoSymmetryClass, count: _pmol.numAtoms())
+        atom_sym_classes = [UInt](repeating: UInt(MKGraphSym.NoSymmetryClass), count: _pmol.numAtoms())
         for i in 0..<symmetry_classes.count {
-            atom_sym_classes[symmetry_classes[i].0.getIdx()] = symmetry_classes[i].1
+            atom_sym_classes[symmetry_classes[i].0.getIdx()] = UInt(symmetry_classes[i].1)
         }
 
         // Store the symmetry classes in an OBPairData
@@ -458,7 +458,7 @@ class MKGraphSymPrivate {
         // Convert to a vector indexed by Index
         // Atoms not in the fragment will have a value of OBGraphSym::NoSymmetryClass
         symClasses.removeAll()
-        symClasses = [Int](repeating: MKGraphSym.NoSymmetryClass, count: _pmol.numAtoms())
+        symClasses = [Int](repeating: Int(MKGraphSym.NoSymmetryClass), count: _pmol.numAtoms())
         for i in 0..<symmetry_classes.count {
             symClasses[symmetry_classes[i].0.getIndex()] = symmetry_classes[i].1
         }
@@ -473,11 +473,11 @@ class MKGraphSymPrivate {
 
 class MKGraphSym {
     
-    static let NoSymmetryClass = 0x7FFFFFFF
+    static let NoSymmetryClass: UInt = 0x7FFFFFFF
     
     private var d: MKGraphSymPrivate
     
-    init(_ pmol: MKMol, _ frag_atoms: MKBitVec? = nil) {
+    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec?) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
         if frag_atoms != nil {
@@ -500,7 +500,8 @@ class MKGraphSym {
     *
     * @return The number of symmetry classes.
     */
-    func getSymmetry(_ symmetry_classes: inout [Int]) -> Int {
+    @discardableResult
+    func getSymmetry(_ symmetry_classes: inout [UInt]) -> Int {
         clearSymmetry() // For the moment just recalculate the symmetry classes
         // Check to see whether we have already calculated the symmetry classes
         let pd: MKPairData<String>? = d._pmol.getData("OpenBabel Symmetry Classes") as? MKPairData<String>
@@ -516,7 +517,7 @@ class MKGraphSym {
             let parts = iss.components(separatedBy: .whitespaces)
             for part in parts {
                 if let num = part.toInt() {
-                    symmetry_classes.append(num)
+                    symmetry_classes.append(UInt(num))
                 }
             }
             // Now find the number of unique elements

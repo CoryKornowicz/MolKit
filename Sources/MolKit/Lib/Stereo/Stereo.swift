@@ -249,7 +249,7 @@ public struct MKStereoUnit {
         self.para = false
     }
     
-    init(_ type: MKStereo.TType, _ id: Ref, _ para: Bool) {
+    init(_ type: MKStereo.TType, _ id: Ref, _ para: Bool = false) {
         self.type = type
         self.id = id
         self.para = para
@@ -337,7 +337,7 @@ class MKStereoFacade {
     func intialize() {
         
         if (m_perceive && !m_mol.hasChiralityPerceived()) {
-            perceiveStereo(m_mol)
+            perceiveStereo(&m_mol)
         }
         
         guard var stereoData = m_mol.getDataVector(.StereoData) else {
@@ -568,7 +568,18 @@ class MKStereoFacade {
 * @sa StereoFrom3D StereoFrom2D StereoFrom0D
 * @since version 2.3
 */
-func perceiveStereo(_ mol: MKMol,_ force: Bool = false) {}
+func perceiveStereo(_ mol: inout MKMol,_ force: Bool = false) {
+
+    switch mol.getDimension() {
+    case 3: 
+        stereoFrom3D(&mol, force)
+    case 2: 
+        stereoFrom2D(mol, nil, force)
+    default: 
+        stereoFrom0D(mol)
+    }
+    //  TODO: add logging here
+}
 /**
 * Convert the 2D depiction of molecule @p mol to OBStereo objects.
 * This function makes use of the lower level functions
@@ -601,7 +612,11 @@ func perceiveStereo(_ mol: MKMol,_ force: Bool = false) {}
 * @since version 2.3
 */
 func stereoFrom2D(_ mol: MKMol, _ updown: [MKBond: MKStereo.BondDirection]? = nil,_ force: Bool = false) {
-
+    if mol.hasChiralityPerceived() && !force {
+        return
+    }
+    // TODO: Log here 
+    var symmetry_classes = findSymmetry(mol)
 }
 /**
 * Convert the 3D coordinates of molecule @p mol to OBStereo objects. This
@@ -619,7 +634,7 @@ func stereoFrom2D(_ mol: MKMol, _ updown: [MKBond: MKStereo.BondDirection]? = ni
 * @sa StereoFrom3D StereoFrom0D PerceiveStereo
 * @since version 2.3
 */
-func stereoFrom3D(_ mol: MKMol,_ force: Bool = false) {
+func stereoFrom3D(_ mol: inout MKMol,_ force: Bool = false) {
 
 }
 /**
@@ -894,92 +909,6 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
 }
 ///@}
 
-
-///@name Stereogenic unit identification
-///@{
-/**
-* Find the stereogenic units in a molecule using a set of rules.<sup>1</sup>
-*
-* The potential stereocenters are identified first. A potential tetrahedral
-* stereogenic atom is any atom meeting the following criteria:
-*
-* - sp3 hybridization
-* - at least 3 "heavy" neighbors
-*
-* Nitrogen is treated as a special case since the barrier of inversion is
-* low in many cases making the atom non-stereogenic. Only bridge-head
-* nitrogen atoms (i.e. nitrogen has 3 neighbors in rings) will be
-* considered stereogenic.
-*
-* Potential stereogenic double bonds are identified using another set of
-* simple criteria:
-*
-* - must be a double bond
-* - must not be in a ring
-* - both begin and end atom should have at least one single bond
-*
-* True stereocenters (i.e. stereocenters with topologically different
-* ligands) are identified first. For tetrahedral stereocenters, true
-* stereocenters will have 4 different neighbor atom symmetry classes
-* and this can be expressed using T1234 to classify these stereocenters.
-* For stereogenic bonds, a similar classification C12 can be used but
-* both begin and end atom have their own classification and the bond
-* is only a true stereocenter if both atoms are C12.
-*
-* Para stereocenters are all stereocenters where there are at least two
-* equivalent neighbor atom symmetry classes. These are T1123, T1112, T1111
-* and T1122 for tetrahedral stereocenters and C11 for double bonds. To
-* determine which of the remaining potential stereocenters really are
-* stereocenters, a set of rules is used.<sup>1</sup>
-*
-* Rule 1 is applied recusively:
-*
-* All rings are merged "mergedRings". A merged ring is simply a fragment consisting
-* of all atoms of a ring system (bridged, spiro, adjacent, ...). If two rings in the
-* SSSR set share an atom, they are merged.
-*
-* Each merged must at least have two para-stereocenters (or 1 true + 1 para) in order
-* for the para-stereocenter to be valid. This is repeated until no new stereocenters
-* are identified.
-*
-* rule 1a for double bonds:
-* - bond atom in ring has two identical symmetry classes for it's neighbor atoms (-> para)
-* - other bond atom:
-*   - has two different symmetry classes for it's neighbours -> new stereocenter
-*   - has two identical symmetry classes, but the ligand contains at least 1 true or para stereocenter -> new stereocenter
-*
-* rule 1b for tetracoord atoms:
-* - at least two neighbour symmetry classes are the same (-> para)
-* - other pair:
-*   - has two different symmetry classes for it's neighbours -> new stereocenter
-*   - has two identical symmetry classes, but the ligand contains at least 1 true or para stereocenter -> new stereocenter
-*
-* Rules 2 and 3 are applied sequential (i.e. only once).
-*
-* Rule 2a for tetracoordinate carbon:
-* - 1 or 2 pair identical ligands
-* - each ligand contains at least 1 true-stereocenter or 2 para-stereocenters (from rule 1)
-*
-* Rule 2b for tetracoordinate carbon:
-* - 3 or 4 identical ligands with at least
-*   - 2 true-stereocenters
-*   - 2 separate assemblies of para-stereocenters (from rule 1)
-*
-* Rule 3 for double bonds:
-* - 1 or 2 pair identical ligands (on begin and end atom)
-* - each pair contains at least 1 true-stereocenter or 2 para-stereocenters (from rule 1)
-*
-*
-* @verbatim
-    Reference:
-    [1] M. Razinger, K. Balasubramanian, M. Perdih, M. E. Munk, Stereoisomer
-    Generation in Computer-Enhanced Structure Elucidation, J. Chem. Inf.
-    Comput. Sci. 1993, 33, 812-825
-    @endverbatim
-*/
-func findStereogenicUnits(_ mol: MKMol, symClasses: [UInt]) -> MKStereoUnitSet {
-    fatalError()
-}
 /**
 * @brief Find the stereogenic units in a molecule making use of the automorphisms.
 *

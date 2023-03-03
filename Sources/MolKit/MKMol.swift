@@ -174,9 +174,12 @@ class MKMol: MKBase {
         return self._vbond[idx]
     }
     
-    func getBondById(_ id: Int) -> MKBond? {
-        if id >= self._vbondIds.count { return nil }
-        return self._vbondIds[id]
+    func getBondById(_ id: Ref) -> MKBond? {
+        guard id != .NoRef else { return nil }
+        guard id != .ImplicitRef else { return nil }
+        
+        if id.intValue! >= self._vbondIds.count { return nil }
+        return self._vbondIds[id.intValue!]
     }
     
     func getBond(_ bgn: MKAtom, _ end: MKAtom) -> MKBond? {

@@ -355,6 +355,26 @@ public class MKBitVec: Equatable {
         }
         return rtn
     }
+    
+    func bitIsSet(_ bit_offset: MKBaseID) -> Bool {
+        var rtn = false
+        let word_offset = bit_offset.rawValue >> WORDROLL
+        if word_offset < _size {
+            rtn = ((_set[Int(word_offset)] >> bit_offset.rawValue) & 1) != 0
+        }
+        return rtn
+    }
+    
+    func bitIsSet(_ bit_offset: Ref) -> Bool {
+        guard bit_offset != .NoRef else { return false }
+        guard bit_offset != .ImplicitRef else { return false }
+        var rtn = false
+        let word_offset = bit_offset.intValue! >> WORDROLL
+        if word_offset < _size {
+            rtn = ((_set[Int(word_offset)] >> bit_offset.intValue!) & 1) != 0
+        }
+        return rtn
+    }
 
     func getSize() -> Int { return self._size }
 
