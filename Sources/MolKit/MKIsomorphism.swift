@@ -611,7 +611,7 @@ class VF2Mapper: MKIsomorphMapper {
         if (state.queryDepths[Int(queryAtom.getIndex())] == 0) {
             state.queryDepths[Int(queryAtom.getIndex())] = UInt(state.queryPath.count)
         }
-        var queryNbrs = queryAtom.getNbrs()
+        let queryNbrs = queryAtom.getNbrs()
         for i in 0..<queryNbrs.count {
             let index = queryNbrs[i].getIndex()
             if (state.queryDepths[Int(index)] == 0) {
@@ -859,13 +859,13 @@ class VF2Mapper: MKIsomorphMapper {
             return
         }
         // set all atoms to 1 if the mask is empty
-        var queriedMask = mask
+        let queriedMask = mask
         if (queriedMask.countBits() == 0) {
             for i in 0..<queried.numAtoms() {
                 queriedMask.setBitOn(UInt32(i + 1))
             }
         }
-        var queryAtom = m_query.getAtoms()[0]
+        let queryAtom = m_query.getAtoms()[0]
         for i in 0..<queried.numAtoms() {
             if (!queriedMask.bitIsSet(Int(i + 1))) {
                 continue

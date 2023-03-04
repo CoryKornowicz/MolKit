@@ -198,6 +198,12 @@ public struct MKStereo {
         }
     }
     
+    static func numInversions(_ refs: [UInt]) -> Int {
+//        convert refs to Refs value and call original
+        let refsIn = refs.map { Ref(rawValue: Int($0))! }
+        return MKStereo.numInversions(refsIn)
+    }
+    
     /**
      * Permutate element @p i with @p j in @p refs.
      *
@@ -340,7 +346,7 @@ class MKStereoFacade {
             perceiveStereo(&m_mol)
         }
         
-        guard var stereoData = m_mol.getDataVector(.StereoData) else {
+        guard let stereoData = m_mol.getDataVector(.StereoData) else {
             fatalError("FAILED to retrieve stereo data for mol")
         }
 

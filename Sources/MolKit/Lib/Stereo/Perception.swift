@@ -1036,7 +1036,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
     } while units.count > numStereoUnits
     
     
-    var mergedRings = mergeRings(mol, symClasses)
+    let mergedRings = mergeRings(mol, symClasses)
     
     /**
      * Apply rule 2a for tetracoordinate carbon:
@@ -1469,7 +1469,6 @@ struct StereoInverted {
         // Find the duplicated ligand symmetry class(es)
         let duplicatedSymClasses = findDuplicatedSymmetryClasses(center, symClasses: symmetry_classes)
         var duplicatedAtoms: [[MKAtom]] = []
-        
         var permutated: Int = 0
         for i in 0..<duplicatedSymClasses.count {
             let duplicatedSymClass: UInt = duplicatedSymClasses[i]
@@ -1490,7 +1489,6 @@ struct StereoInverted {
             }
 //             sort the indices
             tlist1.sort { $0.1 < $1.1 }
-            
             // Translate the sorted indexes using the automorphism
             var tlist2: [UInt] = []
             for j in 0..<tlist1.count {
@@ -1527,7 +1525,85 @@ struct StereoInverted {
         return false
     }
     
+    static func permutationInvertsCisTransBeginOrEndAtom(_ p: Automorphism, _ bond: MKBond, _ beginOrEnd: MKAtom, _ canon_labels: [UInt]) -> Bool {
+        let otherAtom = bond.getNbrAtom(beginOrEnd)
+        var tlist1: [Pair<UInt, UInt>] = []
+        for nbr in beginOrEnd.getNbrAtomIterator()! {
+            if nbr != otherAtom {
+                tlist1.append((UInt(nbr.getIndex()), canon_labels[nbr.getIndex()]))
+            }
+        }
+        // sort the indices
+        tlist1.sort { $0.1 < $1.1 }
+        // Translate the sorted indexes using the automorphism
+        var tlist2: [UInt] = []
+        for j in 0..<tlist1.count {
+            var t: UInt = 0
+            if mapsTo(p, tlist1[j].1, &t) {
+                tlist2.append(canon_labels[Int(t)])
+            }
+        }
+        let tlist2Ref = tlist2.map { RefValue.Ref(Int($0)) }
+        return ((MKStereo.numInversions(tlist2Ref) % 2) != 0)
+    }
 
+    /**
+     * Check if the specified automorphism causes an inversion of configuration
+     * for the specfied stereogenic double bond.
+     */
+     static func permutationInvertsCisTransCenter(_ p: Automorphism, _ bond: MKBond, _ canon_labels: [UInt]) -> Bool {
+        // begin atom
+        let beginInverted = permutationInvertsCisTransBeginOrEndAtom(p, bond, bond.getBeginAtom(), canon_labels)
+        // end atom 
+        let endInverted = permutationInvertsCisTransBeginOrEndAtom(p, bond, bond.getEndAtom(), canon_labels)
+        // combine result using xor operation
+        if (!beginInverted && endInverted) || (beginInverted && !endInverted) {
+            return true
+        }
+        return false
+     }
+    
+    /**
+     * Perform the computation.
+     */
+    static func compute(_ mol: MKMol, _ symClasses: [UInt], _ automorphisms: Automorphisms) -> [Entry] {
+        // We need topological canonical labels for this
+        // std::vector<unsigned int> canon_labels;
+        // CanonicalLabels(mol, symClasses, canon_labels, OBBitVec(), 5, true);
+        // // the result
+        // std::vector<Entry> result;
+        // // make a list of stereogenic centers inverted by the automorphism permutations
+        // for (std::size_t i = 0; i < automorphisms.size(); ++i) {
+        //     Entry entry;
+        //     entry.p = automorphisms[i];
+        //     // Check the atoms
+        //     std::vector<OBAtom*>::iterator ia;
+        //     for (OBAtom *atom = mol->BeginAtom(ia); atom; atom = mol->NextAtom(ia)) {
+        //         // consider only potential stereo centers
+        //         if (!isPotentialTetrahedral(atom))
+        //             continue;
+        //         // add the atom to the inverted list if the automorphism inverses it's configuration
+        //         if (permutationInvertsTetrahedralCenter(automorphisms[i], atom, symClasses, canon_labels))
+        //             entry.invertedAtoms.push_back(atom);
+        //     }
+        //     // Check the bonds
+        //     std::vector<OBBond*>::iterator ib;
+        //     for (OBBond *bond = mol->BeginBond(ib); bond; bond = mol->NextBond(ib)) {
+        //         // consider only potential stereo centers
+        //         if (!isPotentialCisTrans(bond))
+        //             continue;
+        //         // add the bond to the inverted list if the automorphism inverses it's configuration
+        //         if (permutationInvertsCisTransCenter(entry.p, bond, canon_labels))
+        //             entry.invertedBonds.push_back(bond);
+        //     }
+        //     result.push_back(entry);
+        // }
+        // return result;
+        // We need topological canonical labels for this
+        var canon_labels: [UInt] = []
+        // MKCanonicalLabels(mol, symClasses, &canon_labels, MKBitVec(), 5, true)
+        fatalError()
+    }
     
     
 }

@@ -24,13 +24,9 @@ enum SubscriptError: Error {
 }
 
 extension Collection where Indices.Iterator.Element == Index {
-    
     public subscript(safelyAccess ind: Index) -> Iterator.Element {
         get { return (ind as! Int) < 0 ? self[index(endIndex, offsetBy: (ind as! Int) - 1)] : self[ind]}
-        
-        
     }
-
 }
 
 extension Sequence where Iterator.Element: Hashable {
@@ -45,6 +41,44 @@ extension Collection where Element: Equatable {
         self = self.map { $0 == element ? new : $0 } as! Self
     }
 }
+
+
+extension Array {
+    public mutating func resize(_ newSize: Int, with new: Element) {
+        if newSize < self.count { return }
+        while self.count < newSize {
+            self.append(new)
+        }
+    }
+}
+
+func compareArraysLessThan(_ arr1: [UInt], _ arr2: [UInt]) -> Bool {
+    let minLength = min(arr1.count, arr2.count)
+    
+    for i in 0..<minLength {
+        if arr1[i] < arr2[i] {
+            return true
+        } else if arr1[i] > arr2[i] {
+            return false
+        }
+    }
+    return arr1.count < arr2.count
+}
+
+func compareArraysGreaterThan(_ arr1: [UInt], _ arr2: [UInt]) -> Bool {
+    let minLength = min(arr1.count, arr2.count)
+    
+    for i in 0..<minLength {
+        if arr1[i] > arr2[i] {
+            return true
+        } else if arr1[i] < arr2[i] {
+            return false
+        }
+    }
+    return arr1.count > arr2.count
+}
+
+
 
 
 // MARK: Simple Iterator class
