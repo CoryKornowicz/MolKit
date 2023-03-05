@@ -69,14 +69,14 @@ class MKIsomorphMapper {
      */
     
     var m_query: MKQuery //!< The search query.
-    var m_timeout: UInt = 0  //!< The timeout in seconds
+    var m_timeout: TimeInterval = 0  //!< The timeout in seconds
     
     init(_ query: MKQuery) {
         self.m_query = query
-        self.m_timeout = 60
+        self.m_timeout = 60.0
     }
     
-    func setTimeout(_ seconds: UInt) {
+    func setTimeout(_ seconds: TimeInterval) {
         m_timeout = seconds
     }
     
@@ -534,11 +534,11 @@ class VF2Mapper: MKIsomorphMapper {
 
     }
 
-    var m_startTime: Darwin.time_t = Darwin.time_t(0)
+    var m_startTime: Date
 
     override init(_ query: MKQuery) {
+        m_startTime = Date()
         super.init(query)
-        m_startTime = Darwin.time(nil)
     }
 
     func isInTerminalSet(_ depths: [UInt], _ path: MKBitVec, _ i: UInt) -> Bool {
@@ -721,7 +721,7 @@ class VF2Mapper: MKIsomorphMapper {
     * The depth-first isomorphism algorithm.
     */
     func mapNext(_ state: inout State, _ queryAtom: MKQueryAtom, _ queriedAtom: MKAtom) {
-        if (Darwin.time_t() - m_startTime > m_timeout) {
+        if (Date().timeIntervalSince(m_startTime) > m_timeout) {
             return
         }
         if (state.abort) {
@@ -854,7 +854,7 @@ class VF2Mapper: MKIsomorphMapper {
     }
 
     override func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
-        m_startTime = Darwin.time_t()
+        m_startTime = Date()
         if (m_query.numAtoms() == 0) {
             return
         }
@@ -886,7 +886,7 @@ class VF2Mapper: MKIsomorphMapper {
             }
         }
 
-        if (Darwin.time_t() - m_startTime > m_timeout) {
+        if (Date().timeIntervalSince(m_startTime) > m_timeout) {
             print("ERROR: Time limi exceeded...")
 //            TODO: Maybe throw catchable error here to gracely exit from
             return

@@ -29,6 +29,8 @@ import Foundation
 import Algorithms
 import Collections
 
+let MAX_IDENTITY_NODES: Int = 50
+
 func totalHydrogenCount(_ atom: MKAtom) -> UInt {
     return atom.explicitHydrogenCount() + atom.getImplicitHCount()
 }
@@ -536,11 +538,11 @@ struct CanonicalLabelsImpl {
      * Simple struct to manage timeout.
      */
     struct Timeout {
-        var startTime: Darwin.time_t
-        var maxTime: Darwin.time_t
-        init(_ _maxTime: Int) {
-            startTime = Darwin.time(nil)
-            maxTime = Darwin.time_t(_maxTime)
+        var startTime: Date
+        var maxTime: TimeInterval
+        init(_ _maxTime: TimeInterval) {
+            startTime = Date()
+            maxTime = _maxTime
         }
     }
     
@@ -720,7 +722,7 @@ struct CanonicalLabelsImpl {
                     var lstate = State(state.symmetry_classes, ligand, state.stereoCenters, identityCode, orbits, mcr, state.onlyOne)
                     lstate.code.add(nbrs[i])
                     lstate.code.labels[nbrs[i].getIndex()] = 1
-                    canonicalLabelRecursive(nbrs[i], 1, timeout, lbestCode, lstate)
+                    canonicalLabelRecursive(nbrs[i], 1, &timeout, &lbestCode, &lstate)
                 }
                 // Store the canonical code (and labels) for the ligand.
                 lcodes.append((i, lbestCode))
@@ -784,7 +786,7 @@ struct CanonicalLabelsImpl {
             }
             
             // Recurse...
-            canonicalLabelRecursive(current, nextLbl-1, timeout, bestCode, state)
+            canonicalLabelRecursive(current, nextLbl-1, &timeout, &bestCode, &state)
 
             // Backtrack...
             for j in 0..<atoms.count {
@@ -804,7 +806,7 @@ struct CanonicalLabelsImpl {
             }
 
             //  Recurse... 
-            canonicalLabelRecursive(current, lbl, timeout, bestCode, state)
+            canonicalLabelRecursive(current, lbl, &timeout, &bestCode, &state)
 
             // Backtrack...
             for i in 0..<nbrs.count {
@@ -875,13 +877,14 @@ struct CanonicalLabelsImpl {
             }
         }
         newOrbits.removeAll()
-        var vivisited: [Bool] = Array(repeating: false, count: orbits.count)
+        // var vivisited: [Bool] = Array(repeating: false, count: orbits.count)
+        // TODO: check if this array is really needed and it was a bug in the original code
         for i in 0..<orbits.count {
-            if vivisited[i] { continue }
-            vivisited[i] = true
+            if visited[i] { continue }
+            visited[i] = true
             var newOrbit: Orbit = orbits[i]
             for j in i..<orbits.count {
-                if vivisited[j] { continue }
+                if visited[j] { continue }
                 newOrbit.sort { atom1, atom2 in
                     atom1.getIndex() < atom2.getIndex()
                 }
@@ -892,7 +895,7 @@ struct CanonicalLabelsImpl {
                 if result.isEmpty {
                     continue
                 }
-                vivisited[j] = true
+                visited[j] = true
                 result.removeAll()
                 result = Set(newOrbit).union(orbits[j])
                 newOrbit = Array(result)
@@ -918,7 +921,6 @@ struct CanonicalLabelsImpl {
             }
         }
     }
-    
     /**
      * This is the recursive function implementing the labeling algorithm
      * outlined above (steps 1-3). This function works for single connected
@@ -927,15 +929,310 @@ struct CanonicalLabelsImpl {
      * the last @p label, this function labels the neighbor atoms with
      * label+1, label+2, ...
      */
-    static func canonicalLabelRecursive(_ current: MKAtom, _ label: UInt, _ timeout: Timeout, _ bestCode: FullCode, _ state: State) {
+    static func canonicalLabelRecursive(_ current: MKAtom, _ label: UInt, _ timeout: inout Timeout, _ bestCode: inout FullCode, _ state: inout State) {
+        guard let mol = current.getParent() else {
+            fatalError("Could not get parent")
+        }
+        var code = state.code
+        if state.backtrackDepth > 0 {
+            if code.atoms.count > state.backtrackDepth {
+                // Log here??
+                return
+            }
+            if code.atoms.count == state.backtrackDepth {
+                state.backtrackDepth = 0
+                print("BACKTRACK DONE")
+                return
+            } else if code.atoms.count < state.backtrackDepth {
+                state.backtrackDepth = 0
+            }
+        }
         
+        // Check if there is a full mapping.
+        if label == state.fragment.countBits() {
+            // Complete the canonical code
+            var fullcode = FullCode()
+            completeCode(mol, &fullcode, &state)
+            
+            // Check previously found codes to find redundant subtrees.
+            for i in stride(from: state.identityCodes.count, to: 0, by: -1) {
+                if fullcode.code == state.identityCodes[i-1].code {
+                    //
+                    // An explicit automorphism has been found.
+                    //
+                    var v1: [UInt] = Array(repeating: 0, count: fullcode.labels.count)
+                    for j in 0..<fullcode.labels.count {
+                        if fullcode.labels[j] != 0{
+                            v1[Int(fullcode.labels[j]) - 1] = UInt(j + 1)
+                        }
+                    }
+
+                    var v2: [UInt] = Array(repeating: 0, count: state.identityCodes[i-1].labels.count)
+                    for j in 0..<state.identityCodes[i-1].labels.count {
+                        if state.identityCodes[i-1].labels[j] != 0 {
+                            v2[Int(state.identityCodes[i-1].labels[j]) - 1] = UInt(j + 1)
+                        }
+                    }
+
+                    state.backtrackDepth = 0 
+                    for j in 0..<v1.count {
+                        if v1[j] != v2[j] {
+                            //  Yield backtrackDepth 
+                            return 
+                        }
+                        if v1[j] != 0 {
+                            state.backtrackDepth += 1
+                        }
+                    }
+                }
+            }
+            if fullcode.code == bestCode.code {
+                updateMCR(&state.mcr, &state.orbits, bestCode.labels)
+                findOrbits(&state.orbits, mol, fullcode.labels, bestCode.labels)
+            } else if fullcode > bestCode {
+                // if fullcode is greater than bestCode, we have found a new greatest code
+                bestCode = fullcode
+            }
+            if state.identityCodes.count < MAX_IDENTITY_NODES {
+                state.identityCodes.append(FullCode())
+                if var last = state.identityCodes.last {
+                    swap(&last.labels, &fullcode.labels)
+                    swap(&last.code, &fullcode.code)
+                } else {
+                    fatalError("Could not grab last element we just added")
+                }
+            } else {
+                swap(&state.identityCodes[MAX_IDENTITY_NODES - 1].labels, &fullcode.labels)
+                swap(&state.identityCodes[MAX_IDENTITY_NODES - 1].code, &fullcode.code)
+            }
+            
+            return
+        }
+        
+//         avoid endless loops
+        if (Date().timeIntervalSince(timeout.startTime) > timeout.maxTime) {
+            return
+        }
+
+        // If there is a bestCode and only one labeling is required, return.
+        if state.onlyOne && !bestCode.code.isEmpty {
+            return
+        }
+
+        // Abort early if this will not lead to a greatest canonical code. The
+        // code.from vector is compared with the elements in the bestCode.
+        if code < bestCode {
+            return
+        }
+
+        // Find the neighbors of the current atom to assign the next label(s).
+        var nbrs: [MKAtom] = []
+        var nbrSymClasses: [UInt] = []
+        guard let currentNbrs = current.getNbrAtomIterator() else { 
+            fatalError("Could not get neighbor iterator???")
+        }
+
+        for nbr in currentNbrs {
+            // skip atoms not in the fragment 
+            if !state.fragment.bitIsSet(nbr.getIdx()) {
+                continue
+            }
+            // skip atoms already labeled
+            if code.labels[nbr.getIdx()] != 0 {
+                continue
+            }
+            guard let bond = mol.getBond(current, nbr) else {
+                // TODO: maybe throw an error here
+                break
+            }
+            // Ugly, but it helps...
+            if !isFerroceneBond(bond) {
+                nbrSymClasses.append(state.symmetry_classes[nbr.getIndex()])
+                nbrs.append(nbr)
+            }
+        }
+
+        if nbrs.isEmpty {
+            // If there are no neighbor atoms to label, recurse with the next
+            // current atom.
+            let nextLabel = code.labels[current.getIndex()] + 1
+            for i in 0..<code.labels.count {
+                if code.labels[i] == nextLabel {
+                    canonicalLabelRecursive(mol.getAtom(i+1)!, label, &timeout, &bestCode, &state)
+                    return
+                }
+            }
+            return
+        }
+
+        if !current.isInRing() {
+            // Optimization to avoid generating the n! permutations. If the current
+            // atom is not in a ring, the neighbor atoms with the same symmetry
+            // are not connected and it is possible to label without considering
+            // the rest of the molecule. The found ligand labels can be sorted and
+            // the labels can be calculated using offsets.
+            //
+            // This modifies the final canonical code since it produces a different
+            // canonical order but although different, the code is still canonical.
+            labelFragments(current, &nbrs, label, &timeout, &bestCode, &state)
+        } else {
+            // Create all possible labelings for the neighbors.
+            //
+            // Example: The current atom has 4 neighbors to label.
+            //
+            // neighbor atom   : 1 2 3 4
+            // symmetry classes: 3 2 2 1
+            //
+            // The first neighbor with symmetry class 3 is added to allOrderedNbrs.
+            //
+            // allOrderedNbrs = [ [1] ]
+            //
+            // The two neighbor atoms with symmetry class 2 are added next. All
+            // permutations are added (2 in this case).
+            //
+            // allOrderedNbrs = [ [1,2,3], [1,3,2] ]
+            //
+            // The last atom is similar to the first one.
+            //
+            // allOrderedNbrs = [ [1,2,3,4], [1,3,2,4] ]
+            //
+            // Note: If there are atoms with a large number of neighbor atoms
+            // with the same symmetry class (n), this can result in a large number
+            // of permutations (n!).
+            var allOrderedNbrs: [[MKAtom]] = [[MKAtom]].init(repeating: [], count: 1)
+            while !nbrs.isEmpty {
+                // Select the next nbr atoms with highest symmetry classes.
+                guard let maxSymClass = nbrSymClasses.min() else { return }
+                var finalNbrs: [MKAtom] = []
+                for i in 0..<nbrs.count {
+                    if nbrSymClasses[i] == maxSymClass {
+                        finalNbrs.append(nbrs[i])
+                    }
+                }
+                // Remove the selected atoms from nbrs and nbrSymClasses (this could be made more efficient)
+                for i in 0..<finalNbrs.count {
+                    if let idx = nbrs.firstIndex(of: finalNbrs[i]) {
+                        nbrs.remove(at: idx)
+                    }
+                    if let idx = nbrSymClasses.firstIndex(of: maxSymClass) {
+                        nbrSymClasses.remove(at: idx)
+                    }
+                }
+
+                if finalNbrs.count == 1 {
+                    // If there is only one atom with the same symmetry class, label it
+                    // and select the next group of neighbor atoms with the same symmetry
+                    // class.
+                    for i in 0..<allOrderedNbrs.count {
+                        allOrderedNbrs[i].append(finalNbrs[0])
+                    }
+                } else {
+                    
+                    // Sort the atoms lexicographically. TODO: make sure this works
+                    finalNbrs.sort { (a, b) -> Bool in
+                        return a.getIdx() < b.getIdx()
+                    }
+
+                    // Copy the current labelings for the neighbor atoms.
+                    var allOrderedNbrsCopy = allOrderedNbrs
+
+
+                    // Add the first permutation for the neighbor atoms.
+                    for j in 0..<allOrderedNbrs.count {
+                        for i in 0..<finalNbrs.count {
+                            allOrderedNbrs[j].append(finalNbrs[i])
+                        }
+                    }
+
+                    // Add the other permutations.
+                    for perm in finalNbrs.permutations() {
+                        if state.mcr.bitIsSet(perm[0].getIdx()) {
+                            for j in 0..<allOrderedNbrsCopy.count {
+                                allOrderedNbrs.append(allOrderedNbrsCopy[j])
+                                for i in 0..<perm.count {
+                                    if var last = allOrderedNbrs.last {
+                                        last.append(perm[i])
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }// finalNbrs.size() != 1
+            }// while (!nbrs.empty())
+
+            for i in 0..<allOrderedNbrs.count {
+                // convert the order stored in allorderedNbrs to labels.
+                var lbl = label
+                for j in 0..<allOrderedNbrs[i].count {
+                    lbl += 1
+                    code.add(current, allOrderedNbrs[i][j])
+                    code.labels[allOrderedNbrs[i][j].getIndex()] = lbl
+                } 
+
+                // Recurse...
+                canonicalLabelRecursive(current, lbl, &timeout, &bestCode, &state)
+                
+                // backtrack...
+                for j in 0..<allOrderedNbrs[i].count {
+                    _ = code.atoms.popLast()
+                    _ = code.bonds.popLast()
+                    _ = code.from.popLast()
+                    code.labels[allOrderedNbrs[i][j].getIndex()] = 0
+                }
+
+                //  Optimization 
+                if state.backtrackDepth != 0 {
+                    if code.atoms.count <= state.backtrackDepth {
+                        print("BACKTRACK DONE 3")
+                        state.backtrackDepth = 0
+                    }
+                }
+            }
+        }// current is in ring end 
     }
     
     /**
      * Select an initial atom from a fragment to assign the first label.
      */
-    static func findStartAtoms(_ mol: MKMol, _ fragment: MKBitVec, _ symmetry_classes: [UInt]) {
-        
+    static func findStartAtoms(_ mol: MKMol, _ fragment: MKBitVec, _ symmetry_classes: [UInt]) -> [MKAtom] {
+        // find the symmetry class in the fragment using criteria 
+        var ranks: [UInt] = []
+        for i in 0..<mol.numAtoms() {
+            if !fragment.bitIsSet(i+1) {
+                continue
+            }
+            guard let atom = mol.getAtom(i+1) else { 
+                // Thow error here? TODO: 
+                continue 
+            }
+            var rank = 10000 * Int(symmetry_classes[i])
+            rank += 1000 * atom.getSpinMultiplicity()
+            rank += 10 * Int((atom.getFormalCharge() + 7))
+            rank += Int(totalHydrogenCount(atom))
+            ranks.append(UInt(rank))
+        }
+        guard let lowestRank = ranks.min() else {
+            fatalError("ranks are empty")
+        }
+        var result: [MKAtom] = []
+        for i in 0..<mol.numAtoms() {
+            if !fragment.bitIsSet(i+1) {
+                continue
+            }
+            guard let atom = mol.getAtom(i+1) else { 
+                // Thow error here? TODO: 
+                continue 
+            }
+            var rank = 10000 * Int(symmetry_classes[i])
+            rank += 1000 * atom.getSpinMultiplicity()
+            rank += 10 * Int((atom.getFormalCharge() + 7))
+            rank += Int(totalHydrogenCount(atom))
+            if rank == lowestRank {
+                result.append(atom)
+            }
+        }
+        return result
     }
     /**
      * Compute the canonical labels for @p mol. This function handles a whole molecule with
@@ -945,14 +1242,317 @@ struct CanonicalLabelsImpl {
      * This is the CanonicalLabelsImpl entry point.
      */
     
-    static func calcCanonicalLabels(_ mol: MKMol, _ symmetry_classes: [UInt], _ canonical_labels: [UInt], _ stereoUnits: MKStereoUnitSet, _ mask: MKBitVec,
-                                    _ stereoFacade: MKStereoFacade, _ maxSeconds: Int, _ onlyOne: Bool = false) {}
+    static func calcCanonicalLabels(_ mol: MKMol, _ symmetry_classes: [UInt], _ canonical_labels: inout [UInt], _ stereoUnits: MKStereoUnitSet, _ mask: MKBitVec, _ stereoFacade: MKStereoFacade?, _ maxSeconds: Int, _ onlyOne: Bool = false) {
 
+        // Handle some special cases 
+        if mol.numAtoms() == 0 {
+            return 
+        }
+        if mol.numAtoms() == 1 {
+            canonical_labels.resize(1, with: 1)
+            return
+        }
 
+        // Set all labels to 0.
+        canonical_labels.removeAll()
+        canonical_labels.resize(mol.numAtoms(), with: 0)
+
+        var metalloceneBonds: [MKBond] = []
+        findMetalloceneBonds(&metalloceneBonds, mol, symmetry_classes)
+
+        // Find the (dis)connected fragments.
+        var visited: MKBitVec = MKBitVec()
+        var fragments: [MKBitVec] = []
+        for i in 0..<mol.numAtoms() {
+            if (!mask.bitIsSet(i+1) || visited.bitIsSet(i+1)) {
+                continue
+            }
+            fragments.append(getFragment(mol.getAtom(i+1)!, mask, metalloceneBonds))
+            visited |= fragments.last!
+        }
+        // Pre-compute the stereo center information. (See StereoCenter)
+        var stereoCenters: [StereoCenter] = []
+        if stereoFacade != nil {
+            for i in 0..<stereoUnits.count {
+                let unit: MKStereoUnit = stereoUnits[i]
+                if unit.type == .Tetrahedral {
+                    guard let atom = mol.getAtomById(unit.id) else {
+                        continue
+                    }
+                    // Add the StereoCenter indexes.
+                    stereoCenters.resize(stereoCenters.count + 1, with: StereoCenter())
+                    if var last = stereoCenters.last {
+                        last.indexes.append(UInt(atom.getIndex()))
+                    } else {
+                        fatalError("stereoCenters is empty")
+                    }
+                    if !stereoFacade!.hasTetrahedralStereo(unit.id.intValue!) {
+                        continue
+                    }
+                    guard let config: MKTetrahedralStereo.Config = stereoFacade!.getTetrahedralStereo(unit.id.intValue!)?.getConfig() else {
+                        fatalError("config is nil")
+                    }
+                    if !config.specified {
+                        continue 
+                    }
+                    // Add the neighbor atom indexes.
+                    let from = mol.getAtomById(config.from_or_towrds.refValue)
+                    if from != nil && from!.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                        if var last = stereoCenters.last {
+                            last.nbrIndexes1.append(UInt(from!.getIndex()))
+                        }
+                    } else {
+                        if var last = stereoCenters.last {
+                            last.nbrIndexes1.append(UInt(Int.max))
+                        }
+                    }
+                    for j in 0..<config.refs.count {
+                        let ref = mol.getAtomById(config.refs[j])
+                        if ref != nil && ref?.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                            if var last = stereoCenters.last {
+                                last.nbrIndexes1.append(UInt(ref!.getIndex()))
+                            }
+                        } else {
+                            if var last = stereoCenters.last {
+                                last.nbrIndexes1.append(UInt(Int.max))
+                            }
+                        }
+                    } 
+                } else if unit.type == .CisTrans {
+                    let bond = mol.getBondById(unit.id)
+                    if bond != nil || bond!.isAromatic() {
+                        continue
+                    }
+                    let begin = bond?.getBeginAtom()
+                    let end = bond?.getEndAtom()
+                    if begin == nil || end == nil {
+                        continue
+                    }
+                    // Add the StereoCenter indexes.
+                    stereoCenters.resize(stereoCenters.count + 1, with: StereoCenter())
+                    if var last = stereoCenters.last {
+                        last.indexes.append(UInt(begin!.getIndex()))
+                        last.indexes.append(UInt(end!.getIndex()))
+                    } else {
+                        fatalError("stereoCenters is empty")
+                    }
+
+                    if !stereoFacade!.hasCisTransStereo(unit.id.intValue!) {
+                        continue
+                    }
+                    guard let config: MKCisTransStereo.Config = stereoFacade!.getCisTransStereo(unit.id.intValue!)?.getConfig() else {
+                        fatalError("config is nil")
+                    }
+                    if !config.specified {
+                        continue 
+                    }
+
+                    // Add the neighbor atom indexes.
+                    for j in 0..<config.refs.count {
+                        let ref = mol.getAtomById(config.refs[j])
+                        let r = (ref !=  nil && ref?.getAtomicNum() != MKElements.Hydrogen.atomicNum) ? UInt(ref!.getIndex()) : UInt(Int.max)
+                        if stereoCenters.last!.nbrIndexes1.count < 2 {
+                            if var last = stereoCenters.last {
+                                last.nbrIndexes1.append(r)
+                            }
+                        } else {
+                            if var last = stereoCenters.last {
+                                last.nbrIndexes2.append(r)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Find the canonical code for each fragment.
+        var fcodes: [CanonicalLabelsImpl.FullCode] = []
+        for f in 0..<fragments.count {
+            var fragment = fragments[f]
+
+            // Select the first atom.
+            var startAtoms: [MKAtom] = findStartAtoms(mol, fragment, symmetry_classes)
+
+            var timeout = Timeout(TimeInterval(maxSeconds))
+            var bestCode: CanonicalLabelsImpl.FullCode = CanonicalLabelsImpl.FullCode()
+            var identityCodes: [CanonicalLabelsImpl.FullCode] = []
+            var orbits: Orbits = Orbits()
+            var mcr: MKBitVec = MKBitVec()
+
+            for i in 0..<startAtoms.count {
+                let atom = startAtoms[i]
+                // Start labeling of the fragment.
+                var state: State = State(symmetry_classes, fragment, stereoCenters, identityCodes, orbits, mcr, onlyOne)
+                //if (!state.mcr.BitIsSet(atom->GetIdx()) && atom->IsInRing())
+                //  continue; // Original impl, might not be needed
+                state.code.add(atom)
+                state.code.labels[atom.getIndex()] = 1
+                canonicalLabelRecursive(atom, 1, &timeout, &bestCode, &state)
+            }
+            // Throw an error if the timeout is exceeded.
+            if Date().timeIntervalSince(timeout.startTime) > timeout.maxTime {
+                // throw MKError.timeout
+                print("ERROR: maximum time exceeded...")
+                return 
+            }
+            // Store the canonical code for the fragment.
+            fcodes.append(bestCode)
+        }
+        // Sort the codes for the fragments.
+        fcodes.sort(by: sortCode)
+        // Construct the full labeling from the sorted fragment labels.
+        var offset: UInt = 0
+        for f in 0..<fcodes.count {
+            if fcodes[f].labels.count == 0 {
+                continue // defensive programming ?
+            }
+            var max_label: UInt = 0
+            for i in 0..<mol.numAtoms() {
+                if fcodes[f].labels[i] != 0 {
+                    canonical_labels[i] = fcodes[f].labels[i] + offset
+                    max_label = max(max_label, canonical_labels[i])
+                }
+            }
+            offset = max_label
+        }
+    }
 }
 
-func canonicalLabels(_ mol: MKMol, _ symmetry_classes: [UInt], _ canonical_labels: [UInt], _ mask: MKBitVec = MKBitVec(), _ maxSeconds: Int = 5, _ onlyOne: Bool = false) {
+/*
+   * See below for detailed description of parameters.
+   *
+   * The main purpose of this function is calling CanonicalLabelsImpl::CalcCanonicalLabels
+   * with the correct parameters regarding stereochemistry.
+   */
+func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical_labels: inout [UInt], _ mask: MKBitVec = MKBitVec(), _ maxSeconds: Int = 5, _ onlyOne: Bool = false) {
+    // make sure the mask is valid: no mask = all atoms
+    var maskCopy = mask 
+    if maskCopy.countBits() == 0 {
+        for atom in mol.getAtomIterator() {
+            maskCopy.setBitOn(UInt32(atom.getIdx()))
+        }
+    }
+    if onlyOne {
+        // Only one labeling requested. This results in canonical labels that do not
+        // consider stereochemistry. Used for finding stereo centers with automorphisms.
+        CanonicalLabelsImpl.calcCanonicalLabels(mol, symmetry_classes, &canonical_labels, MKStereoUnitSet(), maskCopy, nil, maxSeconds, true)
+    } else {
+        var metalloceneBonds: [MKBond] = []
+        findMetalloceneBonds(&metalloceneBonds, mol, symmetry_classes)
 
+        // Check if there are specified stereo centers 
+        var hasAtLeastOneDefined: Bool = false
+        let sf: MKStereoFacade = MKStereoFacade(mol, m_perceive: false)
+        for atom in mol.getAtomIterator() {
+            for bond in atom.getBondIterator()! {
+                if metalloceneBonds.contains(bond) {
+                    continue
+                }
+                if sf.hasTetrahedralStereo(atom.getId().rawValue) {
+                    if sf.getTetrahedralStereo(atom.getId().rawValue)?.getConfig().specified ?? false {
+                        hasAtLeastOneDefined = true
+                        break
+                    }
+                }
+            }
+        }
+        
+        for bonds in mol.getBondIterator() {
+            if sf.hasCisTransStereo(bonds.getId().intValue!) {
+                if sf.getCisTransStereo(bonds.getId().intValue!)?.getConfig().specified ?? false {
+                    hasAtLeastOneDefined = true
+                    break
+                }
+            }
+        }
+
+        if !hasAtLeastOneDefined {
+            // If there are no specified stereo centers, we don't need to find stereogenic units.
+            CanonicalLabelsImpl.calcCanonicalLabels(mol, symmetry_classes, &canonical_labels, MKStereoUnitSet(), maskCopy, nil, maxSeconds)
+            return
+        }
+        // Find the stereogenic units
+        var stereoUnits: MKStereoUnitSet = findStereogenicUnits(mol, symClasses: &symmetry_classes)
+        // Mark all invalid stereo data as unspecified
+        if var stereoData: [MKGenericData] = mol.getDataVector(.StereoData) {
+            for data in stereoData {
+                let type: MKStereo.TType = (data as? MKStereoBase)!.getType()
+                if type == .Tetrahedral {
+                    let ts: MKTetrahedralStereo = data as! MKTetrahedralStereo
+                    var config = ts.getConfig()
+                    var valid = true
+                    if !ts.isValid() {
+                        valid = false
+                    }
+                    if let center = mol.getAtomById(config.center) {
+                        if !isTetrahedral(center, stereoUnits) {
+                            valid = false
+                        }
+                    } else {
+                        valid = false
+                    }
+                    if !valid {
+                        config.specified = false 
+                        ts.setConfig(config)
+                    }
+                }
+                if type == .CisTrans {
+                    let ct: MKCisTransStereo = data as! MKCisTransStereo
+                    let config = ct.getConfig()
+                    var valid = true
+                    if !ct.isValid() {
+                        valid = false
+                    }
+                    let beginAtom = mol.getAtomById(config.begin)
+                    let endAtom = mol.getAtomById(config.end)
+                    if beginAtom == nil || endAtom == nil {
+                        valid = false
+                    } else {
+                        if let bond = mol.getBond(beginAtom!, endAtom!) {
+                            if !isCisTrans(bond, stereoUnits) {
+                                valid = false
+                            }
+                        } else {
+                            valid = false
+                        }
+                    }
+                    if !valid {
+                        config.specified = false 
+                        ct.setConfig(config)
+                    }
+                }
+            }
+
+            // Determine stereochemistry from coordinates if needed
+            if !mol.hasChiralityPerceived() {
+                switch mol.getDimension() {
+                case 2: 
+                    mol.deleteData(.StereoData)
+                    tetrahedralFrom2D(mol, stereoUnits)
+                    cisTransFrom2D(mol, stereoUnits)
+                case 3:
+                    mol.deleteData(.StereoData)
+                    tetrahedralFrom3D(mol, stereoUnits)
+                    cisTransFrom3D(mol, stereoUnits)
+                default:
+                    tetrahedralFrom0D(mol, stereoUnits)
+                    cisTransFrom0D(mol, stereoUnits)
+                }
+            }
+
+            // The mol->DeleteData() above deleted some of the data that the OBStereoFacade sf()
+            // is using.  We have to create a new one.  (CJ - fixes a bug.) // TODO: figure out if we really need this
+            let newsf: MKStereoFacade = MKStereoFacade(mol, m_perceive: false)
+            // Start the labeling process
+            CanonicalLabelsImpl.calcCanonicalLabels(mol, symmetry_classes, &canonical_labels, stereoUnits, maskCopy, newsf, maxSeconds)
+        }
+    }
+    // if the labeling failed, just return the identity labels to avoid craches
+    if canonical_labels.isEmpty {
+        for i in 0..<symmetry_classes.count {
+            canonical_labels.append(UInt(i+1))
+        }
+    }
 }
 
 /* -*-C++-*-

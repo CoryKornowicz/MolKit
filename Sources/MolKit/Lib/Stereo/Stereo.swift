@@ -703,6 +703,7 @@ func stereoFrom0D(_ mol: MKMol) {
 * @sa StereoFrom3D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
     fatalError()
 }
@@ -750,6 +751,7 @@ func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @sa StereoFrom2D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
     fatalError()
 }
@@ -772,6 +774,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @sa StereoFrom0D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
     fatalError()
 }
@@ -811,6 +814,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 * @sa StereoFrom3D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
     fatalError()
 }
@@ -844,6 +848,7 @@ func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
 * @sa StereoFrom2D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKBond: MKStereo.BondDirection]? = nil, _ addToMol: Bool = true) -> [MKCisTransStereo] {
     fatalError()
 }
@@ -910,6 +915,7 @@ func getUnspecifiedCisTrans(_ mol: MKMol) -> Set<MKBond> {
 * @sa StereoFrom0D FindStereogenicUnits
 * @since version 2.3
 */
+@discardableResult
 func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
     fatalError()
 }
