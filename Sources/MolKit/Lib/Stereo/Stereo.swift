@@ -643,6 +643,17 @@ func stereoFrom2D(_ mol: MKMol, _ updown: [MKBond: MKStereo.BondDirection]? = ni
 func stereoFrom3D(_ mol: inout MKMol,_ force: Bool = false) {
 
 }
+
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+//
+//
+//  From0D
+//
+//
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
+
 /**
 * Add missing OBStereo objects. Unlike StereoFrom3D() and StereoFrom2D(), this
 * method only adds objects for previously unidentified objects since we
@@ -659,9 +670,125 @@ func stereoFrom3D(_ mol: inout MKMol,_ force: Bool = false) {
 * @since version 2.3
 */
 func stereoFrom0D(_ mol: MKMol) {
-
+    if mol.hasChiralityPerceived() {
+        return
+    }
+    var symmetry_classes = findSymmetry(mol)
+    let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetry_classes)
+    tetrahedralFrom0D(mol, stereogenicUnits)
+    cisTransFrom0D(mol, stereogenicUnits)
+    mol.setChiralityPerceived()
 }
-///@}
+
+/**
+* Get a vector with all OBTetrahedralStereo objects for the molecule. This
+* function is used by StereoFrom0D() with the @p addToMol parameter is set
+* to true. There is no algorithm used here, all specified flags will be
+* set to false.
+*
+* This function is also used for symmetry analysis to handle cases where
+* there are two atoms in the same symmetry class that don't have the same
+* stereochemistry. In this situation, the @p addToMol parameter is set to
+* false and the returned objects will need to be deleted explicitly.
+*
+* @param mol The molecule.
+* @param stereoUnits The stereogenic units.
+* @param addToMol If true, the OBTetrahedralStereo objects will be added
+* to the molecule using OBBase::SetData().
+*
+* @sa StereoFrom0D FindStereogenicUnits
+* @since version 2.3
+*/
+@discardableResult
+func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
+    var configs: [MKTetrahedralStereo] = []
+    
+    // Delete any existing stereo objects that are not a member of 'centers'
+    // and make a map of the remaining ones
+    var existingMap: OrderedDictionary<Int, MKTetrahedralStereo> = [:]    
+    let stereoData: [MKGenericData] = mol.getDataVector(.StereoData)!
+    for data in stereoData {
+        if (data as! MKStereoBase).getType() == .Tetrahedral {
+            let ts = data as! MKTetrahedralStereo
+            let center = ts.getConfig().center
+            // check if the center is really stereogenic
+            var isStereogenic = false
+            for u in stereoUnits {
+                if u.type == .Tetrahedral {
+                    if u.id == center {
+                        isStereogenic = true
+                    }
+                }
+            }
+            if isStereogenic {
+                existingMap[center.intValue!] = ts
+                configs.append(ts)
+            } else {
+                // According to OpenBabel, this is not a tetrahedral stereo
+                print("Removed spurious TetrahedralStereo object")
+                mol.deleteData(ts)
+            }
+        }
+    }
+    for u in stereoUnits {
+        if u.type != .Tetrahedral {
+            continue
+        }
+        if existingMap[u.id.intValue!] != nil {
+            continue
+        }
+        let center = mol.getAtomById(u.id)
+        var config = MKTetrahedralStereo.Config()
+        config.specified = false
+        config.center = u.id
+        for nbr in center!.getNbrAtomIterator()! {
+            if config.from_or_towrds.refValue == .NoRef {
+                config.from_or_towrds = .from(nbr.getId().ref)
+            } else {
+                config.refs.append(nbr.getId().ref)
+            }
+        }
+        if config.refs.count == 2 {
+            config.refs.append(.ImplicitRef) // need to add largest number on end to work
+            // TODO: Make sure this doesn't break logic down the line by having an implicit ref involved
+        }
+        let th = MKTetrahedralStereo(mol)
+        th.setConfig(config)
+        configs.append(th)
+        // add the data to the molecule if needed
+        if addToMol {
+            mol.setData(th)
+        }
+    }
+    
+    return configs
+}
+
+/**
+* Get a vector with all OBCisTransStereo objects for the molecule. This
+* function is used by StereoFrom0D() with the @p addToMol parameter is set
+* to true. There is no algorithm used here, all specified flags will be
+* set to false.
+*
+* This function is also used for symmetry analysis to handle cases where
+* there are two atoms in the same symmetry class that don't have the same
+* stereochemistry. In this situation, the @p addToMol parameter is set to
+* false and the returned objects will need to be deleted explicitly.
+*
+* @param mol The molecule.
+* @param stereoUnits The stereogenic units.
+* @param addToMol If true, the OBCisTransStereo objects will be added
+* to the molecule using OBBase::SetData().
+*
+* @sa StereoFrom0D FindStereogenicUnits
+* @since version 2.3
+*/
+@discardableResult
+func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
+    fatalError()
+}
+
+
 
 ///@name Low level functions
 ///@{
@@ -755,29 +882,7 @@ func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
 func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
     fatalError()
 }
-/**
-* Get a vector with all OBTetrahedralStereo objects for the molecule. This
-* function is used by StereoFrom0D() with the @p addToMol parameter is set
-* to true. There is no algorithm used here, all specified flags will be
-* set to false.
-*
-* This function is also used for symmetry analysis to handle cases where
-* there are two atoms in the same symmetry class that don't have the same
-* stereochemistry. In this situation, the @p addToMol parameter is set to
-* false and the returned objects will need to be deleted explicitly.
-*
-* @param mol The molecule.
-* @param stereoUnits The stereogenic units.
-* @param addToMol If true, the OBTetrahedralStereo objects will be added
-* to the molecule using OBBase::SetData().
-*
-* @sa StereoFrom0D FindStereogenicUnits
-* @since version 2.3
-*/
-@discardableResult
-func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKTetrahedralStereo] {
-    fatalError()
-}
+
 /**
 * Get a vector with all OBCisTransStereo objects for the molecule. This
 * function is used by StereoFrom3D() with the @p addToMol parameter is set
@@ -896,111 +1001,7 @@ func getUnspecifiedCisTrans(_ mol: MKMol) -> Set<MKBond> {
     fatalError()
 }
 
-/**
-* Get a vector with all OBCisTransStereo objects for the molecule. This
-* function is used by StereoFrom0D() with the @p addToMol parameter is set
-* to true. There is no algorithm used here, all specified flags will be
-* set to false.
-*
-* This function is also used for symmetry analysis to handle cases where
-* there are two atoms in the same symmetry class that don't have the same
-* stereochemistry. In this situation, the @p addToMol parameter is set to
-* false and the returned objects will need to be deleted explicitly.
-*
-* @param mol The molecule.
-* @param stereoUnits The stereogenic units.
-* @param addToMol If true, the OBCisTransStereo objects will be added
-* to the molecule using OBBase::SetData().
-*
-* @sa StereoFrom0D FindStereogenicUnits
-* @since version 2.3
-*/
-@discardableResult
-func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bool = true) -> [MKCisTransStereo] {
-    fatalError()
-}
-///@}
 
-/**
-* @brief Find the stereogenic units in a molecule making use of the automorphisms.
-*
-* The potential stereocenters are identified first. A potential tetrahedral
-* stereogenic atom is any atom meeting the following criteria:
-*
-* - sp3 hybridization
-* - at least 3 "heavy" neighbors
-*
-* Nitrogen is treated as a special case since the barrier of inversion is
-* low in many cases making the atom non-stereogenic. Only bridge-head
-* nitrogen atoms (i.e. nitrogen has 3 neighbors in rings) will be
-* considered stereogenic.
-*
-* Potential stereogenic double bonds are identified using another set of
-* simple criteria:
-*
-* - must be a double bond
-* - must not be in a ring
-* - both begin and end atom should have at least one single bond
-*
-* Once the potential stereocenters are found, the automorphisms are the key
-* to identifying real stereogenic units. Automorphisms can be seen as
-* permutations that permutate a graph back to the same graph. Such a
-* permutation can only exchange atoms with the same symmetry class and it
-* follows that the use of automorphisms takes symmetry into account. The
-* definitions below use a concept where the automorphisms cause inversions
-* of configuration to potential stereocenters. Such an inversion occurs
-* whenever an automorphism exchanges two equivalent (i.e. with the same
-* symmetry class) neighbor atoms attached to the potential stereogenic unit.
-*
-* @par Definition for tetrahedral stereocenters:
-* A potential stereocenter really is a stereocenter if there exists no automorphic
-* permutation causing an inversion of the configuration of only the potential
-* stereogenic unit under consideration.
-* If there exists at least one automorphic permutation causing an inversion of
-* the configuration, then the potential stereogenic center can be a stereogenic
-* center if the number of topologically equivalent neighbors (ligands) of the
-* potential stereogenic center is less than or equal to the number of different
-* configurations of these ligands.<sup>1</sup>
-*
-* The actual number of configurations needed for the ligands depends on the
-* classification (i.e. T1234, T1123, ...) of the stereo center. These classes
-* reflect the symmetry classes of the neighbor atoms of the center.
-*
-* - T1123: 1 true stereocenter OR 2 para stereocenters
-* - T1122: 1 true stereocenter OR 2 para stereocenters (for both)
-* - T1112: 2 true stereocenters OR 2 para stereocenter assemblies
-* - T1111: 2 true stereocenters OR 2 para stereocenter assemblies
-*
-* @par Definition for double bond stereocenters:
-* A potential stereogenic double bond really is a stereogenic bond if there
-* exists no automorphic permutation causing an inversion of the configuration
-* of only the potential stereogenic unit under consideration. The bond can still
-* be a stereogenic bond if there exists such an automorphism when the number of
-* configurations of the pair of topologically equivalent geminal ligands, which
-* are exchanged by the automorphism, is greater than or equal to two (i.e. the
-* number of topologically equivalent geminal ligands.<sup>1</sup>
-*
-* For stereogenic bonds, there is only one case but both begin and end atom
-* have to be checked.
-*
-* - C11: 1 true stereocenter OR 1 para stereocenter
-*
-* These criteria are analogous to the rules from the Razinger paper on
-* stereoisomer generation. Since the existence of stereocenters can depend
-* on the existence of other stereocenters (in the ligands), the stereocenters
-* are found by iterating until no new stereocenters are found.
-*
-* @verbatim
-    Reference:
-    [1] M. Perdih, M. Razinger, Stereochemistry and Sequence Rules:
-    A Proposal for Modification of Cahn-Ingold-Prelog System,
-    Tetrahedron: Asymmetry, 1994, Vol. 5, No. 5, 835-861
-    @endverbatim
-*/
-func findStereogenicUnits(_ mol: MKMol, _ symClasses: [UInt], _ automorphisms: Automorphisms) -> MKStereoUnitSet {
-    fatalError()
-}
-///@}
 
 /**
 * @page Stereochemistry

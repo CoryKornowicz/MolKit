@@ -1456,9 +1456,9 @@ func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, u
 
 struct StereoInverted {
     struct Entry {
-        var p: Automorphism
-        var invertedAtoms: [MKAtom]
-        var invertedBonds: [MKBond]
+        var p: Automorphism?
+        var invertedAtoms: [MKAtom] = []
+        var invertedBonds: [MKBond] = []
     }
     
     /**
@@ -1566,52 +1566,331 @@ struct StereoInverted {
     /**
      * Perform the computation.
      */
-    static func compute(_ mol: MKMol, _ symClasses: [UInt], _ automorphisms: Automorphisms) -> [Entry] {
-        // We need topological canonical labels for this
-        // std::vector<unsigned int> canon_labels;
-        // CanonicalLabels(mol, symClasses, canon_labels, OBBitVec(), 5, true);
-        // // the result
-        // std::vector<Entry> result;
-        // // make a list of stereogenic centers inverted by the automorphism permutations
-        // for (std::size_t i = 0; i < automorphisms.size(); ++i) {
-        //     Entry entry;
-        //     entry.p = automorphisms[i];
-        //     // Check the atoms
-        //     std::vector<OBAtom*>::iterator ia;
-        //     for (OBAtom *atom = mol->BeginAtom(ia); atom; atom = mol->NextAtom(ia)) {
-        //         // consider only potential stereo centers
-        //         if (!isPotentialTetrahedral(atom))
-        //             continue;
-        //         // add the atom to the inverted list if the automorphism inverses it's configuration
-        //         if (permutationInvertsTetrahedralCenter(automorphisms[i], atom, symClasses, canon_labels))
-        //             entry.invertedAtoms.push_back(atom);
-        //     }
-        //     // Check the bonds
-        //     std::vector<OBBond*>::iterator ib;
-        //     for (OBBond *bond = mol->BeginBond(ib); bond; bond = mol->NextBond(ib)) {
-        //         // consider only potential stereo centers
-        //         if (!isPotentialCisTrans(bond))
-        //             continue;
-        //         // add the bond to the inverted list if the automorphism inverses it's configuration
-        //         if (permutationInvertsCisTransCenter(entry.p, bond, canon_labels))
-        //             entry.invertedBonds.push_back(bond);
-        //     }
-        //     result.push_back(entry);
-        // }
-        // return result;
+    static func compute(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphisms: Automorphisms) -> [Entry] {
         // We need topological canonical labels for this
         var canon_labels: [UInt] = []
-        // MKCanonicalLabels(mol, symClasses, &canon_labels, MKBitVec(), 5, true)
-        fatalError()
+        canonicalLabels(mol, &symClasses, &canon_labels, MKBitVec(), 5, true)
+        // the result
+        var result: [Entry] = []
+        // make a list of stereogenic centers inverted by the automorphism permutations
+        for i in 0..<automorphisms.count {
+            var entry = Entry()
+            entry.p = automorphisms[i]
+            // Check the atoms
+            for atom in mol.getAtomIterator() {
+                // consider only potential stereo centers
+                if !isPotentialTetrahedral(atom) {
+                    continue
+                }
+                // add the atom to the inverted list if the automorphism inverses it's configuration
+                if permutationInvertsTetrahedralCenter(automorphisms[i], atom, symClasses, canon_labels) {
+                    entry.invertedAtoms.append(atom)
+                }
+            }
+            // Check the bonds
+            for bond in mol.getBondIterator() {
+                // consider only potential stereo centers
+                if !isPotentialCisTrans(bond) {
+                    continue
+                }
+                // add the bond to the inverted list if the automorphism inverses it's configuration
+                if permutationInvertsCisTransCenter(entry.p!, bond, canon_labels) {
+                    entry.invertedBonds.append(bond)
+                }
+            }
+            result.append(entry)
+        }
+        return result
     }
-    
-    
 }
 
 
+/**
+* @brief Find the stereogenic units in a molecule making use of the automorphisms.
+*
+* The potential stereocenters are identified first. A potential tetrahedral
+* stereogenic atom is any atom meeting the following criteria:
+*
+* - sp3 hybridization
+* - at least 3 "heavy" neighbors
+*
+* Nitrogen is treated as a special case since the barrier of inversion is
+* low in many cases making the atom non-stereogenic. Only bridge-head
+* nitrogen atoms (i.e. nitrogen has 3 neighbors in rings) will be
+* considered stereogenic.
+*
+* Potential stereogenic double bonds are identified using another set of
+* simple criteria:
+*
+* - must be a double bond
+* - must not be in a ring
+* - both begin and end atom should have at least one single bond
+*
+* Once the potential stereocenters are found, the automorphisms are the key
+* to identifying real stereogenic units. Automorphisms can be seen as
+* permutations that permutate a graph back to the same graph. Such a
+* permutation can only exchange atoms with the same symmetry class and it
+* follows that the use of automorphisms takes symmetry into account. The
+* definitions below use a concept where the automorphisms cause inversions
+* of configuration to potential stereocenters. Such an inversion occurs
+* whenever an automorphism exchanges two equivalent (i.e. with the same
+* symmetry class) neighbor atoms attached to the potential stereogenic unit.
+*
+* @par Definition for tetrahedral stereocenters:
+* A potential stereocenter really is a stereocenter if there exists no automorphic
+* permutation causing an inversion of the configuration of only the potential
+* stereogenic unit under consideration.
+* If there exists at least one automorphic permutation causing an inversion of
+* the configuration, then the potential stereogenic center can be a stereogenic
+* center if the number of topologically equivalent neighbors (ligands) of the
+* potential stereogenic center is less than or equal to the number of different
+* configurations of these ligands.<sup>1</sup>
+*
+* The actual number of configurations needed for the ligands depends on the
+* classification (i.e. T1234, T1123, ...) of the stereo center. These classes
+* reflect the symmetry classes of the neighbor atoms of the center.
+*
+* - T1123: 1 true stereocenter OR 2 para stereocenters
+* - T1122: 1 true stereocenter OR 2 para stereocenters (for both)
+* - T1112: 2 true stereocenters OR 2 para stereocenter assemblies
+* - T1111: 2 true stereocenters OR 2 para stereocenter assemblies
+*
+* @par Definition for double bond stereocenters:
+* A potential stereogenic double bond really is a stereogenic bond if there
+* exists no automorphic permutation causing an inversion of the configuration
+* of only the potential stereogenic unit under consideration. The bond can still
+* be a stereogenic bond if there exists such an automorphism when the number of
+* configurations of the pair of topologically equivalent geminal ligands, which
+* are exchanged by the automorphism, is greater than or equal to two (i.e. the
+* number of topologically equivalent geminal ligands.<sup>1</sup>
+*
+* For stereogenic bonds, there is only one case but both begin and end atom
+* have to be checked.
+*
+* - C11: 1 true stereocenter OR 1 para stereocenter
+*
+* These criteria are analogous to the rules from the Razinger paper on
+* stereoisomer generation. Since the existence of stereocenters can depend
+* on the existence of other stereocenters (in the ligands), the stereocenters
+* are found by iterating until no new stereocenters are found.
+*
+* @verbatim
+    Reference:
+    [1] M. Perdih, M. Razinger, Stereochemistry and Sequence Rules:
+    A Proposal for Modification of Cahn-Ingold-Prelog System,
+    Tetrahedron: Asymmetry, 1994, Vol. 5, No. 5, 835-861
+    @endverbatim
+*/
+func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphisms: Automorphisms) -> MKStereoUnitSet {
+    var units: MKStereoUnitSet = MKStereoUnitSet()
+    // do quick test to see if there are any possible stereogenic units
+    // do quick test to see if there are any possible stereogenic units
+    if !mayHaveTetrahedralCenter(mol) && !mayHaveCisTransBond(mol) {
+        return units
+    }
+    // make sure we have symmetry classes for all atoms
+    if symClasses.count != mol.numAtoms() {
+        return units
+    }
+    // Compute which automorphisms cause inversion of configuration
+    // for the stereogenic units
+    let inverted = StereoInverted.compute(mol, &symClasses, automorphisms)
+    // std::vector<OBBitVec> mergedRings = mergeRings(mol, symClasses);
+    let mergedRings = mergeRings(mol, symClasses)
+    // std::vector<unsigned long> doneAtoms, doneBonds;
+    var doneAtoms: [UInt] = []
+    var doneBonds: [UInt] = []
+    // unsigned int lastSize = units.size();
+    var lastSize = units.count
+    // while (true) {
+    while true {
+        
+        for atom in mol.getAtomIterator() {
+            if doneAtoms.contains(UInt(atom.getId().rawValue)) {
+                continue
+            }
+            // consider only potential steroecenters
+            if !isPotentialTetrahedral(atom) {
+                continue
+            }
+            // A potential stereocenter is really a stereocenter if there exists no automorphic
+            // permutation causing an inversion of the configuration of only the potential
+            // stereogenic unit under consideration.
+            var foundPermutation: Bool = false
+            for i in 0..<inverted.count {
+                let atoms = inverted[i].invertedAtoms
+                if atoms.count != 1 {
+                    continue
+                }
+                let bonds = inverted[i].invertedBonds
+                if bonds.count != 0 {
+                    continue
+                }
+                if atoms[0] == atom {
+                    foundPermutation = true
+                    break
+                }
+            }
+            
+            var classification = classifyTetrahedralNbrSymClasses(symClasses, atom)
+            
+            if !foundPermutation {
+                // true-stereocenter found
+                let isParaCenter = (classification == .T1234) ? false : true
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, isParaCenter))
+                doneAtoms.append(UInt(atom.getId().rawValue))
+            } else {
+                // count ligand configurations:
+                // If there exists at least one automorphic permutation causing the inversion of the
+                // configuration of only the stereogenic unit under consideration, then the potential
+                // stereocenter can be a stereocenter if the number of topologically equivalent neighbors
+                // (ligands) of potential stereogenic is less than or equal to the number of configurations
+                // of these ligands.
+                //
+                // In practise:
+                //    T1123 -> 1 true stereocenter OR 2 para stereocenters
+                //    T1122 -> 1 true stereocenter OR 2 para stereocenters (for both)
+                //    T1112 -> 2 true stereocenters OR 2 para stereocenter assemblies
+                //    T1111 -> 2 true stereocenters OR 2 para stereocenter assemblies
+                switch classification {
+                case .T1123:
+                    // rule 2a with 1 pair
+                    let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
+                    guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
+                    if containsAtLeast_1true_2para(ligandAtom, atom: atom, units: units) {
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                        doneAtoms.append(UInt(atom.getId().rawValue))
+                    }
+                case .T1122:
+                    // rule 2a with 2 pairs
+                    var duplicatedSymClass1: UInt = 0
+                    var duplicatedSymClass2: UInt = 0
+                    findDuplicatedSymmetryClasses(atom, symClasses: symClasses, duplicated1: &duplicatedSymClass1, duplicated2: &duplicatedSymClass2)
+                    guard let ligandAtom1 = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass1, symClasses: symClasses) else { break }
+                    guard let ligandAtom2 = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass2, symClasses: symClasses) else { break }
+                    if (containsAtLeast_1true_2para(ligandAtom1, atom: atom, units: units) &&
+                        containsAtLeast_1true_2para(ligandAtom2, atom: atom, units: units)) {
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                        doneAtoms.append(UInt(atom.getId().rawValue))
+                    }
+                case .T1112, .T1111:
+                    // rule 2b with 4 identical
+                    let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
+                    guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
+                    if containsAtLeast_2true_2paraAssemblies(ligandAtom, atom: atom, units: units, mergedRings: mergedRings) {
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                        doneAtoms.append(UInt(atom.getId().rawValue))
+                    }
+                default: break
+                }
+            }
+        }
 
+        for bond in mol.getBondIterator() {
+            if doneBonds.contains(UInt(bond.getId().intValue!)) {
+                continue
+            }
+            // consider only potential steroecenters
+            if !isPotentialCisTrans(bond) {
+                continue
+            }
+            // A double bond is a stereogenic bond if there exists no automorphic
+            // permutation causing an inversion of the configuration of only the potential
+            // stereogenic unit under consideration.
+            var foundPermutation: Bool = false
+            for i in 0..<inverted.count {
+                let atoms = inverted[i].invertedAtoms
+                if atoms.count != 0 {
+                    continue
+                }
+                let bonds = inverted[i].invertedBonds
+                if bonds.count != 1 {
+                    continue
+                }
+                if bonds[0] == bond {
+                    foundPermutation = true
+                    break
+                }
+            }
 
+            let beginClassification = classifyCisTransNbrSymClasses(symClasses, bond, bond.getBeginAtom())
+            let endClassification = classifyCisTransNbrSymClasses(symClasses, bond, bond.getEndAtom())
+            if !foundPermutation {
+                //  true stereocenter found
+                var isParaCenter = (beginClassification == .C12) && (endClassification == .C12) ? false : true
+                units.append(MKStereoUnit(.CisTrans, bond.getId(), isParaCenter))
+                doneBonds.append(UInt(bond.getId().intValue!))
+            } else {
+                // count ligand configurations:
+                var beginValid: Bool = false
+                switch beginClassification {
+                case .C12:
+                    beginValid = true
+                    break
+                case .C11:
+                    // find the ligand
+                    var ligandAtom: MKAtom? = nil
+                    for nbr in bond.getBeginAtom().getNbrAtomIterator()! {
+                        if (nbr.getIdx() != bond.getBeginAtomIdx()) && (nbr.getIdx() != bond.getEndAtomIdx()) {
+                            ligandAtom = nbr
+                            break
+                        }
+                    }
+                    if ligandAtom != nil {
+                        beginValid = containsAtLeast_1true_1para(ligandAtom!, skip: bond.getBeginAtom(), units: units)
+                    }
+                default: break
+                }
+                if !beginValid {
+                    continue
+                }
+                var endValid: Bool = false
+                switch endClassification {
+                case .C12:
+                    endValid = true
+                    break
+                case .C11:
+                    // find the ligand
+                    var ligandAtom: MKAtom? = nil
+                    for nbr in bond.getEndAtom().getNbrAtomIterator()! {
+                        if (nbr.getIdx() != bond.getBeginAtomIdx()) && (nbr.getIdx() != bond.getEndAtomIdx()) {
+                            ligandAtom = nbr
+                            break
+                        }
+                    }
+                    if ligandAtom != nil {
+                        endValid = containsAtLeast_1true_1para(ligandAtom!, skip: bond.getEndAtom(), units: units)
+                    }
+                default: break
+                }
+                if endValid {
+                    units.append(MKStereoUnit(.CisTrans, bond.getId(), true))
+                    doneBonds.append(UInt(bond.getId().intValue!))
+                }
+            }
+        }
+        if units.count == lastSize {
+            break
+        }
+        lastSize = units.count
+    }
 
+//    MARK: FOR DEBUG ONLY
+    
+    for unit in units {
+        if unit.type == .Tetrahedral {
+            print("Tetrahedral(center = \(unit.id), para = \(unit.para))")
+        }
+        if unit.type == .CisTrans {
+            print("CisTrans(center = \(unit.id), para = \(unit.para))")
+        }
+        if unit.type == .SquarePlanar {
+            print("SquarePlanar(center = \(unit.id), para = \(unit.para))")
+        }
+    }
+
+    return units
+}
 
 
 /**
