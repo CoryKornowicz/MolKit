@@ -18,6 +18,7 @@ public class MolKit {
     static let _AtomTyper = MKAtomTyper()
     static let _AromTyper = MKAromaticTyper()
     static let _PhModel = MKPhModel()
+    static let _ResData = MKResidueData()
     
     static let _plugin_ids: [String] = []
     

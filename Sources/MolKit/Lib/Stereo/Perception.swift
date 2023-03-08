@@ -19,7 +19,33 @@ import Foundation
 * @since version 2.3
 */
 func stereoRefToImplicit(_ mol: MKMol, _ atomId: Ref) {
-
+    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+        print("ERROR: no stereo data found in stereoRefToImplicit")
+        return
+    }
+    for data in vdata {
+        guard let datatype: MKStereo.TType = (data as? MKStereoBase)?.getType() else { continue }
+        // maybe we should just unset the stereochemistry instead 
+        if datatype != .CisTrans && datatype != .Tetrahedral {
+            print("This function should be updated to handle additional stereo types.\nSome stereochemistry objects may contain explicit refs to hydrogens which have been removed.")
+            continue
+        }
+        // replace and references to atomId with ImplicitRef
+        if datatype == .CisTrans {
+            let ct = data as! MKCisTransStereo
+            let ct_config = ct.getConfig()
+            ct_config.refs.replace(atomId, with: .ImplicitRef)
+            ct.setConfig(ct_config)
+        } else if datatype == .Tetrahedral {
+            let ts = data as! MKTetrahedralStereo
+            var ts_config = ts.getConfig()
+            if ts_config.from_or_towrds == atomId {
+                ts_config.from_or_towrds = .from(.ImplicitRef)
+            }
+            ts_config.refs.replace(atomId, with: .ImplicitRef)
+            ts.setConfig(ts_config)
+        }
+    }
 }
 /**
 * Convert any reference to an OBStereo::ImplicitRef attached to @p centerId
@@ -35,7 +61,43 @@ func stereoRefToImplicit(_ mol: MKMol, _ atomId: Ref) {
 * @since version 2.4
 */
 func implicitRefToStereo(_ mol: MKMol, _ centerId: Ref, _ newId: Ref) {
-
+    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+        print("ERROR: no stereo data found in stereoRefToImplicit")
+        return
+    }
+    for data in vdata {
+        guard let datatype: MKStereo.TType = (data as? MKStereoBase)?.getType() else { continue }
+        // maybe we should just unset the stereochemistry instead
+        if datatype != .CisTrans && datatype != .Tetrahedral {
+            print("This function should be updated to handle additional stereo types.\nSome stereochemistry objects may contain explicit refs to hydrogens which have been removed.")
+            continue
+        }
+        // Replace any references to ImplicitRef (attached to centerId) with newId
+        if datatype == .CisTrans {
+            let ct = data as! MKCisTransStereo
+            let ct_config = ct.getConfig()
+            if ct_config.begin == centerId || ct_config.end == centerId {
+                // Assumption: the first two refs are on the begin atom, the last two on the end atom
+                if ct_config.begin == centerId {
+                    ct_config.refs.replaceInRange(ct_config.refs.startIndex...ct_config.refs.startIndex.advanced(by: 2), .ImplicitRef, with: newId)
+                }
+                if ct_config.end == centerId {
+                    ct_config.refs.replaceInRange(ct_config.refs.startIndex.advanced(by: 2)...ct_config.refs.endIndex, .ImplicitRef, with: newId)
+                }
+                ct.setConfig(ct_config)
+            }
+        } else if datatype == .Tetrahedral {
+            let ts = data as! MKTetrahedralStereo
+            var ts_config = ts.getConfig()
+            if ts_config.center == centerId {
+                if case let .from(ref) = ts_config.from_or_towrds, ref == .ImplicitRef {
+                    ts_config.from_or_towrds = .from(newId)
+                }
+                ts_config.refs.replace(.ImplicitRef, with: newId)
+            }
+            ts.setConfig(ts_config)
+        }
+    }
 }
 
 /**

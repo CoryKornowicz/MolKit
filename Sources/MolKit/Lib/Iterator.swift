@@ -27,5 +27,124 @@ public class MKIterator<T>: IteratorProtocol, Sequence {
         self.collection.append(T.self as! T)
     }
     
-    
 }
+
+
+/** \class OBMolAtomDFSIter obiter.h <openbabel/obiter.h>
+
+      \since version 2.1
+
+      To facilitate iteration through all atoms in a molecule, without resorting
+      to atom indexes (which <strong>will</strong> change in the future), a
+      variety of iterator methods are provided.
+
+      This class provides a depth-first search ordering of atoms. When one
+      connected component is exhausted, the iterator will start at another until
+      all atoms are visited. No guarantee is made as to the ordering of
+      iteration through connected components.
+
+      The iterator maintains an internal stack and list of visited
+      atoms. As such it may not be appropriate for memory-constrained
+      situations when iterating through large molecules.
+
+      Use of this iterator has been made significantly easier by a series
+      of macros in the obiter.h header file:
+
+      \code
+      \#define FOR_DFS_OF_MOL(a,m)     for( OBMolAtomDFSIter     a(m); a; ++a )
+      \endcode
+
+      Here is an example:
+      \code
+      #include <openbabel/obiter.h>
+      #include <openbabel/mol.h>
+
+      OpenBabel::OBMol mol;
+      FOR_DFS_OF_MOL(a, mol)
+      {
+         // The variable a behaves like OBAtom* when used with -> and * but
+         // but needs to be explicitly converted when appearing as a parameter
+         // in a function call - use &*a
+
+      }
+      \endcode
+  **/
+
+public class MKAtomDFSIterator: IteratorProtocol {
+    
+    var _parent: MKMol 
+    var _ptr: MKAtom?
+    var _notVisited: MKBitVec = MKBitVec()
+    var _stack: Stack<MKAtom> = Stack<MKAtom>()
+
+    init(_ mol: MKMol, _ startIndex: Int = 1) {
+        self._parent = mol
+        if let atom = mol.getAtom(startIndex) {
+            self._ptr = atom
+        } else {
+            fatalError("Cannot find atom in mol")
+        }
+        
+        self._notVisited.resize(UInt32(_parent.numAtoms()))
+        self._notVisited.setRangeOn(0, UInt32(_parent.numAtoms() - 1))
+        
+        _notVisited.setBitOff(_ptr!.getIdx() - 1)
+        
+        if let nbrs = _ptr!.getNbrAtomIterator() {
+            for a in nbrs {
+                _stack.push(a)
+                _notVisited.setBitOff(a.getIdx() - 1)
+            }
+        }
+    }
+
+    public func next() -> MKAtom? {
+        defer {
+            if !_stack.isEmpty() {
+                _ptr = _stack.pop()
+            } else { // are there any disconnected subgraphs?
+                let next = _notVisited.firstBit()
+                if next != _notVisited.endBit() {
+                    _ptr = _parent.getAtom(next + 1)
+                    _notVisited.setBitOff(next)
+                } else {
+                    _ptr = nil
+                }
+            }
+            if _ptr != nil {
+                if let nbrs = _ptr?.getNbrAtomIterator() {
+                    for a in nbrs {
+                        if _notVisited[a.getIdx() - 1] {
+                            _stack.push(a)
+                            _notVisited.setBitOff(a.getIdx() - 1)
+                        }
+                    }
+                }
+            }
+        }
+        
+        return self._ptr
+    }    
+}
+
+//public class MKBFSIterator<T>: IteratorProtocol, Sequence {
+//
+//    private var collection: [T]
+//    private var index = 0
+//
+//    init(_ collection: [T]) {
+//        self.collection = collection
+//    }
+//
+//    public func next() -> T? {
+//        defer { index += 1 }
+//        return index < collection.count ? collection[index] : nil
+//    }
+//
+//    public func append(_ newElement: T) {
+//        self.collection.append(T.self as! T)
+//    }
+//
+//}
+
+

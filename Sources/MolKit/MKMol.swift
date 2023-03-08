@@ -50,7 +50,7 @@ let alphabetical: [Int] = [ 89, 47, 13, 95, 18, 33, 85, 79, 5, 56, 4, 107, 83, 9
                             62, 50, 38, NumElements, 73, 65, 43, 52, 90, 22, 81, 69, 117, 92, 23, 74, 54, 39, 70,
                             30, 40 ]
 
-class MKMol: MKBase {
+class MKMol: MKBase, Copying {
     
     private var _autoPartialCharge: Bool = false
     private var _autoFormalCharge: Bool = false
@@ -500,13 +500,6 @@ class MKMol: MKBase {
 
         }
     }
-
-    // Cannot override default assignment operator in Swift, maybe that is not bad thing?
-
-    static public func += (lhs: inout MKMol, rhs: MKMol) {
-        // TODO: IMPLEMENT
-        // After implementing StereoBase and Peception class 
-    } 
 
     override func clear() {
         // Destroy Atom list 
@@ -1241,7 +1234,7 @@ class MKMol: MKBase {
                     if self.hasNonZeroCoords() { // MARK: Move check for coords to be per loop                                       since conformers is changing
                         // Ensure that add hydrogens only returns finite coords
                         //atom->GetNewBondVector(v,bondlen);
-                        let v = MKBuilder.sharedInstance.getNewBondVector(atom, bondlen)
+                        let v = MKBuilder.getNewBondVector(atom, bondlen)
                         if v.x.isFinite || v.y.isFinite || v.z.isFinite { // MARK: Why are we only ensuring one??
                             self._c[self.numAtoms()*3]       = v.x
                             self._c[(self.numAtoms()*3) + 1] = v.y
@@ -1320,7 +1313,7 @@ class MKMol: MKBase {
             for _ in 0..<k.1 {
                 for n in 0..<self.numConformers() {
                     self.setConformer(n)
-                    let v = MKBuilder.sharedInstance.getNewBondVector(atom, bondlen)
+                    let v = MKBuilder.getNewBondVector(atom, bondlen)
                     self._c[self.numAtoms()*3]       = v.x
                     self._c[(self.numAtoms()*3) + 1] = v.y
                     self._c[(self.numAtoms()*3) + 2] = v.z
@@ -2914,6 +2907,18 @@ class MKMol: MKBase {
       */
     
     ///////////////////////////////////////////////////
+    // Cannot override default assignment operator in Swift, maybe that is not bad thing?
+    
+    required init(instance: MKMol) {
+        super.init(instance)
+        // TODO: implement copying over attributes
+    }
+    
+    static public func += (lhs: inout MKMol, rhs: MKMol) {
+        // TODO: IMPLEMENT
+        // After implementing StereoBase and Peception class
+    }
+    
     static func classDescription() -> String {
     
       var ret = """

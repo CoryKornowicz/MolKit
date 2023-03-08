@@ -105,27 +105,77 @@ class MKTypeTable: MKGlobalDataBase {
     }
     
     func setFromType(_ from: String) -> Bool {
+        var tmp: String = from 
+        for i in 0..<_colnames.count {
+            if _colnames[i] == tmp {
+                _from = i
+                return true
+            }
+        }
+        print("Could not find type \(from) in type translation table types.txt")
         return false
     }
     
     func setToType(_ to: String) -> Bool {
+        var tmp: String = to
+        for i in 0..<_colnames.count {
+            if _colnames[i] == tmp {
+                _to = i
+                return true
+            }
+        }
+        print("Could not find type \(to) in type translation table types.txt")
         return false
     }
     
-    func translate(_ from: String, _ to: String) -> Bool {
+    func translate(_ from: String, _ to: inout String) -> Bool {
+        if from == "" {
+            return false
+        }
+        if _from >= 0 && _to >= 0 && _from < _table.count && _to < _table.count {
+            for i in _table {
+                if i.count > _from && i[_from] == from {
+                    to = i[_to]
+                    return true
+                }
+            }
+        }
+        //  throw werror, copy the string to to and return false
+        print("Cannot perform atom type translation: table cannot find requested types.")
+        to = from
         return false
     }
     
     func translate(_ from: String) -> String {
+         if from == "" {
+            return ""
+        }
+        if _from >= 0 && _to >= 0 && _from < _table.count && _to < _table.count {
+            for i in _table {
+                if i.count > _from && i[_from] == from {
+                    return i[_to]
+                }
+            }
+        }
+        //  throw werror, copy the string to to and return false
+        print("Cannot perform atom type translation: table cannot find requested types.")
         return ""
     }
     
     func getFromType() -> String {
-        return ""
+        if _from > 0 && _from < _table.count {
+            return _colnames[_from]
+        } else {
+            return _colnames[0]
+        }
     }
     
     func getToType() -> String {
-        return ""
+        if _to > 0 && _to < _table.count {
+            return _colnames[_to]
+        } else {
+            return _colnames[0]
+        }
     }
     
 }

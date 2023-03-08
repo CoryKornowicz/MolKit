@@ -11,6 +11,10 @@ import simd
 import Accelerate
 
 public let VZero : Vector<Double> = [0.0, 0.0, 0.0]
+public let VX    : Vector<Double> = [1.0, 0.0, 0.0]
+public let VY    : Vector<Double> = [0.0, 1.0, 0.0]
+public let VZ    : Vector<Double> = [0.0, 0.0, 1.0]
+
 
 // MARK: - Float
 
@@ -140,6 +144,15 @@ func isApprox(_ val: Float, to: Float, epsilon: Float) -> Bool {
 
 func isApprox(_ val: Double, to: Double, epsilon: Double) -> Bool {
     return( abs(val - to) <= epsilon * min(abs(val), abs(to)))
+}
+
+
+func isNegligible(_ val: Double, _ to: Double, precision: Double = 1e-11) -> Bool {
+    return (abs(val) <= precision * abs(to))
+}
+
+func isNegligible(_ val: Float, _ to: Float, precision: Float = 1e-11) -> Bool {
+    return (abs(val) <= precision * abs(to))
 }
 
 
@@ -315,6 +328,31 @@ extension Matrix where Scalar == Double {
         self[2, 1] = t * y * z - s * x
         self[2, 2] = t * z * z + c
     }
+    
+    mutating func setupRotMat(_ phi: Double, _ theta: Double, _ psi: Double) {
+        let p = phi.degreesToRadians
+        let h = theta.degreesToRadians
+        let b = psi.degreesToRadians
+        
+        let cx = cos(p)
+        let sx = sin(p)
+        let cy = cos(h)
+        let sy = sin(h)
+        let cz = cos(b)
+        let sz = sin(b)
+
+        self[0, 0] = cy * cz
+        self[0, 1] = cy * sz
+        self[0, 2] = -sy
+
+        self[1, 0] = sx * sy * cz - cx * sz
+        self[1, 1] = sx * sy * sz + cx * cz
+        self[1, 2] = sx * cy
+
+        self[2, 0] = cx * sy * cz + sx * sz
+        self[2, 1] = cx * sy * sz - sx * cz
+        self[2, 2] = cx * cy
+    }
 
 }
 
@@ -373,9 +411,48 @@ extension Matrix where Scalar == Float {
         self[2, 2] = t * z * z + c
     }
     
+    mutating func setupRotMat(_ phi: Float, _ theta: Float, _ psi: Float) {
+        let p = phi.degreesToRadians
+        let h = theta.degreesToRadians
+        let b = psi.degreesToRadians
+        
+        let cx = cos(p)
+        let sx = sin(p)
+        let cy = cos(h)
+        let sy = sin(h)
+        let cz = cos(b)
+        let sz = sin(b)
+
+        self[0, 0] = cy * cz
+        self[0, 1] = cy * sz
+        self[0, 2] = -sy
+
+        self[1, 0] = sx * sy * cz - cx * sz
+        self[1, 1] = sx * sy * sz + cx * cz
+        self[1, 2] = sx * cy
+
+        self[2, 0] = cx * sy * cz + sx * sz
+        self[2, 1] = cx * sy * sz - sx * cz
+        self[2, 2] = cx * cy
+    }
+    
 }
 
 extension Matrix {
+    
+    init(vecs: [Vector<Scalar>]) {
+        let rows = vecs.count
+        var cols: Int = 0
+        vecs.forEach { vec in
+            if vec.count > cols {
+                cols = vec.count
+            }
+        }
+        self.init(rows: rows, columns: cols) { row, col in
+            vecs[row][col]
+        }
+    }
+    
     
     var diagonal: Vector<Scalar> {
         let minStride = Swift.min(self.rows, self.columns)
@@ -578,15 +655,217 @@ sweep_loop: for _ in 1...MAX_SWEEPS {
 extension Vector {
     
     var x: Element {
-        scalars[0]
+        get {
+            scalars[0]
+        }
+        set {
+            scalars[0] = newValue
+        }
     }
     
     var y: Element {
-        scalars[1]
+        get {
+            scalars[1]
+        }
+        set {
+            scalars[1] = newValue
+        }
     }
     
     var z: Element {
-        scalars[2]
+        get {
+            scalars[2]
+        }
+        set {
+            scalars[2] = newValue
+        }
+    }
+
+}
+
+extension Vector where Scalar == Float {
+    func canBeNormalized() -> Bool {
+        if x == 0 && y == 0 && z == 0 {
+            return false
+        }
+        return (canBeSquared(x) && canBeSquared(y) && canBeSquared(z))
+    }
+    /*! \brief Construct a unit vector orthogonal to *this.
+
+    It requires that *this is normalizable; otherwise it just
+    returns false. See CanBeNormalized()
+
+    @param res reference by which to pass the result.
+
+    @returns always true. (Return value kept for compatibility,
+                as old versions of OpenBabel used to check for
+                normalizability).
+    */
+    func createOrthoVector(_ res: inout Vector<Scalar>) -> Bool {
+        /* Let us compute the crossed product of *this with a vector
+        that is not too close to being colinear to *this.
+        */
+        /* unless the _vx and _vy coords are both close to zero, we can
+        * simply take ( -_vy, _vx, 0 ) and normalize it.
+        */
+        if !isNegligible(x, z) || !isNegligible(y, z) {
+            let norm = sqrt(x.square + y.square)
+            res.x = -y / norm
+            res.y = x / norm
+            res.z = 0
+        } else {
+            /* if both _vx and _vy are close to zero, then the vector is close
+            * to the z-axis, so it's far from colinear to the x-axis for instance.
+            * So we take the crossed product with (1,0,0) and normalize it.
+            */
+            let norm = sqrt(y.square + z.square)
+            res.x = 0
+            res.y = -z / norm
+            res.z = y / norm
+        }
+        return true
+    }
+
+    mutating func normalize() {
+        let norm = sqrt(x.square + y.square + z.square)
+        x /= norm
+        y /= norm
+        z /= norm
     }
     
+    /*! Replaces *this with a random unit vector, which is (supposed
+        to be) uniformly distributed over the unit sphere. Uses the
+        system number generator with a time seed.
+    */
+    mutating func randomUnitVector() {
+        // obtain a random vector with 0.001 <= length^2 <= 1.0, normalize
+        // the vector to obtain a random vector of length 1.0.
+        var l: Scalar = 0
+        repeat {
+            x = 2 * Float.random(in: 0...1) - 1
+            y = 2 * Float.random(in: 0...1) - 1
+            z = 2 * Float.random(in: 0...1) - 1
+            l = x.square + y.square + z.square
+        } while l > 1.0 || l < 1e-4
+        normalize()
+    }
+
+
+}
+
+extension Vector where Scalar == Double {
+    func canBeNormalized() -> Bool {
+        if x == 0 && y == 0 && z == 0 {
+            return false
+        }
+        return (canBeSquared(x) && canBeSquared(y) && canBeSquared(z))
+    }
+
+    mutating func normalize() {
+        let norm = sqrt(x.square + y.square + z.square)
+        x /= norm
+        y /= norm
+        z /= norm
+    }
+
+    /*! Replaces *this with a random unit vector, which is (supposed
+        to be) uniformly distributed over the unit sphere. Uses the
+        system number generator with a time seed.
+    */
+    mutating func randomUnitVector() {
+        // obtain a random vector with 0.001 <= length^2 <= 1.0, normalize
+        // the vector to obtain a random vector of length 1.0.
+        var l: Scalar = 0
+        repeat {
+            x = 2 * Double.random(in: 0...1) - 1
+            y = 2 * Double.random(in: 0...1) - 1
+            z = 2 * Double.random(in: 0...1) - 1
+            l = x.square + y.square + z.square
+        } while l > 1.0 || l < 1e-4
+        normalize()
+    }
+
+    /*! \brief Construct a unit vector orthogonal to *this.
+
+    It requires that *this is normalizable; otherwise it just
+    returns false. See CanBeNormalized()
+
+    @param res reference by which to pass the result.
+
+    @returns always true. (Return value kept for compatibility,
+                as old versions of OpenBabel used to check for
+                normalizability).
+    */
+    func createOrthoVector(_ res: inout Vector<Scalar>) -> Bool {
+        /* Let us compute the crossed product of *this with a vector
+        that is not too close to being colinear to *this.
+        */
+        /* unless the _vx and _vy coords are both close to zero, we can
+        * simply take ( -_vy, _vx, 0 ) and normalize it.
+        */
+        if !isNegligible(x, z) || !isNegligible(y, z) {
+            let norm = sqrt(x.square + y.square)
+            res.x = -y / norm
+            res.y = x / norm
+            res.z = 0
+        } else {
+            /* if both _vx and _vy are close to zero, then the vector is close
+            * to the z-axis, so it's far from colinear to the x-axis for instance.
+            * So we take the crossed product with (1,0,0) and normalize it.
+            */
+            let norm = sqrt(y.square + z.square)
+            res.x = 0
+            res.y = -z / norm
+            res.z = y / norm
+        }
+        return true
+    }
+}
+
+// MARK: MATH Lib
+
+//! Tests whether its argument can be squared without triggering an overflow or
+//! underflow.
+func canBeSquared(_ a: Double) -> Bool {
+    if a == 0 { return true }
+    let max_squarable_double = 1e150
+    let min_squarable_double = 1e-150
+    let abs_a = abs(a)
+    return abs_a < max_squarable_double && abs_a > min_squarable_double
+}
+
+func canBeSquared(_ a: Float) -> Bool {
+    if a == 0 { return true }
+    let max_squarable_float: Float = 1e37
+    let min_squarable_float: Float = 1e-37
+    let abs_a: Float = abs(a)
+    return abs_a < max_squarable_float && abs_a > min_squarable_float
+}
+
+/* Calculate the signed distance of point a to the plane determined by b,c,d */
+func point2PlaneSigned(_ a: Vector<Double>, b: Vector<Double>, c: Vector<Double>, d: Vector<Double>) -> Double {
+    let v_ba = a - b
+    let v_normal = cross3x3(c - b, d - b)
+    return Surge.dot(v_normal, v_ba) / length(v_normal)
+}
+
+/* Calculate the distance of point a to the plane determined by b,c,d */
+func point2Plane(_ a: Vector<Double>, b: Vector<Double>, c: Vector<Double>, d: Vector<Double>) -> Double {
+    return abs(point2PlaneSigned(a, b: b, c: c, d: d))
+}
+
+/* Calculate the angle between point a and the plane determined by b,c,d */
+func point2PlaneAngle(_ a: Vector<Double>, b: Vector<Double>, c: Vector<Double>, d: Vector<Double>) -> Double {
+    let v_ac = a - c
+    let v_bc = b - c
+    let v_cd = c - d
+    let v_normal = cross3x3(v_bc, v_cd)
+    return 90.0 - vector_angle(v_normal, v_ac)
+}
+
+func point2Line(_ a: Vector<Double>, b: Vector<Double>, c: Vector<Double>) -> Double {
+    //http://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
+    let v_cb = c - b
+    let v_normal = cross3x3(a - b, a - c)
+    return abs(length(v_normal) / length(v_cb))
 }

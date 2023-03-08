@@ -89,6 +89,15 @@ public class MKBitVec: Equatable {
             _set[Int(word_offset)] &= ~(1 << bit_offset_in_word)
         }
     }
+    
+    func setBitOn(_ bit_offset: Int) {
+        setBitOn(UInt32(bit_offset))
+    }
+    
+    func setBitOff(_ bit_offset: Int) {
+        setBitOff(UInt32(bit_offset))
+    }
+    
 
     /** Set the range of bits from \p lo_bit_offset to \p hi_bit_offset to 1
     Increases the size of this bit vector if necessary

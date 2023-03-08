@@ -15,6 +15,7 @@ public class MKGlobalDataBase {
     init(fileName: String, subDir: String) {
         self._filename = fileName
         self._subdir = subDir
+        //TODO: should set locale here globally
     }
     
     func getSize() -> Int {

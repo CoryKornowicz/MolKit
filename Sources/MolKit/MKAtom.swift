@@ -486,7 +486,7 @@ public class MKAtom: MKBase {
     // //@{
     // MARK: Apparently not used?? 
     func getNewBondVector(_ length: Double) -> Vector<Double> {
-        return MKBuilder.sharedInstance.getNewBondVector(self, length)
+        return MKBuilder.getNewBondVector(self, length)
     } 
 
     static func correctedBondRad(_ ele: Int, _ hyb: Int) -> Double {

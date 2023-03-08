@@ -36,9 +36,12 @@ extension Sequence where Iterator.Element: Hashable {
     }
 }
 
-extension Collection where Element: Equatable {
+extension Collection where Element: Equatable, Index: SignedInteger, Index.Stride: SignedInteger {
     public mutating func replace(_ element: Element, with new: Element) {
         self = self.map { $0 == element ? new : $0 } as! Self
+    }
+    public mutating func replaceInRange(_ range: ClosedRange<Index>, _ element: Element, with new: Element) {
+        self = self[range.lowerBound...range.upperBound].map { $0 == element ? new : $0 } as! Self
     }
 }
 
