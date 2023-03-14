@@ -30,12 +30,24 @@ enum from_or_towrds: Equatable {
     }
     
     var refValue: Ref {
-        switch self {
-        case .from(let ref):
-            return ref
-        case .towards(let ref):
-            return ref
+        get {
+            switch self {
+            case .from(let ref):
+                return ref
+            case .towards(let ref):
+                return ref
+            }
         }
+        
+        set {
+            switch self {
+            case .from(var ref):
+                ref = newValue
+            case .towards(var ref):
+                ref = newValue
+            }
+        }
+        
     }
     
     static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {

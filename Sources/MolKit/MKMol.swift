@@ -32,7 +32,7 @@ public let OB_PERIODIC_MOL: UInt = 1<<23
 
 // Flags 24-32 are unspecified 
 
-public let OB_CURRENT_CONFORMER	= -1
+public let MK_CURRENT_CONFORMER	= -1
 
 enum HydrogenType: Int {
     case AllHydrogen = 0
@@ -49,6 +49,13 @@ let alphabetical: [Int] = [ 89, 47, 13, 95, 18, 33, 85, 79, 5, 56, 4, 107, 83, 9
                             61, 84, 59, 78, 94, 88, 37, 75, 104, 111, 45, 86, 44, 16, 51, 21, 34, 106, 14,
                             62, 50, 38, NumElements, 73, 65, 43, 52, 90, 22, 81, 69, 117, 92, 23, 74, 54, 39, 70,
                             30, 40 ]
+
+// Periodic table block for element (1=s, 2=p, 3=d, 4=f)
+private let BLOCKS: [Int] = [0,1,2,1,1,2,2,2,2,2,2,1,1,2,2,2,2,2,2,1,1,3,3,3,3,3,3,3,3,3,
+                             3,2,2,2,2,2,2,1,1,3,3,3,3,3,3,3,3,3,3,2,2,2,2,2,2,1,1,4,4,4,
+                             4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,2,2,2,2,2,2,1,1,4,
+                             4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3]
+
 
 class MKMol: MKBase, Copying {
     
@@ -77,6 +84,10 @@ class MKMol: MKBase, Copying {
     
     private var _nbonds: Int {
         return _vbond.count
+    }
+
+    private var _nresidues: Int {
+        return _residue.count
     }
     
     private func incrementMod() { self._mod += 1 }
@@ -165,6 +176,10 @@ class MKMol: MKBase, Copying {
     
     func getBondIterator() -> MKIterator<MKBond> {
         return MKIterator<MKBond>(self._vbond)
+    }
+    
+    func getResidueIterator() -> MKIterator<MKResidue> {
+        return MKIterator<MKResidue>(self._residue)
     }
     
     //! Returns a pointer to the bond after a safety check
@@ -455,12 +470,15 @@ class MKMol: MKBase, Copying {
         self._totalSpin = spin
     }
 
-    func setInteralCoord(_ int_coord: [MKInternalCoord]) {
+    func setInternalCoord(_ int_coord: [MKInternalCoord]) {
         // The original implementation adds a nullptr to the start of the internal coordinate array
         // TODO: Let's see what happens if we only stick to number of atoms 
-
-        if int_coord.count != self.numAtoms() {
-            print("Error: Internal coordinate array size does not match number of atoms")
+        // if (int_coord[0] != nullptr) {
+        //     std::vector<OBInternalCoord*>::iterator it = int_coord.begin();
+        //     int_coord.insert(it, nullptr);
+        // }
+        if int_coord.count != _natoms + 1 {
+            print("ERROR: Internal coordinate array size does not match number of atoms")
             return
         }
 
@@ -610,6 +628,10 @@ class MKMol: MKBase, Copying {
     
     func numBonds() -> Int {
         return self._vbond.count
+    }
+
+    func numResidues() -> Int {
+        return self._residue.count
     }
 
     func automaticPartialCharge() -> Bool {
@@ -764,7 +786,8 @@ class MKMol: MKBase, Copying {
 //! \brief Add an atom to a molecule
 //!
 //! Also checks bond_queue for any bonds that should be made to the new atom
-    func addAtom(_ atom: MKAtom, _ forceNewId: Bool) -> Bool {
+    @discardableResult
+    func addAtom(_ atom: MKAtom, _ forceNewId: Bool = false) -> Bool {
         //    BeginModify();
         // Use the existing atom Id unless either it's invalid or forceNewId has been specified
         var id: MKBaseID
@@ -853,7 +876,8 @@ class MKMol: MKBase, Copying {
         
         return true
     }
-
+    
+    @discardableResult
     func addBond(_ bond: MKBond) -> Bool {
         if !self.addBond(bond.getBeginAtomIdx(), bond.getEndAtomIdx(), Int(bond.getBondOrder()), Int(bond.getFlags())) {
             return false
@@ -875,7 +899,8 @@ class MKMol: MKBase, Copying {
         return true
     }
 
-    func addResidue(_ residue: MKResidue) -> Bool{
+    @discardableResult
+    func addResidue(_ residue: MKResidue) -> Bool {
         self.beginModify()
         residue.setIdx(self._residue.count)
         self._residue.append(residue)
@@ -1266,7 +1291,7 @@ class MKMol: MKBase, Copying {
                         res.setAtomID(h, aname)
                         //hydrogen should inherit hetatm status of heteroatom (default is false)
                         if res.isHetAtom(atom) {
-                            res.setHtmAtom(h, true)
+                            res.setHetAtom(h, true)
                         }
                     }
                     
@@ -1349,14 +1374,19 @@ class MKMol: MKBase, Copying {
             
             if dataType == .CisTrans {
                 let ct = (dat as? MKCisTransStereo)
-                let _: MKCisTransStereo.Config? = ct?.getConfig()
-//                let ct_cfg = ct.getConfig()
-//                TODO: IMPL
+                guard let ct_cfg: MKCisTransStereo.Config = ct?.getConfig() else { continue }
+                if ct_cfg.begin == atomId || ct_cfg.end == atomId || ct_cfg.refs.contains(atomId) {
+                    mol.deleteData(dat)
+                }
             } else if dataType == .Tetrahedral {
-//                TODO: IMPL
+                let tet = (dat as? MKTetrahedralStereo)
+                guard let tet_cfg: MKTetrahedralStereo.Config = tet?.getConfig() else { continue }
+                // TODO: do we check 'to' values as well?
+                if case let .from(val) = tet_cfg.from_or_towrds, val == atomId || tet_cfg.refs.contains(atomId) {
+                    mol.deleteData(dat)
+                }
             }
         }
-        
     }
     
     //    MARK: HAS/IS Functions
@@ -1485,8 +1515,8 @@ class MKMol: MKBase, Copying {
     }
 
     //! Set the dimension of this molecule (i.e., 0, 1 , 2, 3)
-    func setDimension(_ dim: UInt16) {
-        self._dimension = dim
+    func setDimension(_ dim: Int) {
+        self._dimension = UInt16(dim)
     }
 
     //! Set the flag for determining automatic formal charges with pH (default=true)
@@ -1577,7 +1607,7 @@ class MKMol: MKBase, Copying {
 
     //! Mark that distance calculations, etc., should apply periodic boundary conditions through the minimimum image convention.
     //! Does not automatically recalculate bonding.
-    func setPeriodicMol(_ value: Bool) {
+    func setPeriodicMol(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_PERIODIC_MOL, value)
     }
     
@@ -1585,6 +1615,11 @@ class MKMol: MKBase, Copying {
         if i < self._vconf.count {
             self._c = self._vconf[i].compactMap({ $0 })
         }
+    }
+
+    func setConformers(_ v: [[Double]]) {
+        self._vconf = v
+        self._c = _vconf.isEmpty ? [] : _vconf[0].compactMap({ $0 })
     }
 
     func setCoordinates(_ newCoords: Array<Double>) {
@@ -1604,6 +1639,21 @@ class MKMol: MKBase, Copying {
         }
     }
     
+    func copyConformer(_ c: inout [Double], _ i: Int) {
+        if i < self._vconf.count {
+            c = self._vconf[i].compactMap({ $0 })
+        } else {
+            print("Warning: copyConformer() index out of range")
+        }
+    }
+    
+    func deleteConformer(_ idx: Int) {
+        if idx < 0 || idx >= _vconf.count {
+            return
+        }
+        _vconf.remove(at: idx)
+    }
+
     //! Renumber the atoms according to the order of indexes in the supplied vector
     //! This with assemble an atom vector and call RenumberAtoms(vector<OBAtom*>)
     //! It will return without action if the supplied vector is empty or does not
@@ -1704,7 +1754,77 @@ class MKMol: MKBase, Copying {
         //other things to check?
         return true
     }
+    
+    // returns 0 if not in ring, else, returns the size of ring they are in
+    func areInSameRing(_ a: MKAtom, _ b: MKAtom) -> Int {
+        let vr = getLSSR()
+        var a_in: Bool
+        var b_in: Bool
+        for i in vr {
+            // Go through the path of the ring and see if a and/or b match
+            // each node in the path
+            a_in = false
+            b_in = false
+            for j in i._path {
+                if j == a.getIdx() { a_in = true }
+                if j == b.getIdx() { b_in = true }
+            }
+            if a_in && b_in {
+                return i.size()
+            }
+        }
+        return 0
+    }
 
+    static func classCount(_ vp: inout [Pair<MKAtom, Int>], _ count: inout Int) {
+        count = 0
+        vp.sort { $0.1 < $1.1 }
+        let k = MKIterator(vp)
+        if k.curr != nil {
+            var id = k.curr!.1
+            k.curr!.1 = 0
+            k += 1
+            for var vp_k in k {
+                if vp_k.1 != id {
+                    id = vp_k.1
+                    count += 1
+                    vp_k.1 = count
+                } else {
+                    vp_k.1 = count
+                }
+            }
+            count += 1
+        } else {
+            // [ejk] thinks count=0 might be OK for an empty list, but orig code did
+            //++count;
+            count += 1
+        }
+    }
+    
+    //! creates a new vector of symmetry classes base on an existing vector
+    //! helper routine to GetGIDVector
+    static func createNewClassVector(_ vp1: inout [Pair<MKAtom, Int>], _ vp2: inout [Pair<MKAtom, Int>]) {
+        var m: Int
+        var id: Int
+        vp1.sort { $0.0.getIdx() < $1.0.getIdx() }
+        vp2.removeAll()
+        for i in vp1 {
+            var vtmp: [Int] = []
+            for nbr in i.0.getNbrAtomIterator()! {
+                // TODO: Is this going to be off by ?
+                vtmp.append(vp1[nbr.getIdx() - 1].1)
+            }
+            vtmp.sort()
+            id = i.1
+            m = 100
+            for k in vtmp {
+                id += k * m
+                m *= 100
+            }
+            vp2.append((i.0, id))
+        }
+    }
+    
 //    MARK: FIND Functions
     
     //! locates all atoms for which there exists a path to 'end'
@@ -2757,11 +2877,127 @@ class MKMol: MKBase, Copying {
         a1.setVector(p1)
     }
     
+    func center() {
+        for i in 0..<numConformers() {
+            self.center(i)
+        }
+    }
+
+    @discardableResult
+    func center(_ nconf: Int) -> Vector<Double> {
+
+        self.setConformer(nconf)
+
+        var x: Double = 0.0
+        var y: Double = 0.0
+        var z: Double = 0.0
+
+        for atom in self.getAtomIterator() {
+            x += atom.getX()
+            y += atom.getY()
+            z += atom.getZ()
+        }
+
+        x /= Double(self.numAtoms())
+        y /= Double(self.numAtoms())
+        z /= Double(self.numAtoms())
+
+        let v: Vector<Double> = Vector<Double>.init(scalars: [x,y,z])
+        var vtmp: Vector<Double>
+        for atom in self.getAtomIterator() {
+            vtmp = atom.getVector() - v
+            atom.setVector(vtmp)
+        }
+
+        return v
+    }
+
+    /*! this method adds the vector v to all atom positions in all conformers */
+    func translate(_ v: Vector<Double>) {
+        for i in 0..<numConformers() {
+            self.translate(v, i)
+        }
+    }
+    /*! this method adds the vector v to all atom positions in the
+    conformer nconf. If nconf == OB_CURRENT_CONFORMER, then the atom
+    positions in the current conformer are translated. */
+    func translate(_ v: Vector<Double>, _ nconf: Int) {
+        var c: [Double] = []
+        if nconf == MK_CURRENT_CONFORMER {
+            c = self._c
+        } else {
+            c = self.getConformer(nconf)
+        }
+        let x = v.x
+        let y = v.y
+        let z = v.z
+        let size = numAtoms()
+        for i in 0..<size {
+            c[(i*3)] += x
+            c[(i*3)+1] += y
+            c[(i*3)+2] += z
+        }
+    }
+
     func toInertialFrame() {
         for conf in 0..<self.numConformers() {
             self.toInertialFrame(conf)
         }
     }
+
+
+    func rotate(_ m: Matrix<Double>) {
+        for i in 0..<numConformers() {
+            self.rotate(m, i)
+        }
+    }
+
+
+    func rotate(_ m: Matrix<Double>, _ nconf: Int) {
+        var c: [Double] = []
+        if nconf == MK_CURRENT_CONFORMER {
+            c = self._c
+        } else {
+            c = self.getConformer(nconf)
+        }
+        let size = numAtoms()
+        var x, y, z: Double
+        for i in 0..<size {
+            x = c[(i*3)]
+            y = c[(i*3)+1]
+            z = c[(i*3)+2]
+            c[(i*3)]   = m[0,0] * x + m[0,1] * y + m[0,2] * z
+            c[(i*3)+1] = m[1,0] * x + m[1,1] * y + m[1,2] * z
+            c[(i*3)+2] = m[2,0] * x + m[2,1] * y + m[2,2] * z
+        }
+    }
+
+
+    func setEnergies(_ energies: [Double]) {
+        if !hasData(.ConformerData) {
+            setData(MKConformerData())
+        }
+        let cd = getData(.ConformerData) as? MKConformerData
+        cd?.setEnergies(energies)
+    }
+    
+    func getEnergies() -> [Double] {
+        if !hasData(.ConformerData) {
+            setData(MKConformerData())
+        }
+        let cd = getData(.ConformerData) as? MKConformerData
+        return cd?.getEnergies() ?? []
+    }
+
+    func getEnergy(_ ci: Int = 0) -> Double {
+        if !hasData(.ConformerData) {
+            setData(MKConformerData())
+        }
+        let cd = getData(.ConformerData) as? MKConformerData
+        return cd?.getEnergies()[ci] ?? 0.0
+    }
+
+
     
     func toInertialFrame(_ conf: Int) {
         
@@ -2835,6 +3071,12 @@ class MKMol: MKBase, Copying {
         return true
     }
 
+    func numRotors(_ sampleRingBonds: Bool) -> Int {
+        let rl: MKRotorList = MKRotorList()
+        rl.findRotors(self, sampleRingBonds)
+        return rl.size()
+    }
+
     //! \brief set spin multiplicity for H-deficient atoms
       /**
          If NoImplicitH is true then the molecule has no implicit hydrogens. Individual atoms
@@ -2854,7 +3096,8 @@ class MKMol: MKBase, Copying {
         // TODO: The following functions simply returns true, as it has been made
         // redundant by changes to the handling of implicit hydrogens, and spin.
         // This needs to be sorted out properly at some point.
-        return true
+         return true
+//        fatalError()
     }
     
     // Put the specified molecular charge on a single atom (which is expected for InChIFormat).
@@ -2905,18 +3148,728 @@ class MKMol: MKBase, Copying {
       S(=O)(=O)([O])[O] -2   S(=O)(=O)([O-])[O-]
       [NH4].[Cl]         0   [NH4+].[Cl-]
       */
+    // TODO: Make sure this works properly ^^^
+
+    //Converts for instance [N+]([O-])=O to N(=O)=O
+    func convertDativeBonds() -> Bool {
+        //Look for + and - charges on adjacent atoms
+        var converted: Bool = false
+        for patom in self.getAtomIterator() {
+            guard patom.getFormalCharge() != 0 else { continue }
+            for pbond in self.getBondIterator() {
+                let pNbrAtom = pbond.getNbrAtom(patom)
+                var chrg1 = patom.getFormalCharge()
+                var chrg2 = pNbrAtom.getFormalCharge()
+                if (chrg1 > 0 && chrg2 < 0) || (chrg1 < 0 && chrg2 > 0) {
+                    //dative bond. Reduce charges and increase bond order
+                    converted = true
+                    if chrg1 > 0 {
+                        chrg1 -= 1
+                    } else {
+                        chrg1 += 1
+                    }
+                    patom.setFormalCharge(chrg1)
+                    if chrg2 > 0 {
+                        chrg2 -= 1
+                    } else {
+                        chrg2 += 1
+                    }
+                    pNbrAtom.setFormalCharge(chrg2)
+                    pbond.setBondOrder(pbond.getBondOrder() + 1)
+                }
+            }
+        }
+        return converted // true if any bonds were converted
+    }
+    
+    // may be better to use smirks from a datafile, although not sure what smirks are?
+    func makeDativeBonds() -> Bool {
+        //! Converts 5-valent N to charged form of dative bonds,
+        //! e.g. -N(=O)=O converted to -[N+]([O-])=O. Returns true if conversion occurs.
+        beginModify()
+        var converted: Bool = false
+        
+        for patom in self.getAtomIterator() { // for all atoms 
+            if patom.getAtomicNum() == MKElements.Nitrogen.atomicNum &&  // || patom->GetAtomicNum() == OBElements::Phosphorus) not phosphorus!
+            patom.getExplicitValence() == 5 || (patom.getExplicitValence() == 4 && patom.getFormalCharge() == 0) {
+                // Find the bond to be modified. Prefer a bond to a hetero-atom,
+                // and the highest order bond if there is a choice.
+                var bestBond: MKBond? = nil
+                for bond in patom.getBondIterator()! {
+                    if bestBond == nil {
+                        bestBond = bond
+                    }
+                    let bo: Int = Int(bond.getBondOrder())
+                    if bo >= 2 && bo <= 4 {
+                        let het: Bool = isNotCorH(bond.getNbrAtom(patom))
+                        let oldhet: Bool = isNotCorH(bestBond!.getNbrAtom(patom))
+                        let higherorder: Bool = bo > bestBond!.getBondOrder()
+                        if ((het && !oldhet) || (((het && oldhet) || (!het && !oldhet)) && higherorder)) {
+                            bestBond = bond
+                        }
+                    }
+                }
+                // make the charged form 
+                guard bestBond != nil else {
+                    fatalError("Cannot find bond to modify")
+                } 
+                bestBond!.setBondOrder(bestBond!.getBondOrder() - 1)
+                patom.setFormalCharge(1)
+                bestBond!.getNbrAtom(patom).setFormalCharge(-1)
+                converted = true
+            }
+        }
+        endModify()
+        return converted
+    }
+    
+    /**
+       *  This function is useful when writing to legacy formats (such as MDL MOL) that do
+       *  not support zero-order bonds. It is worth noting that some compounds cannot be
+       *  well represented using just single, double and triple bonds, even with adjustments
+       *  to adjacent charges. In these cases, simply converting zero-order bonds to single
+       *  bonds is all that can be done.
+       *
+       @verbatim
+       Algorithm from:
+       Clark, A. M. Accurate Specification of Molecular Structures: The Case for
+       Zero-Order Bonds and Explicit Hydrogen Counting. Journal of Chemical Information
+       and Modeling, 51, 3149-3157 (2011). http://pubs.acs.org/doi/abs/10.1021/ci200488k
+       @endverbatim
+      */
+    func convertZeroBonds() -> Bool {
+        // TODO: Option to just remove zero-order bonds entirely
+
+        // TODO: Is it OK to not wrap this in BeginModify() and EndModify()?
+        // If we must, I think we need to manually remember HasImplicitValencePerceived and
+        // re-set it after EndModify()
+        
+        var converted: Bool = false
+        
+        // Get contiguous fragments of molecule
+        var cfl: [[Int]] = []
+        contigFragList(&cfl)
+        
+        // iterate over contiguous fragments
+        for i in cfl {
+            // Get all zero-order bonds in contiguous fragment
+            var bonds: [MKBond] = []
+            for j in i {
+                for b in getAtom(j)!.getBondIterator()! {
+                    if b.getBondOrder() == 0 && !(bonds.contains(b)) {
+                        bonds.append(b)
+                    }
+                }
+            }
+            // Convert zero-order bonds
+            while bonds.count > 0 {
+                // pick a bond using scoring system
+                var bi: Int = 0
+                if bonds.count > 1 {
+                    var scores: [Int] = [Int].init(repeating: 0, count: bonds.count)
+                    for n in 0..<bonds.count {
+                        let bgn = bonds[n].getBeginAtom()
+                        let end = bonds[n].getEndAtom()
+                        var score: Int = 0
+                        score += bgn.getAtomicNum() + end.getAtomicNum()
+                        score += abs(bgn.getFormalCharge()) + abs(end.getFormalCharge())
+                        let lb: Pair<Int, Int> = bgn.lewisAcidBaseCounts()
+                        let le: Pair<Int, Int> = end.lewisAcidBaseCounts()
+                        if lb.0 > 0 && lb.1 > 0 && le.0 > 0 && le.1 > 0 {
+                            score += 100 // both atoms are Lewis acids *and* lewis bases
+                        } else if ((lb.0 > 0 && le.1 > 0) || (lb.1 > 0 && le.0 > 0)) { // pretty sure this is supposed to be '||', original was '&&'
+                            score -= 1000 // Lewis acid/base direction is mono-directional
+                        }
+                        var bcount = Int(bgn.getImplicitHCount())
+                        bcount += bgn.getNumBonds() ?? 0
+                        var ecount = Int(end.getImplicitHCount())
+                        ecount += end.getNumBonds() ?? 0
+                        if bcount == 1 || ecount == 1 {
+                            score -= 10 // if the start or end atoms have only 1 neighbor
+                        }
+                        scores[n] = score
+                    }
+                    for n in 1..<scores.count {
+                        if scores[n] < scores[bi] {
+                            bi = n
+                        }
+                    }
+                }
+                let bond: MKBond = bonds[bi]
+                bonds.remove(at: bi)
+                let bgn: MKAtom = bond.getBeginAtom()
+                let end: MKAtom = bond.getEndAtom()
+                let blockb: Int = BLOCKS[bgn.getAtomicNum()]
+                let blocke: Int = BLOCKS[end.getAtomicNum()]
+                let lb: Pair<Int, Int> = bgn.lewisAcidBaseCounts()
+                let le: Pair<Int, Int> = end.lewisAcidBaseCounts()
+                var chg: Int = 0 // Amount to adjust atom charges
+                var ord: Int = 1 // New bond order
+                if lb.0 > 0 && lb.1 > 0 && le.0 > 0 && le.1 > 0 {
+                    ord = 2 // both atoms are amphoteric, so turn it into a double bond
+                } else if lb.0 > 0 && blockb == 2 && blocke >= 3 {
+                    ord = 2 // p-block lewis acid with d/f-block element: make into double bond
+                } else if le.0 > 0 && blocke == 2 && blockb >= 3 {
+                    ord = 2 // p-block lewis acid with d/f-block element: make into double bond
+                } else if lb.0 > 0 && le.1 > 0 {
+                    chg = -1 // lewis acid/base goes one way only; charge separate it
+                } else if lb.1 > 0 && le.0 > 0 {
+                    chg = 1 // no matching capacity; do not charge separate
+                }
+                // adjust bond order and atom charges accordingly
+                bgn.setFormalCharge(bgn.getFormalCharge() + chg)
+                end.setFormalCharge(end.getFormalCharge() - chg)
+                bond.setBondOrder(UInt(ord))
+                converted = true
+            }
+        }
+        
+        return converted
+    }
+    
+    
+    // TODO: ensure that this works?
+    func separate(_ startIndex: Int) -> [MKMol] {
+        var result: [MKMol] = []
+        if numAtoms() == 0 {
+            return result // nothing to do, but let's prevent a crash
+        }
+        let iter: MKAtomDFSIterator = MKAtomDFSIterator(self, startIndex)
+        let newmol: MKMol = MKMol()
+        while getNextFragment(iter, newmol) {
+            result.append(newmol)
+            newmol.clear()
+        }
+        return result
+    }
+    
+    //! \brief Copy part of a molecule to another molecule
+      /**
+      This function copies a substructure of a molecule to another molecule. The key
+      information needed is an OBBitVec indicating which atoms to include and (optionally)
+      an OBBitVec indicating which bonds to exclude. By default, only bonds joining
+      included atoms are copied.
+
+      When an atom is copied, but not all of its bonds are, by default hydrogen counts are
+      adjusted to account for the missing bonds. That is, given the SMILES "CF", if we
+      copy the two atoms but exclude the bond, we will end up with "C.F". This behavior
+      can be changed by specifiying a value other than 1 for the \p correctvalence parameter.
+      A value of 0 will yield "[C].[F]" while 2 will yield "C*.F*" (see \p correctvalence below
+      for more information).
+
+      Aromaticity is preserved as present in the original OBMol. If this is not desired,
+      the user should call OBMol::SetAromaticPerceived(false) on the new OBMol.
+
+      Stereochemistry is only preserved if the corresponding elements are wholly present in
+      the substructure. For example, all four atoms and bonds of a tetrahedral stereocenter
+      must be copied.
+
+      Residue information is preserved if the original OBMol is marked as having
+      its residues perceived. If this is not desired, either call
+      OBMol::SetChainsPerceived(false) in advance on the original OBMol to avoid copying
+      the residues (and then reset it afterwards), or else call it on the new OBMol so
+      that residue information will be reperceived (when requested).
+
+      Here is an example of using this method to copy ring systems to a new molecule.
+      Given the molecule represented by the SMILES string, "FC1CC1c2ccccc2I", we will
+      end up with a new molecule represented by the SMILES string, "C1CC1.c2ccccc2".
+      \code{.cpp}
+      OBBitVec atoms(mol.NumAtoms() + 1); // the maximum size needed
+      FOR_ATOMS_OF_MOL(atom, mol) {
+        if(atom->IsInRing())
+          atoms.SetBitOn(atom->Idx());
+      }
+      OBBitVec excludebonds(mol.NumBonds()); // the maximum size needed
+      FOR_BONDS_OF_MOL(bond, mol) {
+        if(!bond->IsInRing())
+          excludebonds.SetBitOn(bond->Idx());
+      }
+      OBMol newmol;
+      mol.CopySubstructure(&newmol, &atoms, &excludebonds);
+      \endcode
+
+      When used from Python, note that "None" may be used to specify an empty value for
+      the \p excludebonds parameter.
+
+      \remark Some alternatives to using this function, which may be preferred in some
+              instances due to efficiency or convenience are:
+              -# Copying the entire OBMol, and then deleting the unwanted parts
+              -# Modifiying the original OBMol, and then restoring it
+              -# Using the SMILES writer option -xf to specify fragment atom idxs
+
+      \return A boolean indicating success or failure. Currently failure is only reported
+              if one of the specified atoms is not present, or \p atoms is a NULL
+              pointer.
+
+      \param newmol   The molecule to which to add the substructure. Note that atoms are
+                      appended to this molecule.
+      \param atoms    An OBBitVec, indexed by atom Idx, specifying which atoms to copy
+      \param excludebonds  An OBBitVec, indexed by bond Idx, specifying a list of bonds
+                           to exclude. By default, all bonds between the specified atoms are
+                           included - this parameter overrides that.
+      \param correctvalence  A value of 0, 1 (default) or 2 that indicates how atoms with missing
+                             bonds are handled:
+                            0 - Leave the implicit hydrogen count unchanged;
+                            1 - Adjust the implicit hydrogen count to correct for
+                                the missing bonds;
+                            2 - Replace the missing bonds with bonds to dummy atoms
+      \param atomorder Record the Idxs of the original atoms. That is, the first element
+                       in this vector will be the Idx of the atom in the original OBMol
+                       that corresponds to the first atom in the new OBMol. Note that
+                       the information is appended to this vector.
+      \param bondorder Record the Idxs of the original bonds. See \p atomorder above.
+
+      **/
+    func copySubstructure(_ newmol: MKMol, _ atoms: MKBitVec, _ excludedBonds: MKBitVec? = nil, _ correctValence: Int = 1, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?) -> Bool {
+        
+        let record_atomorder: Bool = atomOrder != nil
+        let record_bondorder: Bool = bondOrder != nil
+        let bonds_specified: Bool = excludedBonds != nil
+
+        newmol.setDimension(self.getDimension())
+
+        // If the parent is set to periodic, then also apply boundary conditions to the fragments
+        if isPeriodic() {
+            guard let parent_uc = getData(.UnitCell) as? MKUnitCell else {
+                fatalError("ERROR: cannot find unit cell data")
+            }
+            newmol.setData(parent_uc)
+            newmol.setPeriodicMol()
+        }
+
+        // // If the parent had aromaticity perceived, then retain that for the fragment
+        newmol.setFlag(_flags & OB_AROMATIC_MOL)
+        // // The fragment will preserve the "chains perceived" flag of the parent
+        newmol.setFlag(_flags & OB_CHAINS_MOL)
+        // // We will check for residues only if the parent has chains perceived already
+        let checkresidues: Bool = hasChainsPerceived()
+
+        // Now add the atoms
+        var AtomMap: [MKAtom: MKAtom] = [:] //key is from old mol; value from new mol
+        var bit: Int = atoms.firstBit()
+        repeat {
+            let atom = getAtom(bit)
+            if atom == nil {
+                return false
+            }
+            newmol.addAtom(atom!)
+            if record_atomorder {
+                atomOrder?.append(bit)
+            }
+            AtomMap[atom!] = newmol.getAtom(newmol.numAtoms())
+            bit = atoms.nextBit(bit)
+        } while bit != atoms.endBit()
+        
+        // add the residues
+        if checkresidues {
+            var ResidueMap: [MKResidue: MKResidue] = [:] // map from old to new
+            bit = atoms.firstBit()
+            repeat {
+                guard let atom = getAtom(bit) else { break }
+                if let res: MKResidue = atom.getResidue() {
+                    var newres: MKResidue
+                    if ResidueMap[res] == nil {
+                        newres = newmol.newResidue()
+                        newres.copyData(res)
+                        ResidueMap[res] = newres
+                    } else {
+                        newres = ResidueMap[res]!
+                    }
+                    let newatom = AtomMap[atom]!
+                    newres.addAtom(newatom)
+                    newres.setAtomID(newatom, res.getAtomID(atom))
+                    newres.setHetAtom(newatom, res.isHetAtom(atom))
+                    newres.setSerialNum(newatom, res.getSerialNum(atom))
+                }
+                bit = atoms.nextBit(bit)
+            } while bit != atoms.endBit()
+        }
+        
+        // Update Stereo
+        
+        if let stereoData: [MKGenericData] = getDataVector(.StereoData) {
+            for data in stereoData {
+                if (data as? MKStereoBase)?.getType() == .CisTrans {
+                    let ct: MKCisTransStereo = data as! MKCisTransStereo
+                    // Check that the entirety of this cistrans cfg occurs in this substructure
+                    let cfg = ct.getConfig()
+                    guard let begin: MKAtom = getAtomById(cfg.begin) else { break }
+                    if AtomMap[begin] == nil {
+                        continue
+                    }
+                    guard let end: MKAtom = getAtomById(cfg.end) else { break }
+                    if AtomMap[end] == nil {
+                        continue
+                    }
+                    var skip_cfg: Bool = true 
+                    if bonds_specified {
+                        for bond in begin.getBondIterator()! {
+                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                                skip_cfg = false
+                                break
+                            }
+                        }
+                        if skip_cfg { continue }
+                        for bond in end.getBondIterator()! {
+                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                                skip_cfg = false
+                                break
+                            }
+                        }
+                        if skip_cfg { continue }
+                    }
+                    for ri in cfg.refs {
+                        if ri != .ImplicitRef && AtomMap[getAtomById(ri)!] == nil {
+                            skip_cfg = true
+                            break
+                        }
+                    }
+                    if skip_cfg { continue }
+                    
+                    let newcfg: MKCisTransStereo.Config = MKCisTransStereo.Config()
+                    newcfg.specified = cfg.specified
+                    newcfg.begin = cfg.begin == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.begin)!]!.getId().ref
+                    newcfg.end = cfg.end == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.end)!]!.getId().ref
+                    var refs: [Ref] = []
+                    for ri in cfg.refs {
+                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId().ref
+                        refs.append(ref)
+                    }
+                    newcfg.refs = refs
+
+                    let newct = MKCisTransStereo(self)
+                    newct.setConfig(newcfg)
+                    newmol.setData(newct)
+                } else if (data as? MKStereoBase)?.getType() == .Tetrahedral {
+                    let tet: MKTetrahedralStereo = data as! MKTetrahedralStereo
+                    let cfg: MKTetrahedralStereo.Config = tet.getConfig()
+                    // Check that the entirety of this tetrahedral cfg occurs in this substructure
+                    guard let center: MKAtom = getAtomById(cfg.center) else { break }
+                    if AtomMap[center] == nil {
+                        continue
+                    }
+                    let centerit = AtomMap[center]!
+                    if case let .from(val) = cfg.from_or_towrds, val != .ImplicitRef && AtomMap[getAtomById(val)!] == nil {
+                        continue 
+                    }
+                    var skip_cfg: Bool = false 
+                    if bonds_specified {
+                        for bond in center.getBondIterator()! {
+                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                                skip_cfg = true
+                                break
+                            }
+                        }
+                    }
+                    if skip_cfg { continue }
+                    for ri in cfg.refs {
+                        if ri != .ImplicitRef && AtomMap[getAtomById(ri)!] == nil {
+                            skip_cfg = true
+                            break
+                        }
+                    }
+                    if skip_cfg { continue }
+
+                    var newcfg: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config()
+                    newcfg.specified = cfg.specified
+                    newcfg.center = centerit.getId().ref
+                    if case .from(let val) = cfg.from_or_towrds {
+                        newcfg.from_or_towrds = val == .ImplicitRef ? .from(.ImplicitRef) : .from(AtomMap[getAtomById(val)!]!.getId().ref)
+                    }
+                    
+                    var refs: [Ref] = []
+                    for ri in cfg.refs {
+                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId().ref
+                        refs.append(ref)
+                    }
+                    newcfg.refs = refs
+
+                    let newtet = MKTetrahedralStereo(self)
+                    newtet.setConfig(newcfg)
+                    newmol.setData(newtet)
+                }
+            }
+        }
+        
+        // Options:
+        // 1. Bonds that do not connect atoms in the subset are ignored
+        // 2. As 1. but implicit Hs are added to replace them
+        // 3. As 1. but asterisks are added to replace them
+        for bond in self.getBondIterator() {
+            let skipping_bond = bonds_specified && excludedBonds!.bitIsSet(Int(bond.getIdx()))
+            let beginAtom: MKAtom = bond.getBeginAtom()
+            let endAtom: MKAtom = bond.getEndAtom()
+            if AtomMap[beginAtom] == nil && AtomMap[endAtom] == nil {
+                continue
+            }
+
+            if AtomMap[beginAtom] == nil || AtomMap[endAtom] == nil || skipping_bond {
+                switch correctValence {
+                    case 1: 
+                        // if (posB == AtomMap.end() || (skipping_bond && posE != AtomMap.end()))
+                        //     posE->second->SetImplicitHCount(posE->second->GetImplicitHCount() + bond->GetBondOrder());
+                        // if (posE == AtomMap.end() || (skipping_bond && posB != AtomMap.end()))
+                        //     posB->second->SetImplicitHCount(posB->second->GetImplicitHCount() + bond->GetBondOrder());
+                        // break;
+                        if AtomMap[beginAtom] == nil || (skipping_bond && AtomMap[endAtom] != nil) {
+                            AtomMap[endAtom]!.setImplicitHCount(AtomMap[endAtom]!.getImplicitHCount() + bond.getBondOrder())
+                        }
+                        if AtomMap[endAtom] == nil || (skipping_bond && AtomMap[beginAtom] != nil) {
+                            AtomMap[beginAtom]!.setImplicitHCount(AtomMap[beginAtom]!.getImplicitHCount() + bond.getBondOrder())
+                        }
+                    case 2: 
+                        var atomB, atomE: MKAtom?
+                        if skipping_bond {
+                            for N in 0..<2 {
+                                atomB = nil 
+                                atomE = nil
+                                if N == 0 {
+                                    if AtomMap[beginAtom] != nil {
+                                        atomB = AtomMap[beginAtom]!
+                                        atomE = newmol.newAtom()
+                                        if record_atomorder {
+                                            atomOrder!.append(bond.getEndAtomIdx())
+                                        }
+                                    }
+                                } else if AtomMap[endAtom] != nil {
+                                    atomE = AtomMap[endAtom]!
+                                    atomB = newmol.newAtom()
+                                    if record_atomorder {
+                                        atomOrder!.append(bond.getBeginAtomIdx())
+                                    }
+                                }
+                                if atomB == nil || atomE == nil {
+                                    continue 
+                                }
+                                newmol.addBond(atomB!.getIdx(), atomE!.getIdx(), Int(bond.getBondOrder()), Int(bond.getFlags()))
+                                if record_bondorder {
+                                    bondOrder!.append(Int(bond.getIdx()))
+                                }
+                            }
+                        } else {
+                            atomB = (AtomMap[beginAtom] == nil) ? newmol.newAtom() : AtomMap[beginAtom]!
+                            atomE = (AtomMap[endAtom] == nil) ? newmol.newAtom() : AtomMap[endAtom]!
+                            if record_atomorder {
+                                if AtomMap[beginAtom] == nil {
+                                    atomOrder!.append(bond.getBeginAtomIdx())
+                                } else {
+                                    atomOrder!.append(bond.getEndAtomIdx())
+                                }
+                            }
+                            newmol.addBond(atomB!.getIdx(), atomE!.getIdx(), Int(bond.getBondOrder()), Int(bond.getFlags()))
+                            if record_bondorder {
+                                bondOrder!.append(Int(bond.getIdx()))
+                            }
+                        }
+                    default: break 
+                }
+            } else {
+                newmol.addBond(AtomMap[beginAtom]!.getIdx(), AtomMap[endAtom]!.getIdx(), Int(bond.getBondOrder()), Int(bond.getFlags()))
+                if record_bondorder {
+                    bondOrder!.append(Int(bond.getIdx()))
+                }
+            }
+        }
+
+        return true
+    }
+    
+    func getNextFragment(_ iter: MKAtomDFSIterator, _ newmol: MKMol) -> Bool {
+        if iter.isEmpty() { return false }
+        
+        // We want to keep the atoms in their original order rather than use
+        // the DFS order so just record the information first
+        let infragment: MKBitVec = MKBitVec(UInt32(self.numAtoms()+1))
+        repeat {
+            infragment.setBitOn(iter.current()!.getIdx())
+        } while iter.next() != nil
+        var atomO: [Int]? = nil
+        var bondO: [Int]? = nil
+        
+        return copySubstructure(newmol, infragment, nil, 1, &atomO, &bondO)
+    }
+    
     
     ///////////////////////////////////////////////////
     // Cannot override default assignment operator in Swift, maybe that is not bad thing?
-    
-    required init(instance: MKMol) {
-        super.init(instance)
+    // turns out it kinda sucks and means we need to implement more functions to work around it, one such function. This is confusing though since the real cloning function does not actually clone all of the features
+    required init(instance src: MKMol) {
+        super.init(src)
         // TODO: implement copying over attributes
+        clear()
+        beginModify();
+
+        _vatom.reserveCapacity(src.numAtoms())
+        _vatomIds.reserveCapacity(src.numAtoms())
+        _vbond.reserveCapacity(src.numBonds())
+        _vbondIds.reserveCapacity(src.numBonds())
+
+        for atom in src.getAtomIterator() {
+            addAtom(atom)
+        }
+        for bond in src.getBondIterator() {
+            addBond(bond)
+        }
+
+        _title  = src.getTitle()
+        _energy = src.getEnergy()
+        _dimension = UInt16(src.getDimension())
+        setTotalCharge(src.getTotalCharge()) //also sets a flag
+        setTotalSpinMultiplicity(src.getTotalSpinMultiplicity()) //also sets a flag
+
+        endModify() //zeros flags!
+
+        if (src.hasFlag(OB_PATTERN_STRUCTURE)) {
+            setFlag(OB_PATTERN_STRUCTURE)
+        }
+        if (src.hasFlag(OB_TSPIN_MOL)) {
+            setFlag(OB_TSPIN_MOL)
+        }
+        if (src.hasFlag(OB_TCHARGE_MOL)) {
+            setFlag(OB_TCHARGE_MOL)
+        }
+        if (src.hasFlag(OB_PCHARGE_MOL)) {
+            setFlag(OB_PCHARGE_MOL)
+        }
+        if (src.hasFlag(OB_PERIODIC_MOL)) {
+            setFlag(OB_PERIODIC_MOL)
+        }
+        if (src.hasFlag(OB_HYBRID_MOL)) {
+            setFlag(OB_HYBRID_MOL)
+        }
+        if (src.hasFlag(OB_AROMATIC_MOL)) {
+            setFlag(OB_AROMATIC_MOL)
+        }
+        if (src.hasFlag(OB_CHAINS_MOL)) {
+            setFlag(OB_CHAINS_MOL)
+        }
+        //this->_flags = src.GetFlags(); //Copy all flags. Perhaps too drastic a change
+        //Copy Residue information
+        let NumRes: Int = src.numResidues()
+        if (NumRes > 0) {
+            for k in 0..<NumRes {
+                let res = newResidue()
+                guard let src_res = src.getResidue(k) else { break }
+                res.copyData(src_res) //does not copy atoms
+                for src_atom in src_res.getAtomIterator() {
+                    guard let atom = getAtom(src_atom.getIdx()) else { continue }
+                    res.addAtom(atom)
+                    res.setAtomID(atom, src_res.getAtomID(src_atom))
+                    res.setHetAtom(atom, src_res.isHetAtom(src_atom))
+                    res.setSerialNum(atom, src_res.getSerialNum(src_atom))
+                }
+            }
+        }
+
+        //Copy conformer information
+        if (src.numConformers() > 1) {
+            var currConf: Int = -1
+            var conf: [[Double]] = []
+            for k in 0..<src.numConformers() {
+                let xyz = src.getConformer(k)
+                conf.append(xyz)
+                if src.getConformer(k) == src._c {
+                    currConf = k
+                }
+            }
+
+            setConformers(conf)
+            if currConf >= 0 && _vconf.count > 0 {
+                _c = _vconf[currConf]
+            }
+        }
+
+        //Copy all the OBGenericData, providing the new molecule, this,
+        //for those classes like OBRotameterList which contain Atom pointers
+        //OBGenericData classes can choose not to be cloned by returning NULL
+        if let src_data = src.getDataVector() {
+            for itr in src_data {
+                if let pCopiedData = itr.clone(self) {
+                    setData(pCopiedData)
+                } else {
+                    setData(itr)
+                }
+            }
+        }
+
+        if (src.hasChiralityPerceived()) { 
+            setChiralityPerceived()
+        }
     }
     
-    static public func += (lhs: inout MKMol, rhs: MKMol) {
-        // TODO: IMPLEMENT
-        // After implementing StereoBase and Peception class
+    static func += (lhs: MKMol, rhs: MKMol) {
+        lhs.beginModify()
+        let prevatms = lhs.numAtoms()
+        let extitle = rhs.getTitle()
+        if !extitle.isEmpty {
+            lhs._title += "_" + extitle
+        }
+        var correspondingId: [Ref: Ref] = [:]
+        for atom in rhs.getAtomIterator() {
+            lhs.addAtom(atom) // forceNewId=true (don't reuse the original Id)
+            let addedAtom = lhs.getAtom(lhs.numAtoms())!
+            correspondingId[atom.getId().ref] = addedAtom.getId().ref
+        }
+        correspondingId[.ImplicitRef] = .ImplicitRef
+        
+        for bond in rhs.getBondIterator() {
+            bond.setId(.NoId)
+            lhs.addBond(bond.getBeginAtomIdx() + prevatms, bond.getEndAtomIdx() + prevatms,
+                        Int(bond.getBondOrder()), Int(bond.getFlags()))
+        }
+        
+        // Now update all copied residues too
+        for residue in rhs.getResidueIterator() {
+            lhs.addResidue(residue)
+            for resAtom in residue.getAtomIterator() {
+                // This is the equivalent atom in our combined molecule
+                guard let atom = lhs.getAtom(resAtom.getIdx() + prevatms) else { break }
+                // So we add this to the last-added residue
+                // (i.e., what we just copied)
+                lhs._residue.last!.addAtom(atom)
+            }
+        }
+        
+        // Copy the stereo
+        if let vdata = rhs.getDataVector() {
+            for data in vdata {
+                let dataType: MKStereo.TType = (data as? MKStereoBase)!.getType()
+                if dataType == .CisTrans {
+                    let ct: MKCisTransStereo = (data as? MKCisTransStereo)!
+                    let nct = MKCisTransStereo(lhs)
+                    let ct_cfg = ct.getConfig()
+                    ct_cfg.begin = correspondingId[ct_cfg.begin]!
+                    ct_cfg.end = correspondingId[ct_cfg.end]!
+                    for var ri in ct_cfg.refs {
+                        ri = correspondingId[ri]!
+                    }
+                    nct.setConfig(ct_cfg)
+                    lhs.setData(nct)
+                } else if dataType == .Tetrahedral {
+                    let ts: MKTetrahedralStereo = (data as? MKTetrahedralStereo)!
+                    let nts = MKTetrahedralStereo(lhs)
+                    var ts_cfg = ts.getConfig()
+                    ts_cfg.center = correspondingId[ts_cfg.center]!
+                    // This should retain the stereochem from the rhs side and reassign the ref value to the new value
+                    ts_cfg.from_or_towrds.refValue = correspondingId[ts_cfg.from_or_towrds.refValue]!
+                    for var ri in ts_cfg.refs {
+                        ri = correspondingId[ri]!
+                    }
+                    nts.setConfig(ts_cfg)
+                    lhs.setData(nts)
+                }
+            }
+        }
+        
+        // TODO: This is actually a weird situation (e.g., adding a 2D mol to 3D one)
+        // We should do something to update the src coordinates if they're not 3D
+        if(rhs.getDimension() < lhs.getDimension()) {
+            lhs.setDimension(rhs.getDimension())
+        }
+        // TODO: Periodicity is similarly weird (e.g., adding nonperiodic data to
+        // a crystal, or two incompatible lattice parameters).  For now, just assume
+        // we intend to keep the lattice of the source (no updates necessary)
+        lhs.endModify()
     }
     
     static func classDescription() -> String {

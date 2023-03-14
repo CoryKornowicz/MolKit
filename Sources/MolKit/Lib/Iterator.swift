@@ -18,6 +18,16 @@ public class MKIterator<T>: IteratorProtocol, Sequence {
         self.collection = collection
     }
 
+    var curr: T? {
+        get {
+            index < collection.count ? collection[index] : nil
+        }
+        set {
+            guard newValue != nil else { return }
+            collection[index] = newValue!
+        }
+    }
+    
     public func next() -> T? {
         defer { index += 1 }
         return index < collection.count ? collection[index] : nil
@@ -25,6 +35,14 @@ public class MKIterator<T>: IteratorProtocol, Sequence {
     
     public func append(_ newElement: T) {
         self.collection.append(T.self as! T)
+    }
+    
+    static func += (_ lhs: MKIterator<T>, _ rhs: Int) {
+        lhs.index += rhs
+    }
+    
+    static func -= (_ lhs: MKIterator<T>, _ rhs: Int) {
+        lhs.index -= rhs
     }
     
 }
@@ -97,6 +115,10 @@ public class MKAtomDFSIterator: IteratorProtocol {
             }
         }
     }
+    
+    func current() -> MKAtom? {
+        return self._ptr
+    }
 
     public func next() -> MKAtom? {
         defer {
@@ -124,7 +146,15 @@ public class MKAtomDFSIterator: IteratorProtocol {
         }
         
         return self._ptr
-    }    
+    }
+    
+    func getIdx() -> Int? {
+        return self._ptr?.getIdx()
+    }
+    
+    func isEmpty() -> Bool {
+        return self._ptr == nil
+    }
 }
 
 //public class MKBFSIterator<T>: IteratorProtocol, Sequence {

@@ -163,7 +163,7 @@ public class MKGenericData: NSObject {
         }
     }
 
-    init(_ attr: String?, _ type: MKGenericDataType?, _ source: DataOrigin?) {
+    init(_ attr: String? = "undefined", _ type: MKGenericDataType? = .UndefinedData, _ source: DataOrigin? = .any) {
         self._attr = attr ?? "Undefined"
         self._type = type ?? MKGenericDataType.UndefinedData
         self._source = source ?? DataOrigin.any 
@@ -182,7 +182,7 @@ public class MKGenericData: NSObject {
     }
     
     func clone<T: MKBase>(_ mol: T) -> MKGenericData? {
-        return nil
+        return self
     }
     
 }
@@ -791,6 +791,54 @@ public class MKConformerData: MKGenericData {
 
     public init() {
         super.init("Conformers", .ConformerData, .local)
+    }
+    
+    func getData() -> [String] {
+        return self.vData
+    }
+
+    func setData(_ vdat: [String]) {
+        self.vData = vdat
+    }
+    
+    func setEnergies(_ vdat: [Double]) {
+        self.vEnergies = vdat
+    }
+
+    func getEnergies() -> [Double] {
+        return self.vEnergies
+    }
+    
+    func setForces(_ vdat: [[Vector<Double>]]) {
+        self.vForces = vdat
+    }
+
+    func getForces() -> [[Vector<Double>]] {
+        return self.vForces
+    }
+
+    func setVelocity(_ vdat: [[Vector<Double>]]) {
+        self.vVelocity = vdat
+    }
+
+    func getVelocity() -> [[Vector<Double>]] {
+        return self.vVelocity
+    }
+
+    func setDisplace(_ vdat: [[Vector<Double>]]) {
+        self.vDisplace = vdat
+    }
+
+    func getDisplace() -> [[Vector<Double>]] {
+        return self.vDisplace
+    }
+
+    func setDimension(_ vdat: [Int]) {
+        self.vDimension = vdat
+    }
+
+    func getDimension() -> [Int] {
+        return self.vDimension
     }
 }
 

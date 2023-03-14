@@ -311,6 +311,10 @@ public class MKAtom: MKBase {
         return MKIterator<MKBond>(bonds)
     }
     
+    func getNumBonds() -> Int? {
+        return self._vbond?.count
+    }
+    
     func clearCoordPtr() {
         self._c = []
         self._cidx = 0
@@ -338,7 +342,7 @@ public class MKAtom: MKBase {
     func getResidue() -> MKResidue? {
         if let mol: MKMol = (self._parent as? MKMol) {
             if !mol.hasChainsPerceived() {
-                MKChainsParser.sharedInstance.perceiveChains(mol)
+                MolKit._ChainsParser.perceiveChains(mol)
             }
             return self._residue!
         } else if self.hasResidue() { 

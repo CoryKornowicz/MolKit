@@ -404,6 +404,11 @@ class MKRotor {
     func removeSymTorsionValues(_ i: Int) {}
 }
 
+
+func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: MKBitVec) -> Bool {
+    fatalError()
+}
+
  /**
    * @class OBRotorList rotor.h <openbabel/rotor.h>
    * @brief Given an OBMol, set up a list of possibly rotatable torsions,
@@ -441,8 +446,43 @@ class MKRotorList {
      * this function will return true if the bond and at least one neighboring
      * bond has fixed atoms.
      */
-    func isFixed(_ bond: MKBond) -> Bool {
-        return false
+    func isFixedBond(_ bond: MKBond) -> Bool {
+        if _fixedatoms.isEmpty() && _fixedbonds.isEmpty() {
+            return false
+        }
+
+        // new fixed bonds
+        if !_fixedbonds.isEmpty() {
+            return _fixedbonds.bitIsSet(Int(bond.getIdx()))
+        }
+
+        if _fixedatoms.isEmpty() {
+            return false
+        }
+
+        let a1 = bond.getBeginAtom()
+        let a2 = bond.getEndAtom()
+        if !_fixedatoms[a1.getIdx()] || !_fixedatoms[a2.getIdx()] {
+            return false
+        }
+        var isfixed: Bool = false 
+        for a3 in a1.getNbrAtomIterator()! {
+            if a3 != a2 && _fixedatoms[a3.getIdx()] {
+                isfixed = true
+                break
+            }
+        }
+        if !isfixed {
+            return false 
+        }
+        isfixed = false
+        for a3 in a2.getNbrAtomIterator()! {
+            if a3 != a1 && _fixedatoms[a3.getIdx()] {
+                isfixed = true
+                break
+            }
+        }
+        return isfixed
     }
 
     /**
@@ -455,7 +495,7 @@ class MKRotorList {
     //! Rotates each bond to zero and 180 degrees and tests
     //! if the 2 conformers are duplicates.  if so - the symmetric torsion
     //! values are removed from consideration during a search
-    func removeSymTorsionValues(_ mol: MKMol) {}
+    func removeSymVals(_ mol: MKMol) {}
 
     /**
      * @return True if this rotor list has any ring bonds.
@@ -473,8 +513,29 @@ class MKRotorList {
      * @param sampleRings Whether to sample ring conformers - default = false
      * @return True if rotatable bonds were found.
      */
-    func setup(_ mol: MKMol, _ sampleRings: Bool = false) -> Bool {
-        
+    func setup(_ mol: MKMol, _ sampleRingBonds: Bool = false) -> Bool {
+        clear()
+        // find the roatable bonds 
+        findRotors(mol, sampleRingBonds)
+        if size() == 0 {
+            return false
+        }
+        // set the atoms that should be evaluated when this rotor changes
+        setEvalAtoms(mol)
+        assignTorVals(mol)
+
+        for rotor in _rotor {
+            if rotor.size() == 0 {
+                var ref: [Int] = [0, 0, 0, 0]
+                rotor.getDihedralAtoms(&ref)
+                print("ERROR: The rotor has no associated torsion values -> \(ref[0]) \(ref[1]) \(ref[2]) \(ref[3])")
+            }
+        }
+        // reduce the number of torsions to be checked through symmetry considerations
+        if _removesym {
+            removeSymVals(mol)
+        }
+        return true
     }
 
     /**
@@ -520,8 +581,57 @@ class MKRotorList {
      * @param sampleRingBonds whether to sample ring bonds from analysis (default = false)
      * @return True.
      */
+    @discardableResult
     func findRotors(_ mol: MKMol, _ sampleRingBonds: Bool = false) -> Bool {
-        return false
+        // Find ring atoms & bonds
+        // This function will set OBBond::IsRotor().
+        mol.findRingAtomsAndBonds()
+
+        //
+        // Score the bonds using the graph theoretical distance (GTD).
+        // The GTD is the distance from atom i to every other atom j.
+        // Atoms on the "inside" of the molecule will have a lower GTD
+        // value than atoms on the "outside"
+        //
+        // The scoring will rank "inside" bonds first.
+        //
+//        MARK: TODO finish impl
+//        var gtd: [Double] = []
+//        mol.getGTDVector(&gtd)
+//        // compute the scores
+//        var vtmp: [Pair<MKBond, Int>] = []
+//        for bond in mol.getBondIterator() {
+//            // check if the bond is "rotatable"
+//            if bond.isRotor(sampleRingBonds) {
+//                // check if the bond is fixed (using deprecated fixed atoms or new fixed bonds)
+//                if (hasFixedAtoms() || hasFixedBonds()) && isFixedBond(bond) {
+//                    continue
+//                }
+//
+//                if bond.isInRing {
+//                    //otherwise mark that we have them and add it to the pile
+//                    _ringRotors = true
+//                }
+//
+//                let score = gtd[bond.getBeginAtomIdx() - 1] + gtd[bond.getEndAtomIdx() - 1]
+//                // compute the GTD bond score as sum of atom GTD scores
+//                vtmp.append((bond, score))
+//            }
+//        }
+//
+//        // sort the rotatable bonds by GTD score
+//        vtmp.sort { $0.1 < $1.1 }
+//        var count = 0
+//        for (bond, _) in vtmp {
+//            let rotor = MKRotor()
+//            rotor.setBond(bond)
+//            rotor.setIdx(count)
+//            rotor.setNumCoords(mol.numAtoms() * 3)
+//            _rotor.append(rotor)
+//            count += 1
+//        }
+
+        return true
     }
     //! Determines which atoms should be used to calculate the internal energy
     //! if the dihedral angle of the rotor is modified

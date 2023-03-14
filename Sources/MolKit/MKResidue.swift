@@ -371,6 +371,20 @@ class MKResidue: MKBase {
         self._atoms = []
     }
 
+    func copyData(_ src: MKResidue) {
+        if src != self {
+            _chain = src._chain
+            _aakey = src._aakey
+            _reskey = src._reskey
+            _resnum = src._resnum
+            _resname = src._resname
+            _atomid = src._atomid
+            _hetatm = src._hetatm
+            _sernum = src._sernum
+            _insertioncode = src._insertioncode
+        }
+    }
+
     override func clear() {
         for atom in self._atoms {
             atom.setResidue(nil)
@@ -437,7 +451,7 @@ class MKResidue: MKBase {
         }
     }
 
-    func setHtmAtom(_ atom: MKAtom, _ hetatm: Bool) {
+    func setHetAtom(_ atom: MKAtom, _ hetatm: Bool) {
         if let idx = self._atoms.firstIndex(of: atom) {
             self._hetatm[idx] = hetatm
         }
@@ -563,6 +577,10 @@ class MKResidue: MKBase {
         return self._insertioncode
     }
 
+    func getAtomIterator() -> MKIterator<MKAtom> {
+        return MKIterator<MKAtom>(_atoms)
+    }
+    
 ///////////////////////////////////////////////////////////////////////////////
 // MKResidue: Information Functions
 ///////////////////////////////////////////////////////////////////////////////

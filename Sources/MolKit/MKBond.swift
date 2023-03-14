@@ -50,13 +50,30 @@ class MKBond: MKBase {
         self.setFlag(flags)
     }
 
-    // TODO: Need to write implementations
     func getId() -> Ref {
         return self._id.ref
+    }
+    
+    func getId() -> MKBaseID {
+        return self._id
     }
 
     func setId(_ id: Int) {
         self._id = ._id(id)
+    }
+    
+    func setId(_ id: MKBaseID) {
+        self._id = id
+    }
+    
+    func setId(_ id: Ref) {
+        if case .NoRef = id {
+            self._id = .NoId
+        } else if case .ImplicitRef = id {
+            self._id = .NoId
+        } else {
+            self._id = ._id(id.intValue!)
+        }
     }
 
     func getIdx() -> UInt {
