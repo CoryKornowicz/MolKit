@@ -923,3 +923,52 @@ public func MKAtomAssignTypicalImplicitHydrogens(_ atom: MKAtom) {
     atom.setImplicitHCount(valence - bosum)
 }
 
+func MKBondGetSmallestRingSize(_ bond: MKBond, _ bound: Int) -> Int {
+    // A bounded BFS from one side of a bond trying to find the other side.
+    //   - The required queue is implemented using a std::vector for efficiency
+    //   - Note that items are never popped from the queue, I just move a pointer
+    //     along to mark the left hand side
+    //   - A potential improvement would be to BFS from both sides at the same time
+    if !bond.isInRing() { return 0 }
+
+    let start = bond.getBeginAtom()
+    let end = bond.getEndAtom()
+    var qatoms: [MKAtom] = []
+    let numatoms = bond.getParent()!.numAtoms()
+    let seen: MKBitVec = MKBitVec(numatoms + 1)
+    seen.setBitOn(start.getIdx())
+    for nbond in start.getBondIterator()! {
+        if nbond == bond { continue }
+        if !nbond.isInRing() { continue }
+        let nbr = nbond.getNbrAtom(start)
+        qatoms.append(nbr)
+    }
+    var depthmarker = qatoms.count // when qstart reaches this, increment the depth
+    var qstart = 0
+    var depth = 2
+    while qatoms.count - qstart > 0 { // While queue not empty
+        let curr = qatoms[qstart]
+        if qstart == depthmarker {
+            depth += 1
+            depthmarker = qatoms.count
+        }
+        qstart += 1
+        if seen.bitIsSet(curr.getIdx()) {
+            continue
+        }
+        seen.setBitOn(curr.getIdx())
+        if depth < bound {
+            for nbond in curr.getBondIterator()! {
+                if !nbond.isInRing() { continue }
+                let nbr = nbond.getNbrAtom(curr)
+                if nbr == end {
+                    return depth + 1
+                }
+                if !seen.bitIsSet(nbr.getIdx()) {
+                    qatoms.append(nbr)
+                }
+            }
+        }
+    }
+    return 0
+}

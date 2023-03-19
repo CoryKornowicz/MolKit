@@ -2197,6 +2197,17 @@ class LexicalParser: IteratorProtocol, Equatable {
     func setLex(_ string: String) {
         self._lexCharacters = Array<Character>(string)
     }
+
+    func setLex(_ stream: InputFileHandler) {
+        // read stream data into string and then into array of characters
+        do {
+            self._lexCharacters = try Array<Character>(stream.readIntoString())
+        } catch is PosixError {
+            print("posix error caught")
+        } catch {
+            fatalError("Converting Data to String")
+        }
+    }
     
     public func next() -> Character? {
         defer {
@@ -2212,24 +2223,44 @@ class LexicalParser: IteratorProtocol, Equatable {
         return _lexCharacters.last != nil ? _lexCharacters.last! : "\0"
     }
     
-    public func inc() {
+    
+    @discardableResult
+    public func inc() -> Self {
         self._index += 1
+        return self
     }
     
-    public func dec() {
+    @discardableResult
+    public func dec() -> Self {
         self._index -= 1
+        return self 
     }
     
     public func cur() -> Character {
         self._index < self._lexCharacters.count ? self._lexCharacters[self._index] : "\0"
     }
-
+    
+    
     public func prev() -> Character {
         if self._index > 0 {
             return self._lexCharacters[self._index - 1]
         } else {
             return self._lexCharacters.first!
         }   
+    }
+
+    @discardableResult
+    func getline(_ line: inout String) -> Bool {
+        while self._index < self._lexCharacters.count {
+            let c = self._lexCharacters[self._index]
+            if !c.isNewline {
+                line.append(c)
+            } else {
+                break
+            }
+            self._index += 1
+        }
+        return line.count > 0
     }
     
     static public func += (_ lhs: LexicalParser, _ rhs: Int) {

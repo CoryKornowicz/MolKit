@@ -23,6 +23,10 @@ Plans for CLI applications are scheduled after the package is working and useabl
 
 File Reader Class is not as expansive as OpenBabel's. Order of importance is SMI, PDB, and then SDF/MOL/MOL2. The goal is to also have trajectory parsing, but that would most likely need other additions as well, and will likely need to wait until the conformer issue is addressed.  
 
+Strong/Weak references (weak var/self) will need to be introduced to reduce the chances of ARC leaving dangling memory. 
+
+
+
 ## Installation
 
 ### Swift Package Manager

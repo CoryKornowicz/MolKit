@@ -15,9 +15,9 @@ import Foundation
 //! dihedral angles in degrees and/or a "delta" (i.e., all multiples of delta will
 //! be considered)
 
-private let OB_DEFAULT_DELTA = 15.0
+private let MK_DEFAULT_DELTA = 15.0
 
-func getDFFVector(_ mol: MKMol, _ vec: [Int], _ bitvec: MKBitVec) -> Bool {
+func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: inout MKBitVec) -> Bool {
     fatalError()
 }
 

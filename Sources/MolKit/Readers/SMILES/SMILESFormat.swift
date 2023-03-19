@@ -32,19 +32,19 @@ func canHaveLonePair(_ elem: Int) -> Bool {
 
 //Base class for SMIFormat and CANSIFormat with most of the functionality
 class SMIBaseFormat: MKMoleculeFormat {
-
+    
     ////////////////////////////////////////////////////
     /// The "API" interface functions
     ///
     /////////////////////////////////////////////////////////////////
     /* Lines starting with # are ignored. Whitespace at the start (including
-        blank lines) terminate the input unless -e option is used.
-        Valid SMILES reactions such as [C]=O.O>[Fe]>O=C=O.[H][H] with non-null
-        reactant and product are accepted and the reactant, product and
-        possibly the agent molecules are output when using the Convert interface
-        (babel commandline). With the OBConversion functions Read, ReadString
-        and ReadFile all SMILES reactions give an error when read with this format.
-    */
+     blank lines) terminate the input unless -e option is used.
+     Valid SMILES reactions such as [C]=O.O>[Fe]>O=C=O.[H][H] with non-null
+     reactant and product are accepted and the reactant, product and
+     possibly the agent molecules are output when using the Convert interface
+     (babel commandline). With the OBConversion functions Read, ReadString
+     and ReadFile all SMILES reactions give an error when read with this format.
+     */
     override func readMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
         var pmol = pOb.castAndClear(true) as! MKMol
         var ifs = pConv.getInStream()
@@ -55,46 +55,46 @@ class SMIBaseFormat: MKMoleculeFormat {
         
         //Ignore lines that start with #
         fatalError()
-//        while(ifs != nil && ifs!.peek() == "#") {
-//            if(!getline(ifs, ln))
-//                return false;
-//        }
-//
-//        //Get title
-//        if(getline(ifs, ln)) {
-//            pos = ln.find_first_of(" \t");
-//            if(pos!=string::npos)
-//            {
-//                smiles = ln.substr(0,pos);
-//                title = ln.substr(pos+1);
-//                Trim(title);
-//                pmol->SetTitle(title.c_str());
-//            } else {
-//                smiles = ln
-//            }
-//        }
-
+        //        while(ifs != nil && ifs!.peek() == "#") {
+        //            if(!getline(ifs, ln))
+        //                return false;
+        //        }
+        //
+        //        //Get title
+        //        if(getline(ifs, ln)) {
+        //            pos = ln.find_first_of(" \t");
+        //            if(pos!=string::npos)
+        //            {
+        //                smiles = ln.substr(0,pos);
+        //                title = ln.substr(pos+1);
+        //                Trim(title);
+        //                pmol->SetTitle(title.c_str());
+        //            } else {
+        //                smiles = ln
+        //            }
+        //        }
+        
         pmol.setDimension(0)
         var sp = MKSmilesParser(preserve_aromaticity: (pConv.isOption("a", .INOPTIONS) != nil))
         if !(pConv.isOption("S", .INOPTIONS) == nil){
             pmol.setChiralityPerceived()
         }
-
+        
         return sp.smiToMol(pmol, smiles) //normal return
     }
-
+    
     override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
         fatalError()
     }
-
+    
     override func getMIMEType() -> String {
         return "chemical/x-daylight-smiles"
     }
-
+    
     override func targetClassDescription() -> String {
         return MKMol.classDescription()
     }
-   
+    
     override func specificationURL() -> String {
         return "http://www.daylight.com/smiles/"
     }
@@ -220,12 +220,12 @@ class CANSMIFormat: SMIBaseFormat {
            "connectivity "
         and chirality of a molecule. Canonical SMILES gives a single
            "'canonical' form for any particular molecule.
-
+        
         .. seealso::
-
+        
           The \"regular\" :ref:`SMILES_format` gives faster
           output, since no canonical numbering is performed.
-
+        
         Write Options e.g. -xt
           a  Output atomclass like [C:2], if available
           h  Output explicit hydrogens as such
@@ -265,10 +265,10 @@ class MKSmilesParser {
         var updown: Character
         var numConnections: Int
     }
-
+    
     struct StereoRingBond {
-        var atoms: Array<MKAtom> 
-        var updown: Array<Character> 
+        var atoms: Array<MKAtom> = []
+        var updown: Array<Character> = []
     }
     
     var _updown: Character
@@ -276,14 +276,15 @@ class MKSmilesParser {
     var _prev: Int
     var _rxnrole: Int
     // const char *_ptr; ??
+    var _ptr: LexicalParser = LexicalParser()
     var _preserve_aromaticity: Bool
-    var _vprev: Array<Int>             
-    var _rclose: Array<RingClosureBond> 
-    var _extbond: Array<ExternalBond>    
-    var _path: Array<Int>             
-    var _avisit: Array<Bool>            
-    var _bvisit: Array<Bool>            
-    var _hcount: Array<Int>             
+    var _vprev: Array<Int>
+    var _rclose: Array<RingClosureBond>
+    var _extbond: Array<ExternalBond>
+    var _path: Array<Int>
+    var _avisit: Array<Bool>
+    var _bvisit: Array<Bool>
+    var _hcount: Array<Int>
     var posDouble: Array<Int>  //for extension: lc atoms as conjugated double bonds
     
     var _stereorbond: OrderedDictionary<MKBond, StereoRingBond> // Remember info on the stereo ring closure bonds
@@ -295,7 +296,7 @@ class MKSmilesParser {
     var _chiralLonePair: OrderedDictionary<UInt, Character> // for atoms with potential chiral lone pairs, remember when the l.p. was encountered
     var squarePlanarWatch: Bool = false  // set when a square planar atom is read
     var _squarePlanarMap: OrderedDictionary<MKAtom, MKSquarePlanarStereo.Config>
-        
+    
     init(preserve_aromaticity: Bool = false) {
         self._preserve_aromaticity = preserve_aromaticity
         self._rxnrole = 1
@@ -316,312 +317,312 @@ class MKSmilesParser {
         self._chiralLonePair = OrderedDictionary<UInt, Character>()
         self._squarePlanarMap = OrderedDictionary<MKAtom, MKSquarePlanarStereo.Config>()
     }
-
+    
     
     func smiToMol(_ mol: MKMol, _ name: String) -> Bool {
-//        _vprev.clear();
-//        _rclose.clear();
-//        _prev=0;
-//        chiralWatch=false;
-//        squarePlanarWatch = false;
-//
-//        // We allow the empty reaction (">>") but not the empty molecule ("")
-//        if (!ParseSmiles(mol, s) || (!mol.IsReaction() && mol.NumAtoms() == 0))
-//        {
-//            mol.Clear();
-//            return(false);
-//        }
-//
-//        // TODO: Is the following a memory leak? - there are return statements above
-//        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator i;
-//        for (i = _tetrahedralMap.begin(); i != _tetrahedralMap.end(); ++i)
-//        delete i->second;
-//        _tetrahedralMap.clear();
-//
-//        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator j;
-//        for (j = _squarePlanarMap.begin(); j != _squarePlanarMap.end(); ++j)
-//        delete j->second;
-//        _squarePlanarMap.clear();
-//
-//        mol.SetAutomaticFormalCharge(false);
-//
-//        return(true);
+        //        _vprev.clear();
+        //        _rclose.clear();
+        //        _prev=0;
+        //        chiralWatch=false;
+        //        squarePlanarWatch = false;
+        //
+        //        // We allow the empty reaction (">>") but not the empty molecule ("")
+        //        if (!ParseSmiles(mol, s) || (!mol.IsReaction() && mol.NumAtoms() == 0))
+        //        {
+        //            mol.Clear();
+        //            return(false);
+        //        }
+        //
+        //        // TODO: Is the following a memory leak? - there are return statements above
+        //        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator i;
+        //        for (i = _tetrahedralMap.begin(); i != _tetrahedralMap.end(); ++i)
+        //        delete i->second;
+        //        _tetrahedralMap.clear();
+        //
+        //        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator j;
+        //        for (j = _squarePlanarMap.begin(); j != _squarePlanarMap.end(); ++j)
+        //        delete j->second;
+        //        _squarePlanarMap.clear();
+        //
+        //        mol.SetAutomaticFormalCharge(false);
+        //
+        //        return(true);
         fatalError()
-    } 
-
-//    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
-//        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
-//        mol.BeginModify();
-//
-//        for (_ptr=smiles.c_str();*_ptr;_ptr++)
-//        {
-//        switch(*_ptr)
-//        {
-//        case '\r':
-//            if (*(_ptr+1) == '\0') // may have a terminating '\r' due to Windows line-endings
-//            break;
-//            return false;
-//        case '0': case '1': case '2': case '3': case '4':
-//        case '5': case '6': case '7': case '8': case '9':
-//        case '%':  //ring open/close
-//            if (_prev == 0)
-//            return false;
-//            if (!ParseRingBond(mol))
-//            return false;
-//            break;
-//        case '&': //external bond
-//            if (_prev == 0)
-//            return false;
-//            if (!ParseExternalBond(mol))
-//            return false;
-//            break;
-//        case '.':
-//            _prev=0;
-//            break;
-//        case '>':
-//            _prev = 0;
-//            _rxnrole++;
-//            if (_rxnrole == 2) {
-//            mol.SetIsReaction();
-//            // Handle all the reactant atoms
-//            // - the remaining atoms will be handled on-the-fly
-//            FOR_ATOMS_OF_MOL(atom, mol) {
-//                OBPairInteger *pi = new OBPairInteger();
-//                pi->SetAttribute("rxnrole");
-//                pi->SetValue(1);
-//                atom->SetData(pi);
-//            }
-//            }
-//            else if (_rxnrole == 4) {
-//            stringstream errorMsg;
-//            errorMsg << "Too many greater-than signs in SMILES string";
-//            std::string title = mol.GetTitle();
-//            if (!title.empty())
-//                errorMsg << " (title is " << title << ")";
-//            errorMsg << endl;
-//            obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-//            return false;
-//            }
-//            break;
-//        case '(':
-//            _vprev.push_back(_prev);
-//            break;
-//        case ')':
-//            if(_vprev.empty()) //CM
-//            return false;
-//            _prev = _vprev.back();
-//            _vprev.pop_back();
-//            break;
-//        case '[':
-//            if (!ParseComplex(mol))
-//            {
-//            mol.EndModify();
-//            mol.Clear();
-//            return false;
-//            }
-//            break;
-//        case '-':
-//            if (_prev == 0)
-//            return false;
-//            _order = 1;
-//            break;
-//        case '=':
-//            if (_prev == 0)
-//            return false;
-//            _order = 2;
-//            break;
-//        case '#':
-//            if (_prev == 0)
-//            return false;
-//            _order = 3;
-//            break;
-//        case '$':
-//            if (_prev == 0)
-//            return false;
-//            _order = 4;
-//            break;
-//        case ':':
-//            if (_prev == 0)
-//            return false;
-//            _order = 0; // no-op
-//            break;
-//        case '/':
-//            if (_prev == 0)
-//            return false;
-//            _order = 1;
-//            _updown = BondDownChar;
-//            break;
-//        case '\\':
-//            if (_prev == 0)
-//            return false;
-//            _order = 1;
-//            _updown = BondUpChar;
-//            break;
-//        default:
-//            if (!ParseSimple(mol))
-//            {
-//            mol.EndModify();
-//            mol.Clear();
-//            return false;
-//            }
-//        } // end switch
-//        } // end for _ptr
-//
-//        // place dummy atoms for each unfilled external bond
-//        if(!_extbond.empty())
-//        CapExternalBonds(mol);
-//
-//        // Check to see if we've balanced out all ring closures
-//        // They are removed from _rclose when matched
-//        if (!_rclose.empty()) {
-//        mol.EndModify();
-//        mol.Clear();
-//
-//        stringstream errorMsg;
-//        errorMsg << "Invalid SMILES string: " << _rclose.size() << " unmatched "
-//                << "ring bonds." << endl;
-//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-//        return false; // invalid SMILES since rings aren't properly closed
-//        }
-//
-//        // Check to see if we've the right number of '>' for reactions
-//        if (_rxnrole > 1 && _rxnrole !=3) {
-//        mol.EndModify();
-//        stringstream errorMsg;
-//        errorMsg << "Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).";
-//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-//        return false; // invalid SMILES since rings aren't properly closed
-//        }
-//        if (mol.IsReaction()) {
-//        OBReactionFacade facade(&mol);
-//        facade.AssignComponentIds();
-//        }
-//
-//        // Apply the SMILES valence model
-//        FOR_ATOMS_OF_MOL(atom, mol) {
-//        unsigned int idx = atom->GetIdx();
-//        int hcount = _hcount[idx - 1];
-//        if (hcount == -1) { // Apply SMILES implicit valence model
-//            unsigned int bosum = 0;
-//            FOR_BONDS_OF_ATOM(bond, &(*atom)) {
-//            bosum += bond->GetBondOrder();
-//            }
-//            unsigned int impval = SmilesValence(atom->GetAtomicNum(), bosum);
-//            unsigned int imph = impval - bosum;
-//            if (imph > 0 && atom->IsAromatic())
-//            imph--;
-//            atom->SetImplicitHCount(imph);
-//        }
-//        else // valence is explicit e.g. [CH3]
-//            atom->SetImplicitHCount(hcount);
-//        }
-//
-//        mol.EndModify(false);
-//
-//        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
-//        // This is rather subtle, but it's correct and reduces the burden of kekulization
-//        FOR_BONDS_OF_MOL(bond, mol) {
-//        if (bond->IsAromatic() && !bond->IsInRing()) {
-//            if (bond->GetBeginAtom()->IsInRing() && bond->GetEndAtom()->IsInRing())
-//            bond->SetAromatic(false);
-//        }
-//        }
-//
-//        // TODO: Only Kekulize if the molecule has a lower case atom
-//        bool ok = OBKekulize(&mol);
-//        if (!ok) {
-//        stringstream errorMsg;
-//        errorMsg << "Failed to kekulize aromatic SMILES";
-//        std::string title = mol.GetTitle();
-//        if (!title.empty())
-//            errorMsg << " (title is " << title << ")";
-//        errorMsg << endl;
-//        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-//        // return false; // Should we return false for a kekulization failure?
-//        }
-//
-//        // Add the data stored inside the _tetrahedralMap to the atoms now after end
-//        // modify so they don't get lost.
-//        if(!_tetrahedralMap.empty()) {
-//        OBAtom* atom;
-//        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator ChiralSearch;
-//        for(ChiralSearch = _tetrahedralMap.begin(); ChiralSearch != _tetrahedralMap.end(); ++ChiralSearch) {
-//            atom = ChiralSearch->first;
-//            OBTetrahedralStereo::Config *ts = ChiralSearch->second;
-//            if (!ts)
-//            continue;
-//            if (ts->refs.size() != 3)
-//            continue;
-//            if (ts->refs[2] == OBStereo::NoRef) {
-//            // This happens where there is chiral lone pair or where there simply aren't enough connections
-//            // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
-//            // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
-//            // a lone pair, think of C[S@](=X)(=Y)Cl.
-//
-//            // We have remembered where to insert the lone pair in the _chiralLonePair map
-//            map<unsigned int, char>::iterator m_it = _chiralLonePair.find(atom->GetIdx());
-//            if (CanHaveLonePair(atom->GetAtomicNum()) && m_it != _chiralLonePair.end()) {
-//                ts->refs[2] = ts->refs[1]; ts->refs[1] = ts->refs[0];
-//                if (m_it->second == 0) { // Insert in the 'from' position
-//                ts->refs[0] = ts->from;
-//                ts->from = OBStereo::ImplicitRef;
-//                }
-//                else // Insert in the refs[0] position
-//                ts->refs[0] = OBStereo::ImplicitRef;
-//            }
-//            else { // Ignored by Open Babel
-//                stringstream ss;
-//                ss << "Ignoring stereochemistry. Not enough connections to this atom. " << mol.GetTitle();
-//                obErrorLog.ThrowError(__FUNCTION__, ss.str(), obWarning);
-//                continue;
-//            }
-//            }
-//
-//            // cout << "*ts = " << *ts << endl;
-//            OBTetrahedralStereo *obts = new OBTetrahedralStereo(&mol);
-//            obts->SetConfig(*ts);
-//            mol.SetData(obts);
-//        }
-//        }
-//
-//        // Add the data stored inside the _squarePlanarMap to the atoms now after end
-//        // modify so they don't get lost.
-//        if(!_squarePlanarMap.empty()) {
-//        OBAtom* atom;
-//        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator ChiralSearch;
-//        for(ChiralSearch = _squarePlanarMap.begin(); ChiralSearch != _squarePlanarMap.end(); ++ChiralSearch) {
-//            atom = ChiralSearch->first;
-//            OBSquarePlanarStereo::Config *sp = ChiralSearch->second;
-//            if (!sp)
-//            continue;
-//            if (sp->refs.size() != 4)
-//            continue;
-//
-//            // cout << "*ts = " << *ts << endl;
-//            OBSquarePlanarStereo *obsp = new OBSquarePlanarStereo(&mol);
-//            obsp->SetConfig(*sp);
-//            mol.SetData(obsp);
-//        }
-//        }
-//
-//        if (!_preserve_aromaticity)
-//        mol.SetAromaticPerceived(false);
-//
-//        createCisTrans(mol);
-//
-//        return(true);
-//
-//
-//     bool ParseSimple(OBMol&);
-//     bool ParseComplex(OBMol&);
-//     bool ParseRingBond(OBMol&);
-//     bool ParseExternalBond(OBMol&);
-//     bool CapExternalBonds(OBMol &mol);
-//     int  NumConnections(OBAtom *, bool isImplicitRef=false);
-//            func createCisTrans(_ mol: inout MKMol) {}
-//     char SetRingClosureStereo(StereoRingBond rcstereo, OBBond* dbl_bond);
-//     void InsertTetrahedralRef(OBMol &mol, unsigned long id);
-//     void InsertSquarePlanarRef(OBMol &mol, unsigned long id);
+    }
+    
+    //    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
+    //        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
+    //        mol.BeginModify();
+    //
+    //        for (_ptr=smiles.c_str();*_ptr;_ptr++)
+    //        {
+    //        switch(*_ptr)
+    //        {
+    //        case '\r':
+    //            if (*(_ptr+1) == '\0') // may have a terminating '\r' due to Windows line-endings
+    //            break;
+    //            return false;
+    //        case '0': case '1': case '2': case '3': case '4':
+    //        case '5': case '6': case '7': case '8': case '9':
+    //        case '%':  //ring open/close
+    //            if (_prev == 0)
+    //            return false;
+    //            if (!ParseRingBond(mol))
+    //            return false;
+    //            break;
+    //        case '&': //external bond
+    //            if (_prev == 0)
+    //            return false;
+    //            if (!ParseExternalBond(mol))
+    //            return false;
+    //            break;
+    //        case '.':
+    //            _prev=0;
+    //            break;
+    //        case '>':
+    //            _prev = 0;
+    //            _rxnrole++;
+    //            if (_rxnrole == 2) {
+    //            mol.SetIsReaction();
+    //            // Handle all the reactant atoms
+    //            // - the remaining atoms will be handled on-the-fly
+    //            FOR_ATOMS_OF_MOL(atom, mol) {
+    //                OBPairInteger *pi = new OBPairInteger();
+    //                pi->SetAttribute("rxnrole");
+    //                pi->SetValue(1);
+    //                atom->SetData(pi);
+    //            }
+    //            }
+    //            else if (_rxnrole == 4) {
+    //            stringstream errorMsg;
+    //            errorMsg << "Too many greater-than signs in SMILES string";
+    //            std::string title = mol.GetTitle();
+    //            if (!title.empty())
+    //                errorMsg << " (title is " << title << ")";
+    //            errorMsg << endl;
+    //            obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+    //            return false;
+    //            }
+    //            break;
+    //        case '(':
+    //            _vprev.push_back(_prev);
+    //            break;
+    //        case ')':
+    //            if(_vprev.empty()) //CM
+    //            return false;
+    //            _prev = _vprev.back();
+    //            _vprev.pop_back();
+    //            break;
+    //        case '[':
+    //            if (!ParseComplex(mol))
+    //            {
+    //            mol.EndModify();
+    //            mol.Clear();
+    //            return false;
+    //            }
+    //            break;
+    //        case '-':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 1;
+    //            break;
+    //        case '=':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 2;
+    //            break;
+    //        case '#':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 3;
+    //            break;
+    //        case '$':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 4;
+    //            break;
+    //        case ':':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 0; // no-op
+    //            break;
+    //        case '/':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 1;
+    //            _updown = BondDownChar;
+    //            break;
+    //        case '\\':
+    //            if (_prev == 0)
+    //            return false;
+    //            _order = 1;
+    //            _updown = BondUpChar;
+    //            break;
+    //        default:
+    //            if (!ParseSimple(mol))
+    //            {
+    //            mol.EndModify();
+    //            mol.Clear();
+    //            return false;
+    //            }
+    //        } // end switch
+    //        } // end for _ptr
+    //
+    //        // place dummy atoms for each unfilled external bond
+    //        if(!_extbond.empty())
+    //        CapExternalBonds(mol);
+    //
+    //        // Check to see if we've balanced out all ring closures
+    //        // They are removed from _rclose when matched
+    //        if (!_rclose.empty()) {
+    //        mol.EndModify();
+    //        mol.Clear();
+    //
+    //        stringstream errorMsg;
+    //        errorMsg << "Invalid SMILES string: " << _rclose.size() << " unmatched "
+    //                << "ring bonds." << endl;
+    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+    //        return false; // invalid SMILES since rings aren't properly closed
+    //        }
+    //
+    //        // Check to see if we've the right number of '>' for reactions
+    //        if (_rxnrole > 1 && _rxnrole !=3) {
+    //        mol.EndModify();
+    //        stringstream errorMsg;
+    //        errorMsg << "Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).";
+    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+    //        return false; // invalid SMILES since rings aren't properly closed
+    //        }
+    //        if (mol.IsReaction()) {
+    //        OBReactionFacade facade(&mol);
+    //        facade.AssignComponentIds();
+    //        }
+    //
+    //        // Apply the SMILES valence model
+    //        FOR_ATOMS_OF_MOL(atom, mol) {
+    //        unsigned int idx = atom->GetIdx();
+    //        int hcount = _hcount[idx - 1];
+    //        if (hcount == -1) { // Apply SMILES implicit valence model
+    //            unsigned int bosum = 0;
+    //            FOR_BONDS_OF_ATOM(bond, &(*atom)) {
+    //            bosum += bond->GetBondOrder();
+    //            }
+    //            unsigned int impval = SmilesValence(atom->GetAtomicNum(), bosum);
+    //            unsigned int imph = impval - bosum;
+    //            if (imph > 0 && atom->IsAromatic())
+    //            imph--;
+    //            atom->SetImplicitHCount(imph);
+    //        }
+    //        else // valence is explicit e.g. [CH3]
+    //            atom->SetImplicitHCount(hcount);
+    //        }
+    //
+    //        mol.EndModify(false);
+    //
+    //        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
+    //        // This is rather subtle, but it's correct and reduces the burden of kekulization
+    //        FOR_BONDS_OF_MOL(bond, mol) {
+    //        if (bond->IsAromatic() && !bond->IsInRing()) {
+    //            if (bond->GetBeginAtom()->IsInRing() && bond->GetEndAtom()->IsInRing())
+    //            bond->SetAromatic(false);
+    //        }
+    //        }
+    //
+    //        // TODO: Only Kekulize if the molecule has a lower case atom
+    //        bool ok = OBKekulize(&mol);
+    //        if (!ok) {
+    //        stringstream errorMsg;
+    //        errorMsg << "Failed to kekulize aromatic SMILES";
+    //        std::string title = mol.GetTitle();
+    //        if (!title.empty())
+    //            errorMsg << " (title is " << title << ")";
+    //        errorMsg << endl;
+    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
+    //        // return false; // Should we return false for a kekulization failure?
+    //        }
+    //
+    //        // Add the data stored inside the _tetrahedralMap to the atoms now after end
+    //        // modify so they don't get lost.
+    //        if(!_tetrahedralMap.empty()) {
+    //        OBAtom* atom;
+    //        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator ChiralSearch;
+    //        for(ChiralSearch = _tetrahedralMap.begin(); ChiralSearch != _tetrahedralMap.end(); ++ChiralSearch) {
+    //            atom = ChiralSearch->first;
+    //            OBTetrahedralStereo::Config *ts = ChiralSearch->second;
+    //            if (!ts)
+    //            continue;
+    //            if (ts->refs.size() != 3)
+    //            continue;
+    //            if (ts->refs[2] == OBStereo::NoRef) {
+    //            // This happens where there is chiral lone pair or where there simply aren't enough connections
+    //            // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
+    //            // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
+    //            // a lone pair, think of C[S@](=X)(=Y)Cl.
+    //
+    //            // We have remembered where to insert the lone pair in the _chiralLonePair map
+    //            map<unsigned int, char>::iterator m_it = _chiralLonePair.find(atom->GetIdx());
+    //            if (CanHaveLonePair(atom->GetAtomicNum()) && m_it != _chiralLonePair.end()) {
+    //                ts->refs[2] = ts->refs[1]; ts->refs[1] = ts->refs[0];
+    //                if (m_it->second == 0) { // Insert in the 'from' position
+    //                ts->refs[0] = ts->from;
+    //                ts->from = OBStereo::ImplicitRef;
+    //                }
+    //                else // Insert in the refs[0] position
+    //                ts->refs[0] = OBStereo::ImplicitRef;
+    //            }
+    //            else { // Ignored by Open Babel
+    //                stringstream ss;
+    //                ss << "Ignoring stereochemistry. Not enough connections to this atom. " << mol.GetTitle();
+    //                obErrorLog.ThrowError(__FUNCTION__, ss.str(), obWarning);
+    //                continue;
+    //            }
+    //            }
+    //
+    //            // cout << "*ts = " << *ts << endl;
+    //            OBTetrahedralStereo *obts = new OBTetrahedralStereo(&mol);
+    //            obts->SetConfig(*ts);
+    //            mol.SetData(obts);
+    //        }
+    //        }
+    //
+    //        // Add the data stored inside the _squarePlanarMap to the atoms now after end
+    //        // modify so they don't get lost.
+    //        if(!_squarePlanarMap.empty()) {
+    //        OBAtom* atom;
+    //        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator ChiralSearch;
+    //        for(ChiralSearch = _squarePlanarMap.begin(); ChiralSearch != _squarePlanarMap.end(); ++ChiralSearch) {
+    //            atom = ChiralSearch->first;
+    //            OBSquarePlanarStereo::Config *sp = ChiralSearch->second;
+    //            if (!sp)
+    //            continue;
+    //            if (sp->refs.size() != 4)
+    //            continue;
+    //
+    //            // cout << "*ts = " << *ts << endl;
+    //            OBSquarePlanarStereo *obsp = new OBSquarePlanarStereo(&mol);
+    //            obsp->SetConfig(*sp);
+    //            mol.SetData(obsp);
+    //        }
+    //        }
+    //
+    //        if (!_preserve_aromaticity)
+    //        mol.SetAromaticPerceived(false);
+    //
+    //        createCisTrans(mol);
+    //
+    //        return(true);
+    //
+    //
+    //     bool ParseSimple(OBMol&);
+    //     bool ParseComplex(OBMol&);
+    //     bool ParseRingBond(OBMol&);
+    //     bool ParseExternalBond(OBMol&);
+    //     bool CapExternalBonds(OBMol &mol);
+    //     int  NumConnections(OBAtom *, bool isImplicitRef=false);
+    //            func createCisTrans(_ mol: inout MKMol) {}
+    //     char SetRingClosureStereo(StereoRingBond rcstereo, OBBond* dbl_bond);
+    //     void InsertTetrahedralRef(OBMol &mol, unsigned long id);
+    //     void InsertSquarePlanarRef(OBMol &mol, unsigned long id);
     
     func isUp(_ bond: MKBond) -> Bool {
         if _upDownMap[bond] == BondUpChar {
@@ -629,7 +630,7 @@ class MKSmilesParser {
         }
         return false
     }
-
+    
     func isDown(_ bond: MKBond) -> Bool {
         if _upDownMap[bond] == BondDownChar {
             return true
@@ -637,7 +638,2619 @@ class MKSmilesParser {
         return false
     }
     
+    
+    // Ring Closure bonds appear twice (at opening and closure).
+    // If involved in cis/trans stereo, then the stereo may be
+    // specified at either end or indeed both. Although Open Babel
+    // will only write out SMILES with the stereo at one end (the end
+    // on the double bond), it must handle all cases when reading.
+    
+    // For example:
+    //
+    //         C
+    //        /|
+    //   C = C |
+    //  /     \|
+    // C       N
+    //
+    // Can be written as:
+    // (a) C/C=C/1\NC1 -- preferred
+    // (b) C/C=C1\NC\1
+    // (c) C/C=C/1\NC\1
+    //  or indeed by replacing the "\N" with "N".
+    
+    // If the stereo chemistry for a ring closure is inconsistently specified,
+    // it is ignored. In that case, if a stereo symbol does not exist for its
+    // partner bond on the double bond (e.g. (b) below), then the stereo is unspecified.
+    
+    // (a) C/C=C/1NC\1 -- specified stereo
+    // (b) C/C=C/1NC/1  -- ignore ring closure stereo => treated as C/C=C1NC1  => CC=C1NC1
+    // (c) C/C=C/1\NC/1 -- ignore ring closure stereo => treated as C/C=C1\NC1 => C/C=C/1\NC1
+    
+    // The ring closure bond is either up or down with respect
+    // to the double bond. Our task here is to figure out which it is,
+    // based on the contents of _stereorbond.
+    func setRingClosureStereo(_ rcstereo: StereoRingBond, _ dbl_bond: MKBond) -> Character? {
+        var found = false // We have found the answer
+        var updown = true // The answer
+        if rcstereo.updown[0] == BondUpChar || rcstereo.updown[0] == BondDownChar { // Is there a stereo symbol at the opening?
+            let on_dbl_bond = rcstereo.atoms[0] == dbl_bond.getBeginAtom() || rcstereo.atoms[0] == dbl_bond.getEndAtom()
+            updown = (rcstereo.updown[0]==BondUpChar) != on_dbl_bond
+            found = true
+        }
+        if rcstereo.updown[1] == BondUpChar || rcstereo.updown[1] == BondDownChar { // Is there a stereo symbol at the closing?
+            let on_dbl_bond = rcstereo.atoms[1] == dbl_bond.getBeginAtom() || rcstereo.atoms[1] == dbl_bond.getEndAtom()
+            let new_updown = (rcstereo.updown[1]==BondUpChar) != on_dbl_bond
+            if !found {
+                updown = new_updown
+                found = true
+            } else if new_updown != updown {
+                print("Ignoring the cis/trans stereochemistry specified for the ring closure as it is inconsistent.")
+                found = false
+            }
+        }
+        if !found {
+            return nil
+        } else {
+            return updown ? "1" : "2"
+        }
+    }
+    
+    func createCisTrans(_ mol: MKMol) {
+        // Create a vector of CisTransStereo objects for the molecule
+        for dbi in mol.getBondIterator() {
+            // Not a double bond?
+            if dbi.getBondOrder() != 2 || dbi.isAromatic() { // Maybe we shouldn't check for aromaticity here? Could aromatic bonds be cis/trans?
+                continue
+            }
+            
+            // Find the single bonds around the atoms connected by the double bond.
+            
+            let a1 = dbi.getBeginAtom()
+            let a2 = dbi.getEndAtom()
+            // Check that both atoms on the double bond have at least one
+            // other neighbor, but not more than two other neighbors;
+            // Note: In theory, we could relax the second requirement but we would
+            //       need to change the data structure we use to store cis/trans
+            //       stereo to only store 2 refs instead of 4
+            
+            let v1 = a1.getExplicitValence()
+            let v2 = a2.getExplicitValence()
+            if v1 < 2 || v1 > 3 || v2 < 2 || v2 > 3 {
+                continue
+            }
+            
+            var dbl_bond_atoms = [MKAtom]()
+            dbl_bond_atoms.append(a1)
+            dbl_bond_atoms.append(a2)
+            
+            var bond_stereo = [Bool](repeating: true, count: 2)      // Store the stereo of the chosen bonds at each end of the dbl bond
+            var stereo_bond = [MKBond?](repeating: nil, count: 2) // These are the chosen stereo bonds
+            var other_bond = [MKBond?](repeating: nil, count: 2)  // These are the 'other' bonds at each end
+            
+            for i in 0..<2 { // Loop over each end of the double bond in turn
+                for b in dbl_bond_atoms[i].getBondIterator()! {
+                    if b == dbi {
+                        continue
+                    }
+                    if !(isUp(b) || isDown(b)) {
+                        other_bond[i] = b  // Use this for the 'other' bond
+                        continue
+                    }
+                    
+                    var found: Bool = false
+                    var stereo: Bool  = false
+                    if let sb_it = _stereorbond[b] {
+                        let bc_result = setRingClosureStereo(sb_it, dbi)
+                        if bc_result != nil {
+                            stereo = bc_result == "1" ? true : false
+                        } else {
+                            found = false
+                        }
+                    } else { // Not a ring closure
+                        // True/False for "up/down if moved to before the double bond C"
+                        // stereo = !(IsUp(b) ^ (b->GetNbrAtomIdx(dbl_bond_atoms[i]) < dbl_bond_atoms[i]->GetIdx()))
+                        stereo = !boolean_xor(isUp(b), (b.getNbrAtomIdx(dbl_bond_atoms[i]) < dbl_bond_atoms[i].getIdx()))
+                    }
+                    
+                    if (!found) { // This cannot be used as the stereo bond
+                        other_bond[i] = b // Use this for the 'other' bond
+                        continue
+                    }
+                    
+                    if (stereo_bond[i] == nil) { // This is a first stereo bond
+                        stereo_bond[i] = b // Use this for the 'stereo' bond
+                        bond_stereo[i] = stereo
+                    } else { // This is a second stereo bond
+                        if (stereo != bond_stereo[i]) { // Verify that the other stereo bond (on the same atom) has opposite stereo
+                            other_bond[i] = b // Use this for the 'other' bond
+                        }
+                        else  {
+                            print("Error in cis/trans stereochemistry specified for the double bond")
+                            stereo_bond[i] = nil
+                        }
+                    }
+                }
+            }
+            
+            if stereo_bond[0] == nil || stereo_bond[1] == nil {
+                continue
+            }
+            // other_bond will contain NULLs if there are bonds to implicit hydrogens
+            let second: Ref = (other_bond[0] == nil) ? .ImplicitRef : other_bond[0]!.getNbrAtom(a1).getId().ref
+            let fourth: Ref = (other_bond[1] == nil) ? .ImplicitRef : other_bond[1]!.getNbrAtom(a2).getId().ref
+            let ct = MKCisTransStereo(mol)
+            let cfg = MKCisTransStereo.Config()
+            cfg.begin = a1.getId().ref
+            cfg.end = a2.getId().ref
+            // If bond_stereo[0]==bond_stereo[1], this means cis for stereo_bond[0] and stereo_bond[1].
+            if bond_stereo[0] == bond_stereo[1] {
+                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId().ref, second, fourth, stereo_bond[1]!.getNbrAtom(a2).getId().ref)
+            } else {
+                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId().ref, second, stereo_bond[1]!.getNbrAtom(a2).getId().ref, fourth)
+            }
+            ct.setConfig(cfg)
+            // add the data to the atom
+            mol.setData(ct)
+        }
+    }
+    
+    
+    func insertTetrahedralRef(_ mol: MKMol, id: Ref) {
+        guard var ChiralSearch = _tetrahedralMap.first(where: { $0.key == mol.getAtom(_prev)}) else {
+            return
+        }
+        let insertpos = numConnections(ChiralSearch.key, id == .ImplicitRef) - 2 // -1 indicates "from"
+        if insertpos > 2 {
+            return
+        }
+        if insertpos < 0 {
+            if ChiralSearch.value.from_or_towrds.from != .NoRef {
+                print("Warning: Overwriting previous from reference id.")
+            }
+            ChiralSearch.value.from_or_towrds.from = id
+        } else {
+            if ChiralSearch.value.refs[insertpos] != .NoRef {
+                print("Warning: Overwriting previously set reference id.")
+            }
+            ChiralSearch.value.refs[insertpos] = id
+        }
+    }
+    
+    func insertSquarePlanarRef(_ mol: MKMol, id: Ref) {
+        guard var ChiralSearch = _squarePlanarMap.first(where: { $0.key == mol.getAtom(_prev)}) else {
+            return
+        }
+        let insertpos = numConnections(ChiralSearch.key, id == .ImplicitRef) - 1
+        switch insertpos {
+        case -1:
+            if ChiralSearch.value.refs[0] != .NoRef {
+                print("Warning: Overwriting previous from reference id.")
+            }
+            ChiralSearch.value.refs[0] = id
+        case 0, 1, 2, 3:
+            if ChiralSearch.value.refs[insertpos] != .NoRef {
+                print("Warning: Overwriting previously set reference id.")
+            }
+            ChiralSearch.value.refs[insertpos] = id
+        default:
+            print("Warning: Square planar stereo specified for atom with more than 4 connections.")
+        }
+    }
+    
+    // NumConnections finds the number of connections already made to
+    // a particular atom. This is used to figure out the correct position
+    // to insert an atom ID into atom4refs
+    func numConnections(_ atom: MKAtom, _ isImplicitRef: Bool) -> Int {
+        var val = atom.getExplicitDegree()
+        // The implicit H is not included in "val" so we need to adjust by 1
+        if isImplicitRef {
+            return val + 1
+        }
+        let idx = atom.getIdx()
+        if idx - 1 < _hcount.count && _hcount[idx - 1] > 0 {
+            val += _hcount[idx - 1]
+        }
+        for bond in _rclose {
+            if bond.prev == idx {
+                val += 1
+            }
+        }
+        return val
+    }
+    
+    @discardableResult
+    func parseSimple(_ mol: MKMol) -> Bool {
+        
+        var element: Int = 0
+        var arom: Bool = false
+        
+        switch _ptr.cur() {
+        case "*":
+            element = 0
+            arom = false
+        case "C":
+            _ptr.inc()
+            if _ptr.cur() == "l" {
+                element = 17
+            } else {
+                element = 6
+                _ptr.dec()
+            }
+        case "N":
+            element = 7
+        case "O":
+            element = 8
+        case "S":
+            element = 16
+        case "P":
+            element = 15
+        case "F":
+            element = 9
+        case "I":
+            element = 53
+        case "B":
+            _ptr.inc()
+            if _ptr.cur() == "r" {
+                element = 35
+            } else {
+                element = 5
+                _ptr.dec()
+            }
+            // aromatics
+        case "b":
+            arom = true
+            element = 5
+        case "c":
+            arom = true
+            element = 6
+        case "n":
+            arom = true
+            element = 7
+        case "o":
+            arom = true
+            element = 8
+        case "p":
+            arom = true
+            element = 15
+        case "s":
+            arom = true
+            element = 16
+        default:
+            print("SMILES string contains a character \(_ptr.cur()) which is invalid")
+            return false
+        }
+        
+        let atom = mol.newAtom()
+        atom.setAtomicNum(element)
+        if _rxnrole > 1 { // Quick test for reaction
+            // Set reaction role
+            let pi = MKPairData<Int>()
+            pi.setAttribute("rxnrole")
+            pi.setValue(_rxnrole)
+            atom.setData(pi)
+        }
+        
+        if arom {
+            atom.setAromatic()
+        }
+        
+        if _prev != 0 { // need to add bond
+            let prevatom = mol.getAtom(_prev)
+            assert(prevatom != nil)
+            if arom && prevatom!.isAromatic() && _order == 0 {
+                mol.addBond(_prev, mol.numAtoms(), 1, Int(OB_AROMATIC_BOND)) // this will be kekulized later
+            } else {
+                mol.addBond(_prev, mol.numAtoms(), _order == 0 ? 1 : _order)
+            }
+            // store up/down
+            if _updown == BondUpChar || _updown == BondDownChar {
+                _upDownMap[mol.getBond(_prev, mol.numAtoms())!] = _updown
+            }
+            insertTetrahedralRef(mol, id: .Ref(mol.numAtoms() - 1))
+            insertSquarePlanarRef(mol, id: .Ref(mol.numAtoms() - 1))
+        }
+        
+        // set values
+        _prev = mol.numAtoms()
+        _order = 0 // the default is that no bond symbol has been seen
+        _updown = " "
+        
+        _hcount.append(-1) // implicit hydrogen count
+        
+        return true
+    }
+    
+    @discardableResult
+    func parseComplex(_ mol: MKMol) -> Bool {
+        var element = 0
+        var arom = false
+        var isotope = 0
+        var size = 0
+        // Parse isotope information
+        // - we parse anything with 1 to 4 letters
+        // - any bigger and we risk overflowing the short int used to
+        //   store the element information (max 65536)
+        _ptr.inc()
+        while _ptr.cur().isNumber && size < 5 {
+            isotope *= 10
+            isotope += _ptr.cur().wholeNumberValue!
+            _ptr.inc()
+            size += 1
+        }
+        if size == 5 {
+            return false
+        }
+        
+        // Parse element information
+        switch _ptr.cur() {
+        case "*":
+            element = 0
+        case "C":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 20
+            case "d":
+                element = 48
+            case "e":
+                element = 58
+            case "f":
+                element = 98
+            case "l":
+                element = 17
+            case "m":
+                element = 96
+            case "n":
+                element = 112
+            case "o":
+                element = 27
+            case "r":
+                element = 24
+            case "s":
+                element = 55
+            case "u":
+                element = 29
+            default:
+                element = 6
+                _ptr.dec()
+            }
+        case "N":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 11
+            case "b":
+                element = 41
+            case "d":
+                element = 60
+            case "e":
+                element = 10
+            case "h":
+                element = 113
+            case "i":
+                element = 28
+            case "o":
+                element = 102
+            case "p":
+                element = 93
+            default:
+                element = 7
+                _ptr.dec()
+            }
+        case "O":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "g":
+                element = 118
+            case "s":
+                element = 76
+            default:
+                element = 8
+                _ptr.dec()
+            }
+        case "P":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 91
+            case "b":
+                element = 82
+            case "d":
+                element = 46
+            case "m":
+                element = 61
+            case "o":
+                element = 84
+            case "r":
+                element = 59
+            case "t":
+                element = 78
+            case "u":
+                element = 94
+            default:
+                element = 15
+                _ptr.dec()
+            }
+        case "S":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "b":
+                element = 51
+            case "c":
+                element = 21
+            case "e":
+                element = 34
+            case "g":
+                element = 106
+            case "i":
+                element = 14
+            case "m":
+                element = 62
+            case "n":
+                element = 50
+            case "r":
+                element = 38
+            default:
+                element = 16
+                _ptr.dec()
+            }
+        case "B":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 56
+            case "e":
+                element = 4
+            case "h":
+                element = 107
+            case "i":
+                element = 83
+            case "k":
+                element = 97
+            case "r":
+                element = 35
+            default:
+                element = 5
+                _ptr.dec()
+            }
+        case "F":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "e":
+                element = 26
+            case "l":
+                element = 114
+            case "m":
+                element = 100
+            case "r":
+                element = 87
+            default:
+                element = 9
+                _ptr.dec()
+            }
+        case "I":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "n":
+                element = 49
+            case "r":
+                element = 77
+            default:
+                element = 53
+                _ptr.dec()
+            }
+        case "A":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "c":
+                element = 89
+            case "g":
+                element = 47
+            case "l":
+                element = 13
+            case "m":
+                element = 95
+            case "r":
+                element = 18
+            case "s":
+                element = 33
+            case "t":
+                element = 85
+            case "u":
+                element = 79
+            default:
+                return false
+            }
+        case "D":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "b":
+                element = 105
+            case "s":
+                element = 110
+            case "y":
+                element = 66
+            default:
+                return false
+            }
+        case "E":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "r":
+                element = 68
+            case "s":
+                element = 99
+            case "u":
+                element = 63
+            default:
+                return false
+            }
+        case "G":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 31
+            case "d":
+                element = 64
+            case "e":
+                element = 32
+            default:
+                return false
+            }
+        case "H":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "e":
+                element =  2
+            case "f":
+                element = 72
+            case "g":
+                element = 80
+            case "o":
+                element = 67
+            case "s":
+                element = 108
+            default:
+                element = 1
+                _ptr.dec()
+            }
+        case "K":
+            _ptr.inc()
+            if _ptr.cur() == "r" {
+                element = 36
+            } else {
+                element = 19
+                _ptr.dec()
+            }
+        case "L":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element =  57
+            case "i":
+                element =   3
+            case "r":
+                element = 103
+            case "u":
+                element =  71
+            case "v":
+                element = 116
+            default:
+                return false
+            }
+        case "M":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "c":
+                element = 115
+            case "d":
+                element = 101
+            case "g":
+                element =  12
+            case "n":
+                element =  25
+            case "o":
+                element =  42
+            case "t":
+                element =  109
+            default:
+                return false
+            }
+        case "R":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 88
+            case "b":
+                element = 37
+            case "e":
+                element = 75
+            case "f":
+                element = 104
+            case "g":
+                element = 111
+            case "h":
+                element = 45
+            case "n":
+                element = 86
+            case "u":
+                element = 44
+            default:
+                return false
+            }
+        case "T":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "a":
+                element = 73
+            case "b":
+                element = 65
+            case "c":
+                element = 43
+            case "e":
+                element = 52
+            case "h":
+                element = 90
+            case "i":
+                element = 22
+            case "l":
+                element = 81
+            case "m":
+                element = 69
+            case "s":
+                element = 117
+            default:
+                return false
+            }
+        case "U":  element = 92
+        case "V":  element = 23
+        case "W":  element = 74
+        case "X":
+            _ptr.inc()
+            if _ptr.cur() == "e" {
+                element = 54
+            } else {
+                return false
+            }
+        case "Y":
+            _ptr.inc()
+            if _ptr.cur() == "b" {
+                element = 70
+            } else {
+                element = 39
+                _ptr.dec()
+            }
+        case "Z":
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "n":
+                element = 30
+            case "r":
+                element = 40
+            default:
+                return false
+            }
+        case "a":
+            _ptr.inc()
+            if _ptr.cur() == "s" {
+                arom = true
+                element = 33
+            } else {
+                return false
+            }
+        case "b":
+            _ptr.inc()
+            if _ptr.cur() == "i" {
+                arom = true
+                element = 83
+            } else {
+                arom = true
+                element = 5
+                _ptr.dec()
+            }
+        case "c":
+            arom = true
+            element = 6
+        case "g":
+            _ptr.inc()
+            if _ptr.cur() == "e" {
+                arom = true
+                element = 32
+            } else {
+                return false
+            }
+        case "n":
+            arom = true
+            element = 7
+        case "o":
+            arom = true
+            element = 8
+        case "p":
+            arom = true
+            element = 15
+        case "s":
+            arom = true
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "e":
+                element = 34
+            case "i":
+                element = 14
+            case "n":
+                element = 50
+            case "b":
+                element = 51
+            default:
+                element = 16
+                _ptr.dec()
+            }
+        case "t":
+            _ptr.inc()
+            if _ptr.cur() == "e" {
+                arom = true
+                element = 52
+            } else {
+                return false
+            }
+        case "#":
+            // Only support three digits for this extension
+            if _ptr[1] == "1" || _ptr[1] == "2" && _ptr[2] >= "0" && _ptr[2] <= "9" && _ptr[3] >= "0" && _ptr[3] <= "9" {
+                element = (_ptr[1].wholeNumberValue!) * 100 + (_ptr[2].wholeNumberValue!) * 10 + (_ptr[3].wholeNumberValue!)
+                if element > 255 {
+                    let err = "Element number must be <= 255)"
+                    print(err)
+                    return false
+                }
+                _ptr += 3
+                break
+            }
+            fallthrough
+        default:
+            let err = "SMILES string contains a character \(_ptr.cur()) which is invalid"
+            print(err)
+            return false
+        }
+        
+        
+        //handle hydrogen count, stereochemistry, and charge
+        
+        let atom: MKAtom = mol.newAtom()
+        var hcount = 0
+        var charge = 0
+        var rad: Int = 0
+        var clval: Int = 0
+        var _: String = ""
+        
+        var _: String = ""
+        
+        repeat {
+            _ptr.inc()
+            switch _ptr.cur() {
+            case "@":
+                _ptr.inc()
+                if _ptr.cur() == "S" && _ptr[1] == "P" { // @SP1/2/3
+                    // square planar atom found
+                    squarePlanarWatch = true
+                    if _squarePlanarMap[atom] == nil {
+                        _squarePlanarMap[atom] = MKSquarePlanarStereo.Config()
+                    }
+                    _squarePlanarMap[atom]!.refs = [.NoRef, .NoRef, .NoRef, .NoRef]
+                    _squarePlanarMap[atom]!.center = atom.getId().ref
+                    _ptr += 2
+                    switch _ptr.cur() {
+                    case "1":
+                        _squarePlanarMap[atom]!.shape = .ShapeU
+                    case "2":
+                        _squarePlanarMap[atom]!.shape = .Shape4
+                    case "3":
+                        _squarePlanarMap[atom]!.shape = .ShapeZ
+                    default:
+                        let err = "Square planar stereochemistry must be one of SP1, SP2 or SP3"
+                        print(err)
+                        return false
+                    }
+                } else {
+                    // tetrahedral atom found
+                    chiralWatch = true
+                    if _tetrahedralMap[atom] == nil {
+                        _tetrahedralMap[atom] = MKTetrahedralStereo.Config()
+                    }
+                    _tetrahedralMap[atom]!.refs = [.NoRef, .NoRef, .NoRef, .NoRef]
+                    _tetrahedralMap[atom]!.center = atom.getId().ref
+                    if _ptr.cur() == "@" {
+                        _tetrahedralMap[atom]!.winding = .Clockwise
+                    } else if _ptr.cur() == "?" {
+                        _tetrahedralMap[atom]!.specified = false
+                    } else {
+                        _tetrahedralMap[atom]!.winding = .AntiClockwise
+                        _ptr.dec()
+                    }
+                }
+            case "-":
+                if charge != 0 {
+                    let err = "Charge can only be specified once"
+                    print(err)
+                    return false
+                }
+                while _ptr.inc().cur() == "-" {
+                    charge -= 1 // handle [O--]
+                }
+                if charge == 0 {
+                    while _ptr.cur().isNumber {
+                        charge = charge * 10 - (_ptr.cur().wholeNumberValue!)
+                        _ptr.inc()
+                    }
+                    if charge == 0 { // handle [Cl-]
+                        charge = -1
+                    }
+                } else {
+                    charge -= 1 // finish handling [Ca++]
+                }
+                _ptr.dec()
+            case "+":
+                if charge != 0 {
+                    let err = "Charge can only be specified once"
+                    print(err)
+                    return false
+                }
+                while _ptr.inc().cur() == "+" {
+                    charge += 1 // handle [Ca++]
+                }
+                if charge == 0 {
+                    while _ptr.cur().isNumber {
+                        charge = charge * 10 + (_ptr.cur().wholeNumberValue!)
+                        _ptr.inc()
+                    }
+                    if charge == 0 { // handle [Na+]
+                        charge = 1
+                    }
+                } else {
+                    charge += 1 // finish handling [Ca++]
+                }
+                _ptr.dec()
+            case "H":
+                _ptr.inc()
+                if _ptr.cur().isNumber {
+                    hcount = _ptr.cur().wholeNumberValue!
+                } else {
+                    hcount = 1
+                    _ptr.dec()
+                }
+            case ".":
+                rad = 2
+                if _ptr.inc().cur() == "." {
+                    rad = 3
+                } else {
+                    _ptr.dec()
+                }
+            case ":":
+                if !_ptr.inc().cur().isNumber {
+                    let err = "The atom class following : must be a number"
+                    print(err)
+                    return false
+                }
+                while _ptr.cur().isNumber && clval < 100000000 {
+                    clval = clval * 10 + (_ptr.cur().wholeNumberValue!)
+                    _ptr.inc()
+                }
+                _ptr.dec()
+                let atomclass = MKPairData<Int>()
+                atomclass.setAttribute("Atom Class")
+                atomclass.setValue(clval)
+                atomclass.setOrigin(.fileformatInput)
+                atom.setData(atomclass)
+            default:
+                return false
+            }
+        } while !_ptr.empty() && _ptr.cur() != "]"
+        
+        if _ptr.empty() || _ptr.cur() != "]" {
+            let err = "Expected a closing ]"
+            print(err)
+            return false
+        }
+        
+        if charge != 0 {
+            atom.setFormalCharge(charge)
+            if abs(charge) > 10 || (element != 0 && charge > element) { // if the charge is +/- 10 or more than the number of electrons
+                let err = "Atom \(atom.getId().rawValue) had an unrealistic charge of \(charge)"
+                print(err)
+            }
+        }
+        
+        if rad != 0 {
+            atom.setSpinMultiplicity(rad)
+            atom.setAtomicNum(element)
+            atom.setIsotope(UInt(isotope))
+        }
+        
+        if arom {
+            atom.setAromatic()
+        }
+        
+        if _rxnrole > 1 {
+            let pi = MKPairData<Int>()
+            pi.setAttribute("rxnrole")
+            pi.setValue(_rxnrole)
+            atom.setData(pi)
+        }
+        
+        if _prev != 0 { // need to add bond
+            guard let prevatom = mol.getAtom(_prev) else { return false }
+            if arom && prevatom.isAromatic() && _order == 0 {
+                mol.addBond(_prev, mol.numAtoms(), 1, Int(OB_AROMATIC_BOND)) // this will be kekulized later
+            } else {
+                mol.addBond(_prev, mol.numAtoms(), _order == 0 ? 1 : _order)
+            }
+            // store up/down
+            if _updown == BondUpChar || _updown == BondDownChar {
+                _upDownMap[mol.getBond(_prev, mol.numAtoms())!] = _updown
+            }
+            if chiralWatch { // if tetrahedral atom, set previous as from atom
+                _tetrahedralMap[atom]!.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
+                if canHaveLonePair(element) { // Handle chiral lone pair as in X[S@@](Y)Z
+                    _chiralLonePair[UInt(mol.numAtoms())] = "1" // First of the refs
+                }
+            }
+            if squarePlanarWatch { // if squareplanar atom, set previous atom as first ref
+                _squarePlanarMap[atom]!.refs[0] = mol.getAtom(_prev)!.getId().ref
+            }
+            insertTetrahedralRef(mol, id: atom.getId().ref)
+            insertSquarePlanarRef(mol, id: atom.getId().ref)
+        } else { // Handle chiral lone pair as in [S@@](X)(Y)Z
+            if chiralWatch && canHaveLonePair(element) { // Handle chiral lone pair (only S at the moment)
+                _chiralLonePair[UInt(mol.numAtoms())] = "0" // 'from' atom
+            }
+        }
+        
+        //set values
+        _prev = mol.numAtoms()
+        _order = 0
+        _updown = " "
+        
+        if hcount > 0 {
+            if chiralWatch {
+                insertTetrahedralRef(mol, id: .ImplicitRef)
+            }
+            if squarePlanarWatch {
+                insertSquarePlanarRef(mol, id: .ImplicitRef)
+            }
+        }
+        _hcount.append(hcount)
+        chiralWatch = false
+        squarePlanarWatch = false
+        
+        return true
+    }
+    
+    func capExternalBonds(_ mol: MKMol) -> Bool {
+        if _extbond.isEmpty {
+            return true
+        }
+        var atom: MKAtom
+        for bond in _extbond {
+            atom = mol.newAtom()
+            atom.setAtomicNum(0)
+            mol.addBond(bond.prev, atom.getIdx(), bond.order)
+            if bond.updown == BondUpChar || bond.updown == BondDownChar {
+                _upDownMap[mol.getBond(bond.prev, atom.getIdx())!] = bond.updown
+            }
+            guard let refbond = atom.getBond(mol.getAtom(bond.prev)!) else { return false }
+            var xbd: MKExternalBondData
+            if mol.hasData(MKGenericDataType.ExternalBondData) {
+                xbd = mol.getData(MKGenericDataType.ExternalBondData) as! MKExternalBondData
+            } else {
+                xbd = MKExternalBondData()
+                xbd.setOrigin(.fileformatInput)
+                mol.setData(xbd)
+            }
+            xbd.setData(atom, refbond, bond.digit)
+            //this data gets cleaned up in mol.Clear.
+        }
+        return true
+    }
+    
+    func parseExternalBond(_ mol: MKMol) -> Bool {
+        var digit: Int = 0
+        var str = ""
+        _ptr.inc()
+        // check for bond order indicators CC&=1.C&1
+        if _ptr.cur() == "-" {
+            _order = 1
+            _ptr.inc()
+        } else if _ptr.cur() == "=" {
+            _order = 2
+            _ptr.inc()
+        } else if _ptr.cur() == "#" {
+            _order = 3
+            _ptr.inc()
+        } else if _ptr.cur() == "$" {
+            _order = 4
+            _ptr.inc()
+        } else if _ptr.cur() == ";" {
+            _order = 5
+            _ptr.inc()
+        } else if _ptr.cur() == "/" {
+            _order = 1
+            _updown = BondDownChar
+            _ptr.inc()
+        } else if _ptr.cur() == "\\" {
+            _order = 1
+            _updown = BondUpChar
+            _ptr.inc()
+        }
+        if _ptr.cur() == "%" { // external bond indicator > 10
+            _ptr.inc()
+            str.append(_ptr.cur())
+            _ptr.inc()
+            str.append(_ptr.cur())
+        } else { // simple single digit external bond indicator
+            str.append(_ptr.cur())
+        }
+        digit = Int(str) ?? 0 // convert indicator to digit
+        // check for dot disconnect closures
+        var upDown: Character = " "
+        var bondOrder: Int = 0
+        for (i, bond) in _extbond.enumerated() {
+            if bond.digit == digit {
+                upDown = (_updown > bond.updown) ? _updown : bond.updown
+                bondOrder = (_order > bond.order) ? _order : bond.order
+                mol.addBond(bond.prev, _prev, bondOrder)
+                // store up/down
+                if upDown == BondUpChar || upDown == BondDownChar {
+                    _upDownMap[mol.getBond(bond.prev, _prev)!] = upDown
+                }
+                // after adding a bond to atom "_prev"
+                // search to see if atom is bonded to a chiral atom
+                insertTetrahedralRef(mol, id: .Ref(bond.prev - 1))
+                insertSquarePlanarRef(mol, id: .Ref(bond.prev - 1))
+                _extbond.remove(at: i)
+                _updown = " "
+                _order = 0
+                return true
+            }
+        }
+        // since no closures save another ext bond
+        let extBond = ExternalBond(digit: digit, prev: _prev, order: _order, updown: _updown)
+        _extbond.append(extBond)
+        _order = 0
+        _updown = " "
+        return true
+    }
+    
+    func parseRingBond(_ mol: MKMol) -> Bool {
+        // The ring closure must be associated with a 'prev' atom
+        guard mol.getAtom(_prev) != nil else {
+            fatalError("Number not parsed correctly as a ring bond")
+            // TODO: probably make this non fatal error and return false
+        }
+        
+        var digit: Int = 0
+        if _ptr.cur() == "%" {
+            _ptr.inc()
+            if _ptr.cur() == "(" { // %(NNN) extension to OpenSMILES
+                _ptr.inc()
+                let start = _ptr.cur()
+                while _ptr.cur().isNumber {
+                    digit *= 10
+                    digit += _ptr.cur().wholeNumberValue!
+                    _ptr.inc()
+                    if _ptr.cur().wholeNumberValue! - start.wholeNumberValue! > 5 {
+                        fatalError("Ring closure numbers with more than 5 digits are not supported")
+                    }
+                }
+                if _ptr.cur() != ")" {
+                    fatalError("Matching close parenthesis not found for ring closure number")
+                }
+            } else { // % followed by two-digit ring closure
+                if !_ptr.cur().isNumber || !(_ptr[1].isNumber) {
+                    fatalError("Two digits expected after %")
+                }
+                digit = (_ptr.cur().wholeNumberValue!) * 10 + _ptr.cur().wholeNumberValue! + 1
+                _ptr.inc()
+            }
+        } else {
+            digit = _ptr.cur().wholeNumberValue!
+        }
+        
+        var upDown: Character = " "
+        var bondOrder: Int = 0
+        for (i, bond) in _rclose.enumerated() {
+            if bond.digit == digit {
+                // Check for self-bonding, e.g. C11
+                if bond.prev == _prev {
+                    // TODO: Enter Error Handling here
+                    print("ERROR: Invalid SMILES: Ring closures imply atom bonded to itself.")
+                    return false
+                }
+                upDown = (_updown > bond.updown) ? _updown : bond.updown
+                bondOrder = (_order > bond.order) ? _order : bond.order
+                // Check if this ring closure bond may be aromatic and set order accordingly
+                var aromatic_bond: Bool = false
+                if bondOrder == 0 {
+                    guard let atom1 = mol.getAtom(bond.prev) else { return false }
+                    guard let atom2 = mol.getAtom(_prev) else { return false }
+                    if atom1.isAromatic() && atom2.isAromatic() {
+                        aromatic_bond = true
+                    }
+                }
+                mol.addBond(bond.prev, _prev, bondOrder == 0 ? 1 : bondOrder, aromatic_bond ? Int(OB_AROMATIC_BOND): 0, insertpos: bond.numConnections)
+                // store up/down
+                if upDown == BondUpChar || upDown == BondDownChar {
+                    _upDownMap[mol.getBond(bond.prev, _prev)!] = upDown
+                }
+                
+                // For assigning cis/trans in the presence of bond closures, we need to
+                // remember info on all bond closure bonds.
+                var sb: StereoRingBond = StereoRingBond()
+                sb.updown.append(_updown)
+                sb.atoms.append(mol.getAtom(_prev)!)
+                sb.updown.append(bond.updown)
+                sb.atoms.append(mol.getAtom(bond.prev)!)
+                _stereorbond[mol.getBond(bond.prev, _prev)!] = sb // Store for later
+                // after adding a bond to atom "_prev"
+                // search to see if atom is bonded to a chiral atom
+                // need to check both _prev and bond->prev as closure is direction independent
+                insertTetrahedralRef(mol, id: .Ref(_prev - 1))
+                insertSquarePlanarRef(mol, id: .Ref(_prev - 1))
+                // FIXME: needed for squareplanar too??
+                var ChiralSearch = _tetrahedralMap.first(where: { $0.key == mol.getAtom(bond.prev) })
+                if ChiralSearch != nil {
+                    let insertpos = bond.numConnections - 1
+                    switch insertpos {
+                    case -1:
+                        if ChiralSearch!.value.from_or_towrds.from != .NoRef {
+                            print("Warning: Overwriting previous from reference id.")
+                        }
+                        ChiralSearch!.value.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
+                    case 0, 1, 2:
+                        if ChiralSearch!.value.refs[insertpos] != .NoRef {
+                            print("Warning: Overwriting previously set reference id.")
+                        }
+                        ChiralSearch!.value.refs[insertpos] = mol.getAtom(_prev)!.getId().ref
+                    default:
+                        print("Warning: Tetrahedral stereo specified for atom with more than 4 connections.")
+                    }
+                }
+                //CM ensure neither atoms in ring closure is a radical center
+                
+                guard let patom = mol.getAtom(_prev) else { return false }
+                patom.setSpinMultiplicity(0)
+                guard let patom = mol.getAtom(bond.prev) else { return false }
+                patom.setSpinMultiplicity(0)
+                _rclose.remove(at: i)
+                _updown = " "
+                _order = 0
+                return true
+            }
+        }
+        
+        //since no closures save another rclose bond
+        
+        guard let atom = mol.getAtom(_prev) else { return false }
+        let ringClosure: RingClosureBond = RingClosureBond(digit: digit, prev: _prev, order: _order, updown: _updown, numConnections: numConnections(atom, atom.getId().ref == .ImplicitRef)) //store position to insert closure bond
+        _rclose.append(ringClosure)
+        _order = 0
+        _updown = " "
+        
+        return true
+    }
 }
 
 
+// MARK:  Canical SMILES Helpers
 
+/*----------------------------------------------------------------------
+ * CLASS: OBBondClosureInfo: For recording bond-closure digits as
+ * work progresses on canonical SMILES.
+ ----------------------------------------------------------------------*/
+
+class MKBondClosureInfo {
+    var toatom: MKAtom      // second atom in SMILES order
+    var fromatom: MKAtom    // first atom in SMILES order
+    var bond: MKBond
+    var ringdigit: Int
+    var is_open: Int        // TRUE if SMILES processing hasn't reached 'toatom' yet
+    // TODO consider making this a computed property to make it conform to Bool
+    
+    init(toatom: MKAtom, fromatom: MKAtom, bond: MKBond, ringdigit: Int, is_open: Int) {
+        self.toatom = toatom
+        self.fromatom = fromatom
+        self.bond = bond
+        self.ringdigit = ringdigit
+        self.is_open = is_open
+    }
+}
+
+/*----------------------------------------------------------------------
+ * CLASS: OBCanSmiNode: A Tree structure, each node of which is an atom in
+ * the tree being built to write out the SMILES.
+ ----------------------------------------------------------------------*/
+
+class MKCanSmiNode {
+    var _atom: MKAtom
+    var _parent: MKAtom?
+    var _child_nodes: [MKCanSmiNode] = []
+    var _child_bonds: [MKBond] = []
+    
+    init(atom: MKAtom) {
+        _atom = atom
+        _parent = nil
+    }
+    
+    func size() -> Int {
+        return _child_nodes.count
+    }
+    
+    func setParent(_ parent: MKAtom) {
+        _parent = parent
+    }
+    
+    func getAtom() -> MKAtom {
+        return _atom
+    }
+    
+    func getParent() -> MKAtom? {
+        return _parent
+    }
+    
+    func getChildAtom(_ i: Int) -> MKAtom {
+        return _child_nodes[i].getAtom()
+    }
+    
+    func getChildBond(_ i: Int) -> MKBond {
+        return _child_bonds[i]
+    }
+    
+    func getChildNode(_ i: Int) -> MKCanSmiNode {
+        return _child_nodes[i]
+    }
+    
+    func addChildNode(_ node: MKCanSmiNode, _ bond: MKBond) {
+        _child_nodes.append(node)
+        _child_bonds.append(bond)
+    }
+}
+
+struct OutOptions {
+    var isomeric: Bool
+    var kekulesmi: Bool
+    var showatomclass: Bool
+    var showexplicitH: Bool
+    var smarts: Bool
+    var ordering: String = "" // This is a pointer to the string in the original map
+}
+
+/*----------------------------------------------------------------------
+ * CLASS OBMol2Cansmi - Declarations
+ ----------------------------------------------------------------------*/
+class MKMol2Cansmi {
+    var _atmorder: [Int] = []
+    var _uatoms: MKBitVec = MKBitVec()
+    var _ubonds: MKBitVec = MKBitVec()
+    var _vopen: [MKBondClosureInfo] = []
+    var _bcdigit: Int = 0 // Unused unless option "R" is specified
+    var _cistrans: [MKCisTransStereo] = []
+    var _unvisited_cistrans: [MKCisTransStereo] = []
+    var _isup: [MKBond: Bool] = [:]
+    
+    var _canonicalOutput: Bool = false // regular or canonical SMILES
+    
+    var _pmol: MKMol
+    var _stereoFacade: MKStereoFacade
+    var _pconv: MKConversion
+    
+    var _endatom: MKAtom?
+    var _startatom: MKAtom?
+    
+    var options: OutOptions
+    
+    init(_ options: OutOptions, _ pmol: MKMol, _ canonical: Bool, _ pconv: MKConversion) {
+        _pmol = pmol
+        _canonicalOutput = canonical
+        _pconv = pconv
+        _stereoFacade = MKStereoFacade(pmol)
+        _endatom = nil
+        _startatom = nil
+        self.options = options
+    }
+    
+    func createCisTrans(_ mol: MKMol) {
+        guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+            print("ERROR: no stereodata found for mol")
+            return
+        }
+        for data in vdata {
+            if (data as? MKStereoBase)?.getType() != .CisTrans { continue }
+            if let ct = data as? MKCisTransStereo {
+                if ct.getConfig().specified {
+                    let config = ct.getConfig()
+                    if let dbl_bond = mol.getBond(mol.getAtomById(config.begin)!, mol.getAtomById(config.end)!) {
+                        // Do not output cis/trans bond symbols for double bonds in rings of size IMPLICIT_CIS_RING_SIZE or less
+                        let boundringsize = MKBondGetSmallestRingSize(dbl_bond, IMPLICIT_CIS_RING_SIZE)
+                        if boundringsize == 0 { // either not in ring at all, or not in small ring
+                            _cistrans.append(ct)
+                        }
+                    }
+                }
+            }
+        }
+        _unvisited_cistrans = _cistrans // Make a copy of _cistrans
+    }
+    
+    func getCisTransBondSymbol(_ bond: MKBond, _ node: MKCanSmiNode) -> String {
+        // Given a cis/trans bond and the node in the SMILES tree, figures out
+        // whether to write a '/' or '\' symbol.
+        // See the comments smilesformat.cpp: FixCisTransBonds().
+        //
+        // The OBCanSmiNode is the most-recently-written atom in the SMILES string
+        // we're creating.  If it is the double-bonded atom, then the substituent
+        // follows, so that "up" means '/' and "down" means '\'.  If the OBCanSmiNode
+        // atom is the single-bonded atom then the double-bonded atom comes next,
+        // in which case "up" means '\' and "down" means '/'.
+        //
+        // Note that the story is not so simple for conjugated systems where
+        // we need to take into account what symbol was already used.
+        
+        let atom = node.getAtom()
+        let nbr_atom = bond.getNbrAtom(atom)
+        guard let mol = atom.getParent() else { return "" }
+        
+        // If this bond is in two different obcistransstereos (e.g. a conjugated system)
+        // choose the one where the dbl bond atom is *atom (i.e. the one which comes first)
+        
+        var dbl_bond_first: Bool = false
+        if atom.hasDoubleBond() {
+            if nbr_atom.hasDoubleBond() {
+                // Check whether the atom is a center in any CisTransStereo. If so,#
+                // then this CisTransStereo takes precedence over any other
+                for ChiralSearch in _cistrans {
+                    let cfg = ChiralSearch.getConfig()
+                    if atom.getId().ref == cfg.begin || atom.getId().ref == cfg.end {
+                        // **I don't think I need to check whether it has a bond with nbr_atom**
+                        dbl_bond_first = true
+                        break
+                    }
+                }
+            } else {
+                dbl_bond_first = true
+            }
+        }
+        
+        // Has the symbol for this bond already been set?
+        if !_isup.contains(where: { $0.key === bond }) { // No it hasn't
+            var endatom: Ref
+            var centeratom: Ref
+            if dbl_bond_first {
+                if atom.isAromatic() {
+                    for bond in atom.getBondIterator()! {
+                        if bond.isAromatic() && bond.getBondOrder() == 2 {
+                            return ""
+                        }
+                    }
+                }
+                endatom = nbr_atom.getId().ref
+                centeratom = atom.getId().ref
+            } else {
+                if nbr_atom.isAromatic() {
+                    for bond in nbr_atom.getBondIterator()! {
+                        if bond.isAromatic() && bond.getBondOrder() == 2 {
+                            return ""
+                        }
+                    }
+                }
+                endatom = atom.getId().ref
+                centeratom = nbr_atom.getId().ref
+            }
+            
+            
+            for ChiralSearch in _unvisited_cistrans {
+                let cfg = ChiralSearch.getConfig(.ShapeU)
+                if cfg.refs.contains(endatom) && (cfg.begin == centeratom || cfg.end == centeratom) { // Atoms endatom and centeratom are in this OBCisTransStereo
+                    var refbonds: [MKBond?] = [nil, nil, nil, nil]
+                    refbonds[0] = mol.getBond(mol.getAtomById(cfg.refs[0])!, mol.getAtomById(cfg.begin)!)
+                    
+                    if cfg.refs[1] != .ImplicitRef { // Could be a hydrogen
+                        refbonds[1] = mol.getBond(mol.getAtomById(cfg.refs[1])!, mol.getAtomById(cfg.begin)!)
+                    }
+                    
+                    if cfg.refs[2] != .ImplicitRef { // Could be a hydrogen
+                        refbonds[2] = mol.getBond(mol.getAtomById(cfg.refs[2])!, mol.getAtomById(cfg.end)!)
+                    }
+                    
+                    if cfg.refs[3] != .ImplicitRef { // Could be a hydrogen
+                        refbonds[3] = mol.getBond(mol.getAtomById(cfg.refs[3])!, mol.getAtomById(cfg.end)!)
+                    }
+                    
+                    // What symbol would the four refs use if before the dbl bond?
+                    let config: [Bool] = [true, false, false, true]
+                    var use_same_config: Bool = true
+                    // (The actual config used will be config ^ use_same_config)
+                    // Make sure that the symbol for this bond is true. This ensures
+                    // a canonical string, so that it's always C/C=C/C and not C\C=C\C.
+                    for i in 0..<4 {
+                        if refbonds[i] == bond {
+                            if !config[i] {
+                                use_same_config = false
+                                break
+                            }
+                        }
+                    }
+                    
+                    for i in 0..<4 {
+                        if _isup.contains(where: { $0.key == refbonds[i] }) { // We have already set this one (conjugated bond)
+                            if (refbonds[i] != nil) {
+                                if _isup[refbonds[i]!] == (config[i] ^ use_same_config) {
+                                    use_same_config = !use_same_config
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    for i in 0..<4 {
+                        if refbonds[i] != nil {
+                            _isup[refbonds[i]!] = config[i] ^ use_same_config
+                        }
+                    }
+                    _unvisited_cistrans.removeAll(where: { $0 === ChiralSearch }) // this one should be a memory match since we are in a loop-closure
+                    break
+                }
+            }
+        }
+        
+        // If ChiralSearch didn't find the bond, we can't set this symbol
+        if (!_isup.contains(where: { $0.key == bond })) {
+            return ""
+        }
+        
+        if (dbl_bond_first) { // double-bonded atom is first in the SMILES
+            if (_isup[bond]!) {
+                return "/"
+            } else {
+                return "\\"
+            }
+        } else { // double-bonded atom is second in the SMILES
+            if (_isup[bond]!) {
+                return "\\"
+            } else {
+                return "/"
+            }
+        }
+    }
+    
+    /***************************************************************************
+     * FUNCTION: AtomIsChiral
+     *
+     * DESCRIPTION:
+     *       Returns TRUE if the atom is genuinely chiral, that is, it meets
+     *       the criteria from OBAtom::IsChiral, and additionally it actually
+     *       has a connected hash or wedge bond.
+     *
+     *       We arbitrarily reject chiral nitrogen because for our purposes there's
+     *       no need to consider it.
+     *
+     *       NOTE: This is a simplistic test.  When the full SMILES canonicalization
+     *       includes chiral markings, this should check the symmetry classes
+     *       of the neighbors, not the hash/wedge bonds.
+     ***************************************************************************/
+    func atomIsChiral(_ atom: MKAtom) -> Bool {
+        let atomid = atom.getId().rawValue
+        return _stereoFacade.hasTetrahedralStereo(atomid) || _stereoFacade.hasSquarePlanarStereo(atomid)
+    }
+    
+    /***************************************************************************
+     * FUNCTION: BuildCanonTree
+     *
+     * DESCRIPTION:
+     *       Builds the SMILES tree, in canonical order, for the specified
+     *       molecular fragment.
+     ***************************************************************************/
+    @discardableResult
+    func buildCanonTree(_ mol: MKMol, _ frag_atoms: inout MKBitVec, _ canonical_order: [Int], _ node: MKCanSmiNode) -> Bool {
+        let atom = node.getAtom()
+        
+        // Create a vector of neighbors sorted by canonical order, but favor
+        // double and triple bonds over single and aromatic.  This causes
+        // ring-closure digits to avoid double and triple bonds.
+        //
+        // Since there are typically just one to three neighbors, we just do a
+        // ordered insertion rather than sorting.
+        var favor_multiple: Bool = true  // Visit 'multiple' bonds first
+        if options.ordering != "" {
+            favor_multiple = false // Visit in strict canonical order (if using user-specified order)
+        }
+        var sort_nbrs: [MKAtom] = []
+        var set_nbr: Bool = false
+        for nbr in atom.getNbrAtomIterator()! {
+            let idx = atom.getIdx()
+            if _uatoms[idx] || !frag_atoms.bitIsSet(idx) { continue }
+            guard let nbr_bond = atom.getBond(nbr) else { fatalError("ERROR: Could not find bond") }
+            let nbr_bond_order = nbr_bond.getBondOrder()
+            let new_needs_bsymbol = needsBondSymbol(nbr_bond)
+            
+            for (i, ai) in sort_nbrs.enumerated() {
+                guard var bond = atom.getBond(ai) else { break }
+                let bond_order = bond.getBondOrder()
+                let sorted_needs_bsymbol = needsBondSymbol(bond)
+                if favor_multiple && new_needs_bsymbol && !sorted_needs_bsymbol {
+                    sort_nbrs.insert(nbr, at: i)
+                    break
+                }
+                if (!favor_multiple || new_needs_bsymbol == sorted_needs_bsymbol) && canonical_order[idx-1] < canonical_order[ai.getIdx()-1] {
+                    sort_nbrs.insert(nbr, at: i)
+                    set_nbr = true
+                    break
+                }
+            }
+            if !set_nbr {
+                sort_nbrs.append(nbr)
+            }
+            set_nbr = false
+        }
+        
+        _uatoms.setBitOn(atom.getIdx()) // mark the aotm as visited
+        
+        if _endatom != nil {
+            if !_uatoms.bitIsSet(_endatom!.getIdx()) && sort_nbrs.count > 1 {
+                // If you have specified an _endatom, the following section rearranges
+                // sort_nbrs as follows:
+                //   - if a branch does not lead to the end atom, move it to the front
+                //     (i.e. visit it first)
+                //   - otherwise move it to the end
+                // This section is skipped if sort_nbrs has only a single member, or if
+                // we have already visited _endatom.
+                var children: [MKAtom] = []
+                myFindChildren(mol, &children, _uatoms, _endatom!)
+                
+                var front: [MKAtom] = []
+                var end: [MKAtom] = []
+                for nbr in sort_nbrs {
+                    if !children.contains(nbr) && nbr != _endatom {
+                        front.append(nbr)
+                    } else {
+                        end.append(nbr)
+                    }
+                }
+                sort_nbrs = front
+                sort_nbrs.append(contentsOf: end)
+            }
+        }
+        for nbr in sort_nbrs {
+            let idx = nbr.getIdx()
+            if _uatoms[idx] { continue }
+            guard let bond = atom.getBond(nbr) else { fatalError("ERROR: Could not find bond") }
+            _ubonds.setBitOn(bond.getIdx())
+            let next = MKCanSmiNode(atom: nbr)
+            next.setParent(atom)
+            node.addChildNode(next, bond)
+            buildCanonTree(mol, &frag_atoms, canonical_order, next)
+        }
+        
+        return true
+    }
+    
+    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: MKBitVec, _ smi: inout String) {}
+    
+    
+    /***************************************************************************
+     * FUNCTION: GetTetrahedralStereo
+     *
+     * DESCRIPTION:
+     *       If the atom is chiral, return either "@" or "@@". Otherwise 0.
+     ***************************************************************************/
+    func getTetrahedralStereo(_ node: MKCanSmiNode, _ chiral_neighbors: [MKAtom?], _ symmetry_classes: [Int]) -> String {
+        // If not enough chiral neighbors were passed in, we're done
+        if chiral_neighbors.count < 4 { return "" }
+        // If atom is not a tetrahedral center, we're done
+        let atom = node.getAtom()
+        let atomid = atom.getId().rawValue
+        guard let ts = _stereoFacade.getTetrahedralStereo(atomid) else { return "" }
+        // get the Config struct defining the stereochemistry
+        let atomConfig = ts.getConfig()
+        // Unspecified or unknown stereochemistry
+        if !atomConfig.specified || (atomConfig.specified && atomConfig.winding == .UnknownWinding) { return "" }
+        // create a Config struct with the chiral_neighbors in canonical output order
+        var canonRefs: Refs = []
+        for atomit in chiral_neighbors.suffix(from: 1) {
+            if atomit != nil {
+                canonRefs.append(atomit!.getId().ref)
+            } else {
+                canonRefs.append(.ImplicitRef)
+            }
+        }
+        var canConfig: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config()
+        if chiral_neighbors[0] != nil {
+            canConfig.from_or_towrds.from = atom.getId().ref
+        } else { // Handle a chiral lone pair, represented by a NULL OBAtom* in chiral_neighbors
+            canConfig.from_or_towrds.from = .ImplicitRef
+        }
+        canConfig.refs = canonRefs
+        // config is clockwise
+        if atomConfig == canConfig {
+            return "@@"
+        } else {
+            return "@"
+        }
+    }
+    
+    func getSquarePlanarStereo(_ node: MKCanSmiNode, _ chiral_neighbors: [MKAtom?], _ symmetry_classes: [Int]) -> String {
+        // If not enough chiral neighbors were passed in, we're done
+        if chiral_neighbors.count < 4 { return "" }
+        if chiral_neighbors.contains(where: { $0 == nil }) { return "" }
+        let atom = node.getAtom()
+        
+        // If atom is not a square-planar center, we're done
+        guard let sp = _stereoFacade.getSquarePlanarStereo(atom.getId().rawValue) else {
+            return ""
+        }
+        
+        // get the Config struct defining the stereochemistry
+        let atomConfig = sp.getConfig()
+        if !atomConfig.specified {
+            return ""
+        }
+        // create a Config struct with the chiral_neighbors in canonical output order
+        let canonRefs: Refs = MKStereo.makeRefs(chiral_neighbors[0]!.getId().ref, chiral_neighbors[1]!.getId().ref, chiral_neighbors[2]!.getId().ref, chiral_neighbors[3]!.getId().ref)
+        var canConfig: MKSquarePlanarStereo.Config = MKSquarePlanarStereo.Config()
+        canConfig.center = atom.getId().ref
+        canConfig.refs = canonRefs
+        
+        // canConfig is U shape
+        if atomConfig == canConfig {
+            return "@SP1"
+        }
+        canConfig.shape = .Shape4
+        if atomConfig == canConfig {
+            return "@SP2"
+        }
+        canConfig.shape = .ShapeZ
+        if atomConfig == canConfig {
+            return "@SP3"
+        }
+        return ""
+    }
+    
+    /***************************************************************************
+     * FUNCTION: GetSmilesElement
+     *
+     * DESCRIPTION:
+     *       Writes the symbol for an atom, e.g. "C" or "[NH2]" or "[C@@H]".
+     *
+     * RETURNS: true (always)
+     ***************************************************************************/
+    @discardableResult
+    func getSmilesElement(_ node: MKCanSmiNode, _ chiral_neighbors: [MKAtom?], _ symmetry_classes: [Int], _ buffer: inout String) -> Bool {
+        var symbol: String = ""
+        
+        var bracketElement: Bool = false
+        //        var normalValence: Bool = true
+        //        var writeExplicitHydrogens: Bool = false
+        
+        let atom = node.getAtom()
+        let element = atom.getAtomicNum()
+        
+        // Handle SMILES Valence model, and explicit and implicit hydrogens
+        if isOutsideOrganicSubset(element) {
+            bracketElement = true
+        }
+        
+        var numExplicitHsToSuppress: Int = 0
+        // Don't suppress any explicit Hs attached if the atom is an H itself (e.g. [H][H]) or -xh was specified
+        if atom.getAtomicNum() != MKElements.Hydrogen.atomicNum && !options.showexplicitH {
+            for nbr in atom.getNbrAtomIterator()! {
+                if nbr.getAtomicNum() == MKElements.Hydrogen.atomicNum && (!options.isomeric || nbr.getIsotope() == 0) && nbr.getExplicitDegree() == 1 && nbr.getFormalCharge() == 0 && (!options.showatomclass || nbr.getData("Atom Class") == nil) {
+                    numExplicitHsToSuppress += 1
+                }
+            }
+        }
+        
+        var numImplicitHs = 0
+        if options.smarts {
+            if numExplicitHsToSuppress > 0 {
+                bracketElement = true
+                numImplicitHs = numExplicitHsToSuppress
+            }
+        } else {
+            numImplicitHs = Int(atom.getImplicitHCount()) + numExplicitHsToSuppress
+            if !bracketElement {
+                if element == 0 { // asterisk is always hypervalent but we don't bracket it unless has Hs
+                    if numImplicitHs > 0 {
+                        bracketElement = true
+                    }
+                } else {
+                    let bosum = Int(atom.getExplicitValence()) - numExplicitHsToSuppress
+                    let implicitValence = smilesValence(element, bosum, false)
+                    let defaultNumImplicitHs = implicitValence - bosum
+                    if implicitValence == 0 || // hypervalent
+                        numImplicitHs != defaultNumImplicitHs // undervalent
+                        || (!options.kekulesmi && element != 6 && atom.isAromatic() && numImplicitHs != 0) // aromatic nitrogen/phosphorus
+                    {
+                        bracketElement = true
+                    }
+                }
+            }
+        }
+        
+        if atom.getFormalCharge() != 0 ||  // charged elements
+            (options.isomeric && atom.getIsotope() != 0) ||  // isotopes
+            (options.showatomclass && atom.getData("Atom Class") != nil) { // If the molecule has Atom Class data and -xa option set and atom has data
+            bracketElement = true
+        }
+        
+        var stereo: String? = nil
+        if getSmilesValence(atom) > 2 && options.isomeric {
+            stereo = getTetrahedralStereo(node, chiral_neighbors, symmetry_classes)
+            if stereo == nil {
+                stereo = getSquarePlanarStereo(node, chiral_neighbors, symmetry_classes)
+            }
+        }
+        if stereo != nil {
+            bracketElement = true
+        }
+        
+        if !bracketElement {
+            // ordinary non-bracketed element
+            if element != 0 {
+                symbol = MKElements.getSymbol(atom.getAtomicNum())
+                if (!options.kekulesmi && atom.isAromatic()) || // aromatic atom
+                    (atom.getSpinMultiplicity() != 0 && _pconv.isOption("r"))
+                { // radical centers lowercase if r option is set
+                    buffer += symbol[0] + " "
+                    if symbol[1] != " " || symbol[1] != "" {
+                        buffer += symbol[1]
+                    }
+                } else {
+                    buffer += symbol
+                }
+            } else {
+                // Atomic number zero - either '*' or an external atom
+                var external: Bool = false
+                if let externalBonds: MKExternalBondData = atom.getParent()!.getData("extBonds") as? MKExternalBondData {
+                    for externalBond in externalBonds.vexbonds {
+                        if externalBond.atom == atom {
+                            external = true
+                            buffer += "&"
+                            if let bond = externalBond.bond {
+                                if bond.getBondOrder() == 2 && !bond.isAromatic() {
+                                    buffer += "="
+                                }
+                                if bond.getBondOrder() == 2 && bond.isAromatic() {
+                                    buffer += ":"
+                                }
+                                if bond.getBondOrder() == 3 {
+                                    buffer += "#"
+                                }
+                                if bond.getBondOrder() == 4 {
+                                    buffer += "$"
+                                }
+                                buffer += String(externalBond.idx)
+                                break
+                            }
+                        }
+                    }
+                    if !external {
+                        buffer += "*"
+                    }
+                }
+            }
+            return true
+        }
+        
+        // Bracket atoms, e.g. [Pb], [OH-], [C@]
+        buffer += "["
+        let iso = atom.getIsotope()
+        if options.isomeric && iso != 0 {
+            if iso >= 10000 { // max 4 characaters
+                print("Warning: Isotope value \(iso) is too large for SMILES")
+            } else {
+                buffer += String(iso)
+            }
+        }
+        if atom.getAtomicNum() == 0 {
+            buffer += "*"
+        } else {
+            if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum && options.smarts {
+                buffer += "#1"
+            } else {
+                let elem = atom.getAtomicNum()
+                let symbol = MKElements.getSymbol(elem)
+                if symbol == "" {
+                    buffer += "#\(elem)"
+                } else if (!options.kekulesmi && atom.isAromatic()) { // aromatic atom
+                    buffer += symbol[0] + " "
+                    if symbol[1] != " " || symbol[1] != "" {
+                        buffer += symbol[1]
+                    }
+                } else {
+                    buffer += symbol
+                }
+            }
+        }
+        
+        // If chiral, append '@' or '@@'...unless we're creating a SMARTS ("s") and it's @H or @@H
+        if stereo != nil && !(options.smarts && atom.getImplicitHCount() > 0){
+            buffer += stereo!
+        }
+        // Add extra hydrogens.
+        
+        var hcount = numImplicitHs
+        if hcount > 0 && (atom == _endatom || (atom == _startatom && (options.ordering == ""))) { // Leave a free valence for attachment
+            hcount -= 1
+        }
+        if hcount > 0 {
+            if options.smarts && stereo == nil {
+                for i in 0..<hcount {
+                    buffer += "!H\(i)"
+                }
+            } else {
+                buffer += "H"
+                if hcount > 1 {
+                    buffer += String(hcount)
+                }
+            }
+        }
+        
+        // Append charge to the end
+        
+        let charge = atom.getFormalCharge()
+        if charge != 0 {
+            if charge > 0 {
+                buffer += "+"
+            } else {
+                buffer += "-"
+            }
+            if abs(charge) > 1 {
+                buffer += String(abs(charge))
+            }
+        }
+        
+        //atom class e.g. [C:2]
+        
+        if options.showatomclass {
+            if let data = atom.getData("Atom Class") as? MKPairData<Int> {
+                if let ac = data.getValue() {
+                    if ac >= 0 {
+                        buffer += ":"
+                        buffer += String(ac)
+                    }
+                }
+            }
+        }
+        
+        buffer += "]"
+        
+        return true;
+    }
+    
+    /***************************************************************************
+     * FUNCTION: GetSmilesValence
+     *
+     * DESCRIPTION:
+     *       This is like GetHvyDegree(), but it returns the "valence" of an
+     *       atom as it appears in the SMILES string.  In particular, hydrogens
+     *       count if they will appear explicitly -- see IsSuppressedHydrogen()
+     *       above.
+     ***************************************************************************/
+    func getSmilesValence(_ atom: MKAtom) -> Int {
+        if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+            return atom.getExplicitDegree()
+        }
+        if options.showexplicitH {
+            return atom.getExplicitDegree()
+        }
+        return atom.getNbrAtomIterator()!.map({($0.getAtomicNum() != MKElements.Hydrogen.atomicNum ||
+                                                $0.getIsotope() != 0 ||
+                                                $0.getExplicitDegree() != 1) ? 1: 0 }).reduce(0, +)
+    }
+    
+    /***************************************************************************
+     * FUNCTION: GetUnusedIndex
+     *
+     * DESCRIPTION:
+     *       Returns the next available bond-closure index for a SMILES.
+     *
+     *       You could just do this sequentially, not reusing bond-closure
+     *       digits, thus (chosen by Option("R")):
+     *
+     *               c1cc2ccccc2cc1          napthalene
+     *               c1ccccc1c2ccccc2        biphenyl
+     *
+     *       But molecules with more than ten rings, this requires the use of
+     *       two-digit ring closures (like c1ccccc1C...c%11ccccc%11).  To help
+     *       avoid digit reuse, this finds the lowest digit that's not currently
+     *       "open", thus
+     *
+     *               c1cc2ccccc2cc1          napthalene (same)
+     *               c1ccccc1c1ccccc1        biphenyl (reuses "1")
+     *
+     ***************************************************************************/
+    
+    func getUnusedIndex() -> Int {
+        if _pconv.isOption("R") {
+            // Keep incrementing the bond closure digits (for each connected component)
+            _bcdigit += 1
+            return _bcdigit
+        }
+        // TODO: make sure this works as intended. The original code did an inefficient search,
+        // but maybe that was because the numbers can appear out of order
+        var idx = _vopen.map { $0.ringdigit }.max() ?? 0 // if _vopen is empty, use 0
+        idx += 1
+        return idx
+    }
+    
+    /***************************************************************************
+     * FUNCTION: GetCanonClosureDigits
+     *
+     * DESCRIPTION:
+     *       Given an atom, returns the ring-closure digits for that atom, in
+     *       the form of a vector of digit/OBBond* pair.  Some of the digits may
+     *       be for newly-opened rings (the matching digit occurs later in the
+     *       SMILES string), and some may be for closing rings (the matching
+     *       digit occurred earlier in the string).
+     *
+     *       Canonicalization requires that atoms with more than one digit
+     *       have the digits assigned in a canonical fashion.  For example,
+     *       the SMILES  "CC12(NCCC2)CCC1" and "CC12(NCCC1)CCC2" are the
+     *       same molecule; we need to assign the digits of the first "C12"
+     *       such that it always comes out one way or the other.
+     *
+     *       This needs to find closing bonds (ring bonds already assigned a
+     *       digit) and opening bonds (ring bonds not encountered yet).
+     *
+     *    Closing Bonds:
+     *       This is easy: open bonds are already stored in the _vopen vector,
+     *       in canonical order.  Just find open bonds to this atom and copy
+     *       them from _vopen to our return vector.
+     *
+     *    Opening Bonds:
+     *       This function looks through the bonds for this atoms and finds
+     *       any that aren't on the _ubonds "used" list, (and also are non-H
+     *       and are in this fragment).  Any such bonds must be ring-closure
+     *       bonds.  If there is more than one, they are ordered by the
+     *       canonical order of the bonds' neighbor atoms; that is, the bond
+     *       to the lowest canonical-ordered neighbor is assigned the first
+     *       available number, and upwards in neighbor-atom canonical order.
+     ***************************************************************************/
+    func getCanonClosureDigits(_ atom: MKAtom, _ frag_atoms: inout MKBitVec, _ canonical_order: [Int]) -> [MKBondClosureInfo] {
+        var vp_closures: [MKBondClosureInfo] = []
+        var vbonds: [MKBond] = []
+        
+        // Find new ring-closure bonds for this atom
+        var setNewBond: Bool = false
+        for bond1 in atom.getBondIterator()! {
+            // Is this a ring-closure neighbor?
+            if _ubonds.bitIsSet(Int(bond1.getIdx())) { continue }
+            let nbr1 = bond1.getNbrAtom(atom)
+            // Skip hydrogens before checking canonical_order
+            // PR#1999348
+            if ((nbr1.getAtomicNum() == MKElements.Hydrogen.atomicNum && isSuppressedHydrogen(nbr1)) ||
+                (!frag_atoms.bitIsSet(nbr1.getIdx()))) { continue }
+            let nbr1_canorder = canonical_order[nbr1.getIdx() - 1]
+            
+            // Insert into the bond-vector in canonical order (by neightbor atom order)
+            for (i, bi) in vbonds.enumerated() {
+                let nbr2 = bi.getNbrAtom(atom)
+                let nbr2_canorder = canonical_order[nbr2.getIdx() - 1]
+                if nbr1_canorder < nbr2_canorder {
+                    vbonds.insert(bond1, at: i)
+                    setNewBond = true
+                    break
+                }
+            }
+            if !setNewBond {
+                vbonds.append(bond1)      // highest one (or first one) - append to end
+            }
+            setNewBond = false
+        }
+        
+        // If we found new open bonds, assign a bond-closure digits to each one,
+        // add it to _vopen, and add it to the return vector.
+        for bond1 in vbonds {
+            _ubonds.setBitOn(bond1.getIdx())
+            let digit = getUnusedIndex()
+            // let bo = bond1.isAromatic() ? 1 : bond1.getBondOrder() // CJ: why was this line added?  bo is never used?
+            let newAdd = MKBondClosureInfo(toatom: bond1.getNbrAtom(atom), fromatom: atom, bond: bond1, ringdigit: digit, is_open: 1) // interpret 1 as True
+            _vopen.append(newAdd)
+            vp_closures.append(newAdd)
+        }
+        
+        // Now look through the list of open closure-bonds and find any to this
+        // atom (but watch out for the ones we just added).  For each one found,
+        // add it to the return vector, and erase it from _vopen.
+        
+        if !_vopen.isEmpty {
+            var j = 0
+            while j < _vopen.count {
+                if _vopen[j].toatom == atom {
+                    let bci = _vopen[j]
+                    _vopen.remove(at: j)                         // take bond off "open" list
+                    bci.is_open = 0                              // mark it "closed" false ===0 in this case
+                    vp_closures.append(bci)                      // and add it to this atom's list
+                    j = 0                                        // reset iterator
+                }
+                else {
+                    j += 1
+                }
+            }
+        }
+        
+        return vp_closures
+    }
+    
+    /***************************************************************************
+     * FUNCTION: IsSuppressedHydrogen
+     *
+     * DESCRIPTION:
+     *       For a hydrogen atom, returns TRUE if the atom is not [2H] or [3H], only
+     *       has one bond, and is not bonded to another hydrogen.
+     *
+     *       NOTE: Return value is nonsensical if you pass it a non-hydrogen
+     *       atom.  Presumably, you're calling this because you've found a
+     *       hydrogen and want to know if it goes in the SMILES.
+     ***************************************************************************/
+    func isSuppressedHydrogen(_ atom: MKAtom) -> Bool {
+        if atom.getIsotope() != 0 { return false } // Deuterium or Tritium
+        if atom.getExplicitDegree() != 1 { return false } // Not exactly one bond
+        for nbr in atom.getNbrAtomIterator()! {
+            if nbr.getAtomicNum() == 1 { return false } // Bonded to another hydrogen
+        }
+        return true
+    }
+    
+    
+    /***************************************************************************
+    * FUNCTION: ToCansmilesString
+    *
+    * DESCRIPTION:
+    *       Recursively writes the canonical SMILES string to a buffer.  Writes
+    *       this node, then selects each of the child nodes (in canonical
+    *       order) and writes them.
+    *
+    *       Chirality is the tricky bit here.  Before we can write out a chiral
+    *       atom, we have to "look ahead" to determine the order in which the
+    *       neighbor atoms are/will be written.
+    *
+    *       The SMILES language defines the order-of-appearance of a ring-closure
+    *       bond as the position of the digit, in the SMILES, not the actual atom.
+    *       For example, the fragments N[C@H](C)Br, and N[C@H]1(Br)CCCC1 have
+    *       the same chiral center, because the "1" in the second one is a "stand
+    *       in" for the "C" in the first, even though the actual carbon atom appears
+    *       after the Bromine atom in the second string.
+    ***************************************************************************/
+    func toCansmilesString(_ node: MKCanSmiNode, _ buffer: inout String, _ frag_atoms: inout MKBitVec, _ symmetry_classes: [Int], _ canonical_order: [Int]) {
+        let atom = node.getAtom()
+        var chiral_neighbors: [MKAtom?] = [] 
+
+        // Get the ring-closure digits in canonical order.  We'll use these in
+        // two places: First, for figuring out chirality, then later for writing
+        // the actual ring-closure digits to the string.
+
+        var vclose_bonds = getCanonClosureDigits(atom, &frag_atoms, canonical_order)
+
+        // First thing: Figure out chirality.  We start by creating a vector of the neighbors
+        // in the order in which they'll appear in the canonical SMILES string.  This is more
+        // complex than you'd guess because of implicit/explicit H and ring-closure digits.
+
+        // Don't include chiral symbol on _endatom or _startatom.
+        // Otherwise, we end up with C[C@@H](Br)(Cl), where the C has 4 neighbours already
+        // and we cannot concatenate another SMILES string without creating a 5-valent C.
+
+        var is_chiral: Bool = atomIsChiral(atom)
+        if is_chiral && atom != _endatom && atom != _startatom {
+            // If there's a parent node, it's the first atom in the ordered neighbor-vector
+            // used for chirality.
+            if let parent = node.getParent() {
+                chiral_neighbors.append(parent)
+            }
+            // Next for chirality order will be hydrogen -- since it occurs
+            // inside the atom's [] brackets, it's always before other neighbors.
+            //
+            // Note that we check the regular neighbor list, NOT the canonical
+            // SMILES tree, because hydrogens normally aren't part of the canonical
+            // SMILES, but we still need them to figure out chirality.
+            //
+            // There are two cases: it's explicit in the OBMol object but should be
+            // written inside the brackets, i.e. "[C@H]", or it is explicit and
+            // must be outside the brackets, such as for deuterium.  (A hydrogen
+            // that will appear explicitly in the SMILES as a separate atom is
+            // treated like any other atom when calculating the chirality.)
+
+            if !options.showexplicitH {
+                for nbr in atom.getNbrAtomIterator()! {
+                    if nbr.getAtomicNum() == MKElements.Hydrogen.atomicNum && isSuppressedHydrogen(nbr) {
+                        chiral_neighbors.append(nbr)
+                        break // quit loop: only be one H if atom is chiral
+                    }
+                }
+            }
+            // Handle implict H by adding a NULL OBAtom*
+            if atom.getImplicitHCount() == 1 {
+                chiral_neighbors.append(nil)
+            }
+
+            // Ok, done with H. Now we need to consider the case where there is a chiral
+            // lone pair. If it exists (and we won't know for sure until we've counted up
+            // all the neighbours) it will go in here
+            var lonepair_location = chiral_neighbors.count
+            // Ok, done with all that. Next in the SMILES will be the ring-closure characters.
+            // So we need to find the corresponding atoms and add them to the list.
+            // (We got the canonical ring-closure list earlier.)
+            if !vclose_bonds.isEmpty {
+                for i in 0..<vclose_bonds.count {
+                    let bond = vclose_bonds[i].bond
+                    let nbr = bond.getNbrAtom(atom)
+                    chiral_neighbors.append(nbr)
+                }
+            }
+
+            // Finally, add the "regular" neighbors, the "child" nodes in the
+            // canonical-SMILES tree, to the chiral-neighbors list.
+            for child in 0..<node.size() {
+                let nbr = node.getChildAtom(child)
+                chiral_neighbors.append(nbr)
+            }
+            // Handle a chiral lone-pair on a sulfur, by inserting a NULL OBAtom* at the
+            // appropriate location
+            if chiral_neighbors.count == 3 && atom.getAtomicNum() == MKElements.Sulfur.atomicNum { // Handle sulfur
+                chiral_neighbors.insert(nil, at: lonepair_location)
+            }
+        }
+
+        // Write the current atom to the string
+        // GetSmilesElement(node, chiral_neighbors, symmetry_classes, buffer);
+        getSmilesElement(node, chiral_neighbors, symmetry_classes, &buffer)
+
+        _atmorder.append(atom.getIdx()) //store the atom ordering
+
+        // Write ring-closure digits
+        if !vclose_bonds.isEmpty {
+            for bci in vclose_bonds {
+                if bci.is_open == 0 {
+                    // Ring closure
+                    var bs = ""
+                    // Only get symbol for ring closures on the dbl bond
+                    if hasStereoDblBond(bci.bond, node.getAtom()) {
+                        bs = getCisTransBondSymbol(bci.bond, node)
+                    }
+                    if !bs.isEmpty {
+                        // append "/" or "\"
+                        buffer += bs
+                    } else {
+                        switch bci.bond.getBondOrder() {
+                        case 1:
+                            if !bci.bond.isAromatic() && bci.bond.isInRing() && bci.bond.getBeginAtom().isAromatic() && bci.bond.getEndAtom().isAromatic() {
+                                buffer += "-"
+                            }
+                        case 2:
+                            if options.kekulesmi || !bci.bond.isAromatic() {
+                                buffer += "="
+                            }
+                        case 3:
+                            buffer += "#"
+                        case 4:
+                            buffer += "$"
+                        default:
+                            break
+                        }
+                    }
+                } else {
+                    // Ring opening
+                    var bs = ""
+                    // Only get symbol for ring openings on the dbl bond
+                    if !hasStereoDblBond(bci.bond, bci.bond.getNbrAtom(node.getAtom())) {
+                        bs = getCisTransBondSymbol(bci.bond, node)
+                    }
+                    if !bs.isEmpty {
+                        // append "/" or "\"
+                        buffer += bs
+                    }
+                }
+                if bci.ringdigit > 9 {
+                    buffer += "%"
+                    if bci.ringdigit > 99 {
+                        buffer += "("
+                    }
+                    buffer += String(bci.ringdigit)
+                    if bci.ringdigit > 99 {
+                        buffer += ")"
+                    }
+                } else {
+                    buffer += String(bci.ringdigit)
+                }
+            }
+        }
+
+        // Write child bonds, then recursively follow paths to child nodes
+        // to print the SMILES for each child branch.
+        for i in 0..<node.size() {
+            let bond = node.getChildBond(i)
+            if i+1 < node.size() || node.getAtom() == _endatom {
+                buffer += "("
+            }
+            switch bond.getBondOrder() {
+            case 1:
+                let cc = getCisTransBondSymbol(bond, node)
+                if !cc.isEmpty {
+                    buffer += cc
+                } else {
+                    // Write a single bond symbol if not aromatic but end atoms are both aromatic
+                    // This will speed up reading as it will avoid ring perception around line 563 (bond->IsInRing())
+                    // TODO: Consider making the test for IsInRing() an option
+                    if !bond.isAromatic() && bond.isInRing() && bond.getBeginAtom().isAromatic() && bond.getEndAtom().isAromatic() {
+                        buffer += "-"
+                    }
+                }
+            case 2:
+                if options.kekulesmi || !bond.isAromatic() {
+                    buffer += "="
+                }
+            case 3:
+                buffer += "#"
+            case 4:
+                buffer += "$"
+            default:
+                break
+            }
+            
+            toCansmilesString(node.getChildNode(i), &buffer, &frag_atoms, symmetry_classes, canonical_order)
+            
+            if i+1 < node.size() || node.getAtom() == _endatom {
+                buffer += ")"
+            }
+        }
+    }
+    
+    func hasStereoDblBond(_ bond: MKBond?, _ atom: MKAtom?) -> Bool {
+        // This is a helper function for determining whether to
+        // consider writing a cis/trans bond symbol for bond closures.
+        // Returns TRUE only if the atom is connected to the cis/trans
+        // double bond. To handle the case of conjugated bonds, one must
+        // remember that the ring opening preceded the closure, so if the
+        // ring opening bond was on a stereocenter, it got the symbol already.
+        
+        guard bond != nil else { return false }
+        guard atom != nil else { return false }
+        
+        let nbr_atom = bond!.getNbrAtom(atom!)
+        var stereo_dbl = false
+        if atom!.hasDoubleBond() {
+            stereo_dbl = true
+            if nbr_atom.hasDoubleBond() {
+                // Check whether the nbr_atom is a begin or end in any CisTransStereo. If so,
+                // then the ring opening already had the symbol.
+                for ct in _cistrans {
+                    let cfg = ct.getConfig()
+                    if nbr_atom.getId().ref == cfg.begin || nbr_atom.getId().ref == cfg.end {
+                        // I don't think I need to check whether it has a bond with atom
+                        stereo_dbl = false
+                        break
+                    }
+                }
+            }
+        }
+        
+        return stereo_dbl
+    }
+    
+    //! Adaptation of OBMol::FindChildren to allow a vector of OBAtoms to be passed in
+    //  MOVE THIS TO OBMOL FOR 2.4
+    //         TODO: substitute this with the moleucule classes implementation :: mol.findChildren
+    func myFindChildren(_ mol: MKMol, _ children: inout [MKAtom], _ seen: MKBitVec, _ end: MKAtom) {
+        var curr = MKBitVec()
+        var next = MKBitVec()
+        var used = MKBitVec(seen)
+        used |= end.getIdx()
+        curr |= end.getIdx()
+        children.removeAll()
+        var i: Int
+        while true {
+            next.clear()
+            i = curr.nextBit(-1)
+            while i != curr.endBit() {
+                guard let atom = mol.getAtom(i) else { fatalError("Cannot find atom in molecule : myFindChildren") }
+                for nbr in atom.getNbrAtomIterator()! {
+                    if !used[nbr.getIdx()] {
+                        children.append(nbr)
+                        next |= nbr.getIdx()
+                        used |= nbr.getIdx()
+                    }
+                }
+                i = curr.nextBit(i)
+            }
+            if next.isEmpty() {
+                break
+            }
+            curr = next
+        }
+    }
+    
+    func getOutputOrder(_ outorder: inout String) {
+        // std::vector<int>::iterator it = _atmorder.begin();
+        // if (it != _atmorder.end()) {
+        // char tmp[15];
+        // snprintf(tmp, 15, "%d", *it);
+        // outorder += tmp;
+        // ++it;
+        // for (; it != _atmorder.end(); ++it) {
+        //     snprintf(tmp, 15, "%d", *it);
+        //     outorder += ' ';
+        //     outorder += tmp;
+        // }
+        // }
+        if !_atmorder.isEmpty {
+            outorder += String(_atmorder[0])
+            for i in 1..<_atmorder.count {
+                outorder += " "
+                outorder += String(_atmorder[i])
+            }
+        }
+    }
+
+    // Returns canonical label order
+    func parseInChI(_ mol: MKMol, _ atom_order: [Int]) -> Bool { 
+
+        // OBConversion MolConv;
+        // MolConv.SetOutFormat("InChI");
+        // MolConv.SetAuxConv(nullptr); //temporary until a proper OBConversion copy constructor written
+        // stringstream newstream;
+        // MolConv.SetOutStream(&newstream);
+        // // I'm sure there's a better way of preventing InChI warning output
+        // MolConv.AddOption("w", OBConversion::OUTOPTIONS);
+        // MolConv.AddOption("a", OBConversion::OUTOPTIONS);
+        // MolConv.AddOption("X", OBConversion::OUTOPTIONS, "RecMet FixedH");
+        // //pInChIFormat->WriteMolecule(&mol, &MolConv);
+        // MolConv.Write(&mol);
+
+        // vector<string> splitlines;
+        // string tmp = newstream.str();
+        // tokenize(splitlines, tmp,"\n");
+        // vector<string> split, split_aux;
+        // string aux_part;
+
+        // size_t rm_start = splitlines.at(0).find("/r"); // Correct for reconnected metal if necessary
+        // if (rm_start == string::npos) {
+        // tokenize(split, splitlines.at(0),"/");
+        // aux_part = splitlines.at(1); // Use the normal labels
+        // }
+        // else {
+        // tmp = splitlines.at(0).substr(rm_start);
+        // tokenize(split, tmp, "/");
+        // split.insert(split.begin(), "");
+        // size_t rm_start_b = splitlines.at(1).find("/R:");
+        // aux_part = splitlines.at(1).substr(rm_start_b); // Use the reconnected metal labels
+        // }
+        // tokenize(split_aux, aux_part, "/");
+
+        // // Parse the canonical labels
+        // vector<vector<int> > canonical_labels;
+        // vector<string> s_components, s_atoms;
+
+        // tmp = split_aux.at(2).substr(2);
+        // tokenize(s_components, tmp, ";");
+        // for(vector<string>::iterator it=s_components.begin(); it!=s_components.end(); ++it) {
+        // tokenize(s_atoms, *it, ",");
+        // vector<int> atoms;
+        // for(vector<string>::iterator itb=s_atoms.begin(); itb!=s_atoms.end(); ++itb)
+        //     atoms.push_back(atoi(itb->c_str()));
+        // canonical_labels.push_back(atoms);
+        // }
+
+        // // Adjust the canonical labels if necessary using a /F section
+        // size_t f_start = aux_part.find("/F:");
+        // if (f_start != string::npos) {
+        // tmp = aux_part.substr(f_start+3);
+        // tokenize(split_aux, tmp, "/");
+        // tokenize(s_components, split_aux.at(0), ";");
+        // vector<vector<int> > new_canonical_labels;
+        // int total = 0;
+        // for(vector<string>::iterator it=s_components.begin(); it!=s_components.end(); ++it) {
+        //     // e.g. "1,2,3;2m" means replace the first component by "1,2,3"
+        //     //                       but keep the next two unchanged
+        //     if (*(it->rbegin()) == 'm') {
+        //     int mult;
+        //     if (it->size()==1)
+        //         mult = 1;
+        //     else
+        //         mult = atoi(it->substr(0, it->size()-1).c_str());
+        //     new_canonical_labels.insert(new_canonical_labels.end(),
+        //         canonical_labels.begin()+total, canonical_labels.begin()+total+mult);
+        //     total += mult;
+        //     }
+        //     else {
+        //     tokenize(s_atoms, *it, ",");
+        //     vector<int> atoms;
+        //     for(vector<string>::iterator itb=s_atoms.begin(); itb!=s_atoms.end(); ++itb)
+        //         atoms.push_back(atoi(itb->c_str()));
+        //     new_canonical_labels.push_back(atoms);
+        //     total++;
+        //     }
+        // }
+        // canonical_labels = new_canonical_labels;
+        // }
+
+        // // Flatten the canonical_labels
+        // for(vector<vector<int> >::iterator it=canonical_labels.begin(); it!=canonical_labels.end(); ++it) {
+        // atom_order.insert(atom_order.end(), it->begin(), it->end());
+        // }
+
+        return true 
+    }
+    
+    
+}
+
+// Do we need to write out a bond symbol for this bond?
+// No - if it's aromatic
+// Otherwise, yes if the bond order is not 1
+// If the bond order *is* 1, then only if the bond is in a ring and between aromatic atoms
+func needsBondSymbol(_ bond: MKBond) -> Bool {
+    if bond.isAromatic() { return false }
+    switch bond.getBondOrder() {
+    case 1:
+        if bond.isInRing() && bond.getBeginAtom().isAromatic() && bond.getEndAtom().isAromatic() {
+            return true
+        }
+        return false
+    default: // bond orders != 1
+        return true
+    }
+}
+
+
+/****************************************************************************
+ * FUNCTION: StandardLabels
+ *
+ * DESCRIPTION:
+ *        Creates a set of non-canonical labels for the fragment atoms
+ * ***************************************************************************/
+
+func standardLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
+    for atom in mol.getAtomIterator() {
+        if frag_atoms[atom.getIdx()] {
+            labels.append(.Ref(atom.getIdx() - 1))
+            symmetry_classes.append(.Ref(atom.getIdx() - 1))
+        }
+        else {
+            labels.append(.ImplicitRef) //to match situation when canonical ordering. Just a big number?
+            symmetry_classes.append(.ImplicitRef)
+        }
+    }
+}
+
+/***************************************************************************
+ * FUNCTION: RandomLabels
+ *
+ * DESCRIPTION:
+ *    Creates a set of random labels for the fragment atoms.  Primarily
+ *    for testing: you can create a bunch of random SMILES for the same
+ *    molecule, and use those to test the canonicalizer.
+ ***************************************************************************/
+
+func randomLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
+    let natoms = mol.numAtoms()
+    var used = MKBitVec(natoms)
+    
+    for atom in mol.getAtomIterator() {
+        if frag_atoms[atom.getIdx()] {
+            var r = Int.random(in: 0..<natoms)
+            while used[r] {
+                r = (r + 1) % natoms // find an unused number
+            }
+            used.setBitOn(r)
+            labels.append(.Ref(r))
+            symmetry_classes.append(.Ref(r))
+        }
+        else {
+            labels.append(.ImplicitRef) //to match situation when canonical ordering. Just a big number?
+            symmetry_classes.append(.ImplicitRef)
+        }
+    }
+}
+
+/**
+* Helper function for getFragment below.
+*/
+func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: MKBitVec) {
+    for nbr in atom.getNbrAtomIterator()! {
+        if !mask[nbr.getIdx()] { continue } // skip atoms not in mask
+        if fragment[nbr.getIdx()] { continue }  // skip visited atoms
+        fragment.setBitOn(nbr.getIdx()) // add the neighbor atom to the fragment
+        addNbrs(&fragment, nbr, mask) // recurse...
+    }
+}
+
+/**
+* Create an OBBitVec objects with bets set for the fragment consisting of all
+* atoms for which there is a path to atom without going through skip. These
+* fragment bitvecs are indexed by atom idx (i.e. OBAtom::GetIdx()).
+*/
+
+func getFragment(_ atom: MKAtom, _ mask: MKBitVec) -> MKBitVec {
+    var fragment = MKBitVec()
+    fragment.setBitOn(atom.getIdx())
+    addNbrs(&fragment, atom, mask)
+    return fragment
+}
+
+
+class FIXFormat: MKMoleculeFormat {
+    
+    override init() {
+        super.init() 
+        MKConversion.registerFormat("fix", self)
+    }
+    
+    required init(_ id: String, _ isDefault: Bool) {
+        fatalError("init(_:_:) has not been implemented")
+    }
+    
+    override func description() -> String? {
+        return "SMILES FIX format\n  No comments yet\n" 
+    }
+
+    override func specificationURL() -> String {
+        return "" 
+    }
+
+    override func flags() -> Int {
+        return NOTREADABLE
+    }
+
+    override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
+        // OBMol* pmol = dynamic_cast<OBMol*>(pOb);
+        // if (pmol == nullptr)
+        // return false;
+
+        // //Define some references so we can use the old parameter names
+        // ostream &ofs = *pConv->GetOutStream();
+        // OBMol &mol = *pmol;
+
+        // std::string buffer;
+        // OutOptions options(!pConv->IsOption("i"), pConv->IsOption("k"),
+        // pConv->IsOption("a"),
+        // pConv->IsOption("h"), pConv->IsOption("s"),
+        // pConv->IsOption("o"));
+        // OBMol2Cansmi m2s(options);
+
+        // m2s.Init(pmol, true, pConv);
+
+        // // We're outputting a full molecule
+        // // so we pass a bitvec for all atoms
+        // OBBitVec allbits(mol.NumAtoms());
+        // FOR_ATOMS_OF_MOL(a, mol) {
+        // allbits.SetBitOn(a->GetIdx());
+        // }
+
+        // if (mol.NumAtoms() > 0) {
+        // CreateCansmiString(mol, buffer, allbits, pConv);
+        // }
+        // ofs << buffer << endl;
+
+        // OBAtom *atom;
+        // vector<int>::iterator i;
+        // // Retrieve the canonical order of the molecule
+        // std::string orderString;
+        // m2s.GetOutputOrder(orderString);
+        // vector<string> canonical_order;
+        // tokenize(canonical_order, orderString);
+
+        // int j;
+        // int atomIdx;
+        // char coords[100];
+        // for (j = 0;j < mol.NumConformers();j++)
+        // {
+        //     mol.SetConformer(j);
+        //     for (unsigned int index = 0; index < canonical_order.size();
+        //         ++index) {
+        //     atomIdx = atoi(canonical_order[index].c_str());
+        //     atom = mol.GetAtom(atomIdx);
+        //     snprintf(coords, 100, "%9.3f %9.3f %9.3f", atom->GetX(), atom->GetY(), atom->GetZ());
+        //     ofs << coords << endl;
+        //     }
+        // }
+        // return(true);
+        fatalError()
+    }
+
+}

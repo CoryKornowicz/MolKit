@@ -9,79 +9,98 @@ private let MaxMonoAtom = 20
 private let MaxMonoBond = 20
 
 //! Chemical graph matching virtual machine
-struct ByteCode {
+struct ByteCode: _ByteCodeLabel {
+    
     var type: Int
+    
     init(type: Int) {
         self.type = type
-        self._wrappedValue = nil
     }
-    private var _wrappedValue: _ByteCodeLabel?
+    
+    private var _wrappedEval: MonOpStruct?
     //!< Eval - push current neighbors onto the stack
-    var eval: MonOpStruct? {
-        get {
-            return _wrappedValue as? MonOpStruct
+    var eval: MonOpStruct {
+        mutating get {
+            if _wrappedEval == nil {
+                _wrappedEval = MonOpStruct(type: type)
+            }
+            return _wrappedEval!
         }
         set {
-            if newValue != nil {
-                _wrappedValue = newValue
-            }
+            _wrappedEval = newValue
         }
     }
+
+    private var _wrappedCount: BinOpStruct?
     //!< Count - test the number of eval bonds
-    var count: BinOpStruct? {
-        get {
-            return _wrappedValue as? BinOpStruct
+    var count: BinOpStruct {
+        mutating get {
+            if _wrappedCount == nil {
+                _wrappedCount = BinOpStruct(type: type)
+            }
+            return _wrappedCount!
         }
         set {
-            if newValue != nil {
-                _wrappedValue = newValue
-            }
+            _wrappedCount = newValue
         }
     }
+
+
     //!< Element - test the element of current atom
-    var elem: BinOpStruct? {
-        get {
-            return _wrappedValue as? BinOpStruct
+    private var _wrappedElement: BinOpStruct?
+    var elem: BinOpStruct {
+        mutating get {
+            if _wrappedElement == nil {
+                _wrappedElement = BinOpStruct(type: type)
+            }
+            return _wrappedElement!
         }
         set {
-            if newValue != nil {
-                _wrappedValue = newValue
-            }
+            _wrappedElement = newValue
         }
     }
+
     //!< Ident - test the atom for backbone identity
-    var ident: BinOpStruct? {
-        get {
-            return _wrappedValue as? BinOpStruct
+    private var _wrappedIdent: BinOpStruct?
+    var ident: BinOpStruct {
+        mutating get {
+            if _wrappedIdent == nil {
+                _wrappedIdent = BinOpStruct(type: type)
+            }
+            return _wrappedIdent!
         }
         set {
-            if newValue != nil {
-                _wrappedValue = newValue
-            }
+            _wrappedIdent = newValue
         }
     }
+    
     //!< Local - test whether the atom has been visited
-    var local: BinOpStruct? {
-        get {
-            return _wrappedValue as? BinOpStruct
+    private var _wrappedLocal: BinOpStruct?
+    var local: BinOpStruct {
+        mutating get {
+            if _wrappedLocal == nil {
+                _wrappedLocal = BinOpStruct(type: type)
+            }
+            return _wrappedLocal!
         }
         set {
-            if newValue != nil {
-                _wrappedValue = newValue
-            }
+            _wrappedLocal = newValue
         }
     }
+
     //!< Assign - assign residue name, atom name and bond type to output
-    var assign: AssignStruct? {
-    get {
-        return _wrappedValue as? AssignStruct
-    }
-    set {
-        if newValue != nil {
-            _wrappedValue = newValue
+    private var _wrappedAssign: AssignStruct?
+    var assign: AssignStruct {
+        mutating get {
+            if _wrappedAssign == nil {
+                _wrappedAssign = AssignStruct(type: type)
+            }
+            return _wrappedAssign!
+        }
+        set {
+            _wrappedAssign = newValue
         }
     }
-}
 }
 
 struct MonoAtomType: _ByteCodeLabel {
@@ -105,7 +124,7 @@ struct MonOpStruct: _ByteCodeLabel {
 
 struct BinOpStruct: _ByteCodeLabel {
     var type: Int
-    var value: Int
+    var value: Int?
     var tcond: _ByteCodeLabel?
     var fcond: _ByteCodeLabel?
 }
@@ -113,15 +132,15 @@ struct BinOpStruct: _ByteCodeLabel {
 //! Output array -- residue id, atom id, bond flags, etc.
 struct AssignStruct: _ByteCodeLabel {
     var type: Int
-    var resid: Int
+    var resid: Int?
     var atomid: [Int]?
     var bflags: [Int]?
 }
 
 struct StackType {
-    var atom: Int
-    var bond: Int
-    var prev: Int
+    var atom: Int?
+    var bond: Int?
+    var prev: Int?
 }
 
 // static MonoAtomType MonoAtom[MaxMonoAtom];
@@ -151,11 +170,7 @@ private let RESIDMAX =        64
 
 //! An index of the residue names perceived during a run
 //! 0, 1, and 2 reserved for UNK, HOH, LIG
-private let ChainsResName = [
-  /*0*/ "UNK",
-  /*1*/ "HOH",
-  /*2*/ "UNL",
-  /*3*/ "ACE"]
+private var ChainsResName: [String] = [String].init(repeating: "", count: RESIDMAX)
 
 private let ATOMMINAMINO =    4
 private let ATOMMINNUCLEIC =  50
@@ -446,11 +461,229 @@ let Nucleotide: [StructureTemplate] = [
 typealias Template = StructureTemplate
 
 private func allocateByteCode(_ type: Int) -> ByteCode {
-    var bytecode = ByteCode(type: type)
+    let bytecode = ByteCode(type: type)
     return bytecode
 }
 
+fileprivate var ChainStack: [StackType] = [StackType].init(repeating: StackType(), count: STACKSIZE)
 
+private func generateByteCodes(_ node: inout ByteCode?, _ resid: Int, _ curr: Int, _ prev: Int, _ bond: Int) {
+
+    var done: Bool = false
+    var found: Bool = false
+    var ptr: ByteCode
+    var neighbour: [StackType] = [StackType].init(repeating: StackType(), count: 4)
+
+    if curr != prev {
+        if MonoAtom[curr].atomid < ATOMMINAMINO {
+            found = false 
+            while node != nil && (node?.type == BC_IDENT) {
+                if node?.ident.value == MonoAtom[curr].atomid {
+                    if let tcond = node?.ident.tcond {
+                        node = tcond as? ByteCode
+                        found = true
+                        break 
+                    }
+                } else {
+                    if let fcond = node?.ident.fcond {
+                        node = fcond as? ByteCode
+                    }
+                }
+            }
+            if !found {
+                // TODO: this looks sloppy, can it be better?
+                ptr = allocateByteCode(BC_IDENT)
+                ptr.ident.tcond = nil
+                ptr.ident.fcond = node
+                node = ptr
+                node = ptr.ident.tcond as? ByteCode
+                ptr.ident.value = MonoAtom[curr].atomid
+            }
+            MonoBond[bond].index = BondIndex
+            BondIndex += 1
+            done = true
+        } else if MonoAtom[curr].index != -1 {
+            while node != nil && (node?.type == BC_IDENT) {
+                node = node?.ident.fcond as? ByteCode
+            }
+            found = false
+            while node != nil && node?.type == BC_LOCAL {
+                if node?.local.value == MonoAtom[curr].index {
+                    if let tcond = node?.local.tcond {
+                        node = tcond as? ByteCode
+                        found = true
+                        break
+                    }
+                } else {
+                    if let fcond = node?.local.fcond {
+                        node = fcond as? ByteCode
+                    }
+                }
+            }
+            if !found {
+                // TODO: this looks sloppy, can it be better?
+                ptr = allocateByteCode(BC_LOCAL)
+                ptr.local.tcond = nil
+                ptr.local.fcond = node
+                node = ptr
+                node = ptr.local.tcond as? ByteCode
+                ptr.local.value = MonoAtom[curr].atomid
+            }
+            MonoBond[bond].index = BondIndex
+            BondIndex += 1
+            done = true            
+        } else {
+            while node != nil && (node?.type == BC_IDENT) {
+                node = node?.ident.fcond as? ByteCode
+            }
+            while node != nil && (node?.type == BC_LOCAL) {
+                node = node?.local.fcond as? ByteCode
+            }
+            found = false
+            while node != nil && (node?.type == BC_ELEM) {
+                if node?.elem.value == MonoAtom[curr].elem {
+                    if let tcond = node?.elem.tcond {
+                        node = tcond as? ByteCode
+                        found = true
+                        break
+                    }
+                } else {
+                    if let fcond = node?.elem.fcond {
+                        node = fcond as? ByteCode
+                    }
+                }
+            }
+            if !found {
+                ptr = allocateByteCode(BC_ELEM)
+                ptr.elem.tcond = nil
+                ptr.elem.fcond = node
+                node = ptr
+                node = ptr.elem.tcond as? ByteCode
+                ptr.elem.value = MonoAtom[curr].elem
+            }
+            MonoAtom[curr].index = AtomIndex
+            AtomIndex += 1
+            MonoBond[bond].index = BondIndex
+            BondIndex += 1
+            done = false
+        }
+    } else {
+        MonoAtom[curr].index = AtomIndex
+        AtomIndex += 1
+        done = false
+    }   
+    
+    var count = 0 
+    if !done {
+        for i in 0..<MonoBondCount {
+            if MonoBond[i].src == curr {
+                if MonoBond[i].dst != prev {
+                    neighbour[count].atom = MonoBond[i].dst
+                    neighbour[count].bond = i
+                    count += 1
+                }
+            } else if MonoBond[i].dst == curr {
+                if MonoBond[i].src != prev {
+                    neighbour[count].atom = MonoBond[i].src
+                    neighbour[count].bond = i
+                    count += 1
+                }
+            }
+        }
+        if node != nil && node?.type == BC_EVAL {
+            found = false 
+            node = node?.eval.next as? ByteCode
+            while node != nil && node?.type == BC_COUNT {
+                if node?.count.value == count {
+                    if let tcond = node?.count.tcond {
+                        node = tcond as? ByteCode
+                        found = true
+                        break
+                    }
+                } else {
+                    if let fcond = node?.count.fcond {
+                        node = fcond as? ByteCode
+                    }
+                }
+            }
+            if !found {
+                ptr = allocateByteCode(BC_COUNT)
+                ptr.count.tcond = nil
+                ptr.count.fcond = node
+                node = ptr
+                node = ptr.count.tcond as? ByteCode
+                ptr.count.value = count
+            }
+        } else if ((count != 0) || StrictFlag || (StackPtr != 0)) {
+            ptr = allocateByteCode(BC_EVAL)
+            ptr.eval.next = node
+            node = ptr
+            node = ptr.eval.next as? ByteCode
+
+            ptr = allocateByteCode(BC_COUNT)
+            ptr.count.tcond = nil
+            ptr.count.fcond = node
+            node = ptr
+            node = ptr.count.tcond as? ByteCode
+            ptr.count.value = count
+        }
+    }
+    
+    if count == 1 {
+        generateByteCodes(&node, resid, neighbour[0].atom!, curr, neighbour[0].bond!)
+    } else if count == 2 {
+        let original = ChainStack[StackPtr]
+        StackPtr += 1
+        ChainStack[StackPtr-1] = neighbour[0]
+        ChainStack[StackPtr-1].prev = curr
+        generateByteCodes(&node, resid, neighbour[1].atom!, curr, neighbour[1].bond!)
+        ChainStack[StackPtr-1] = neighbour[1]
+        ChainStack[StackPtr-1].prev = curr
+        generateByteCodes(&node, resid, neighbour[0].atom!, curr, neighbour[0].bond!)
+        StackPtr -= 1
+        ChainStack[StackPtr] = original
+    } else if count != 0 {
+        print("Maximum Monomer Fanout Exceeded!")
+        print("Residue \(ChainsResName[resid]) atom \(curr)")
+        print("Previous = \(prev) Fanout = \(count)")
+        fatalError()
+    } else if (StackPtr != 0) {
+        StackPtr -= 1
+        generateByteCodes(&node, resid, ChainStack[StackPtr].atom!, ChainStack[StackPtr].prev!, ChainStack[StackPtr].bond!)
+        StackPtr += 1
+    } else if node == nil {
+        ptr = allocateByteCode(BC_ASSIGN)
+        ptr.assign.resid = resid
+        ptr.assign.atomid = [Int](repeating: 0, count: AtomIndex)
+        for i in 0..<MonoAtomCount {
+            if MonoAtom[i].index != -1 {
+                ptr.assign.atomid![MonoAtom[i].index] = MonoAtom[i].atomid
+            }
+        }
+        if BondIndex != 0 {
+            ptr.assign.bflags = [Int](repeating: 0, count: BondIndex)
+            for i in 0..<MonoBondCount {
+                if MonoBond[i].index != -1 {
+                    ptr.assign.bflags![MonoBond[i].index] = MonoBond[i].flag
+                }
+            }
+        }
+        node = ptr
+    } else if node?.type == BC_ASSIGN {
+        if node?.assign.resid != resid {
+            print("Duplicated Monomer Specification!")
+            print("Residue \(ChainsResName[resid]) matches residue \(ChainsResName[node!.assign.resid!])")
+        }
+    }
+    if curr != prev {
+        if !done {
+            MonoAtom[curr].index = -1
+            AtomIndex -= 1
+        }
+        MonoBond[bond].index = -1
+        BondIndex -= 1
+    }
+}
 
 
 
@@ -464,8 +697,8 @@ private func allocateByteCode(_ type: Int) -> ByteCode {
  */
 class MKChainsParser {
 
-    var PDecisionTree: [Template] = []
-    var NDecisionTree: [Template] = []
+    var PDecisionTree: ByteCode? = nil 
+    var NDecisionTree: ByteCode? = nil
 
     var ResMonoAtom: [Int] = []
     var ResMonoBond: [Int] = []
@@ -479,9 +712,30 @@ class MKChainsParser {
     var resnos: [Int] = []
     var sernos: [Int] = []   //!< array of residue serial numbers
     var hcounts: [Int] = []
-    var chains: [Int] = []
+    var chains: [Character] = []
 
-    init() {}
+    init() {
+        // moved here since they are not allowed at the top level
+        ChainsResName[0] = "UNK"
+        ChainsResName[1] = "HOH"
+        ChainsResName[2] = "UNL"
+        ChainsResName[3] = "ACE"
+        
+        
+        var res = RESIDMIN
+        PDecisionTree = nil
+        for i in 0..<AMINOMAX {
+            ChainsResName[res] = AminoAcids[i].name
+            defineMonomer(&PDecisionTree, res, AminoAcids[i].data)
+            res += 1
+        }
+        NDecisionTree = nil
+        for i in 0..<NUCLEOMAX {
+            ChainsResName[res] = Nucleotides[i].name
+            defineMonomer(&NDecisionTree, res, Nucleotides[i].data)
+            res += 1
+        }
+    }
 
     /**
        * Perceive macromolecular (peptide and nucleotide) residues and chains
@@ -494,32 +748,74 @@ class MKChainsParser {
     }
     
     //! @name Step 1: Determine hetero atoms
-      //@{
-      /**
-       * Determine HETATOM records for all atoms with a heavy valance of 0.
-       * This includes HOH, Cl, Fe, ...
-       *
-       * Sets resids[i] & hetflags[i] for these atoms.
-       * @todo add ions (Cl, Fe, ...)
-       */
-    private func determineAtoms(_ mol: MKMol) -> Bool  {
-        fatalError()
+    //@{
+    /**
+    * Determine HETATOM records for all atoms with a heavy valance of 0.
+    * This includes HOH, Cl, Fe, ...
+    *
+    * Sets resids[i] & hetflags[i] for these atoms.
+    * @todo add ions (Cl, Fe, ...)
+    */
+    @discardableResult
+    private func determineHetAtoms(_ mol: MKMol) -> Bool  {
+        // find un-connected atoms (e.g., HOH oxygen atoms)
+        for atom in mol.getAtomIterator() where atom.getAtomicNum() == MKElements.Hydrogen.atomicNum || atom.getHeavyDegree() != 0 {
+             let idx = atom.getIdx() - 1 
+             if atom.getAtomicNum() == MKElements.Oxygen.atomicNum {
+                resids[idx] = 1 
+                hetflags[idx] = true
+             }
+        }
+        return true
     }
     
     //! @name Step 2: Determine connected chains
-      //@{
-      /**
-       * Determine connected chains (e.g., subunits). Chains will be labeled A, B, C, ...
-       * Ligands also get assigned a chain label. The chain for ligands will later be
-       * replaced by ' '. The residue numbers will also be updated in this process to
-       * make sure all ligands, HOH, ions, etc. have a unique residue number in the ' '
-       * chain.
-       *
-       * Sets chains[i] for all atoms. (through RecurseChain())
-       */
+    //@{
+    /**
+    * Determine connected chains (e.g., subunits). Chains will be labeled A, B, C, ...
+    * Ligands also get assigned a chain label. The chain for ligands will later be
+    * replaced by ' '. The residue numbers will also be updated in this process to
+    * make sure all ligands, HOH, ions, etc. have a unique residue number in the ' '
+    * chain.
+    *
+    * Sets chains[i] for all atoms. (through RecurseChain())
+    */
+    @discardableResult
     private func determineConnectedChains(_ mol: MKMol) -> Bool {
-        fatalError()
+        var count = 0
+        var resno = 1
+        let numAtoms = mol.numAtoms()
+
+        for atom in mol.getAtomIterator() {
+            let idx = atom.getIdx() - 1
+            if !hetflags[idx] && chains[idx] == " " && atom.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                // recurse chain
+                var char: Character = "A"
+                let size = recurseChain(mol, idx, char.offset(by: count))
+                // size = number of heavy atoms in residue chain
+                if size < 4 { // small ligand, probably
+                    if size == 1 && atom.getAtomicNum() == MKElements.Oxygen.atomicNum {
+                        resids[idx] = 1 // HOH
+                    } else {
+                        resids[idx] = 2 // Unknown ligand
+                    }
+                    for i in 0..<numAtoms where chains[i] == char.offset(by: count) {
+                        hetflags[i] = true
+                        resnos[i] = resno
+                        chains[i] = " "
+                    }
+                    resno += 1
+                } else {
+                    count += 1 // number of connected chains
+                    if count > 26 { // out of chain IDs
+                        break
+                    }
+                }
+            }
+        }
+        return true
     }
+
     /**
        * Perform the actual work for DetermineConnectedChains(). Set chains[i]
        * to @p c for all atoms of the recursed chain.
@@ -528,70 +824,244 @@ class MKChainsParser {
        * @param c The chain which we are recusring. ('A' + count)
        * @return The number of heavy atoms in the recursed chain.
        */
-    private func recurseChain(_ mol: MKMol, _ i: Int, _ c: Int) -> Int {
-        fatalError()
+    private func recurseChain(_ mol: MKMol, _ i: Int, _ c: Character) -> Int {
+        guard let atom = mol.getAtom(i + 1) else { return 0}
+        // ignore hydrogens 
+        if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+            return 0
+        }
+        var result = 1 
+        chains[i] = c
+        // recurse till we have all atoms for this chain 
+        for nbr in atom.getNbrAtomIterator()! {
+            let idx = nbr.getIdx() - 1
+            if chains[idx] == " " {
+                result += recurseChain(mol, idx, c)
+            }
+        }
+        // and return how many we found 
+        return result
     }
 
     //! @name Step 3: Determine peptide backbone
-      //@{
-      /**
-       * Walk a peptide "backbone" atom sequence, from one residue to the next. This
-       * function will look for N-CA-C-O sequences and mark these atoms.
-       *
-       * Sets bitmaks[i] for these atoms. (through ConstrainBackbone())
-       * Sets resnos[i] for these atoms. (through TracePeptideChain())
-       */
+    //@{
+    /**
+     * Walk a peptide "backbone" atom sequence, from one residue to the next. This
+     * function will look for N-CA-C-O sequences and mark these atoms.
+     *
+     * Sets bitmaks[i] for these atoms. (through ConstrainBackbone())
+     * Sets resnos[i] for these atoms. (through TracePeptideChain())
+     */
     private func determinePeptideBackbone(_ mol: MKMol) -> Bool {
-        fatalError()
+        constrainBackbond(mol, Peptide, MAXPEPTIDE)
+        
+        let numAtoms = mol.numAtoms()
+        
+        // Cyclic peptides have no NTer (1SKI)
+        
+        var foundNTer = false
+        for i in 0..<numAtoms {
+            if (Int(bitmasks[i]) & BitNTer) != 0 {
+                foundNTer = true
+                break
+            }
+        }
+        if !foundNTer {
+            for i in 0..<numAtoms {
+                if (Int(bitmasks[i]) & BitNAll) != 0 {
+                    bitmasks[i] |= UInt16(BitNTer)
+                }
+            }
+        }
+
+        /* Order Peptide Backbone */
+        for i in 0..<numAtoms where atomids[i] == -1 {
+            if (Int(bitmasks[i]) & BitNTer) != 0 {
+                atomids[i] = AI_N
+                tracePeptideChain(mol, i, 1)
+            } else if (((Int(bitmasks[i]) & BitNPT) != 0) && ((Int(bitmasks[i]) & BitN) != 0)) {
+                atomids[i] = AI_N
+                tracePeptideChain(mol, i, 1)
+            } 
+        }
+        
+        /* Carbonyl Double Bond */
+        for bond in mol.getBondIterator() {
+            if (atomids[bond.getBeginAtomIdx() - 1] == 2 && atomids[bond.getEndAtomIdx() - 1] == 3) ||
+                (atomids[bond.getBeginAtomIdx() - 1] == 3 && atomids[bond.getEndAtomIdx() - 1] == 2) {
+                flags[Int(bond.getIdx())] |= UInt8(BF_DOUBLE)
+            }
+        }
+        
+        return true
     }
 
     /**
-       * First the bitmasks[i] will be OR-ed with Template::flag for all atoms based on
-       * on Template::element and Template::count.
-       *
-       * Next, the bitmasks[i] are iteratively resolved by matching the
-       * constraints in OpenBabel::Peptide or OpenBabel::Nucleotide.
-       * @param mol The molecule.
-       * @param templ OpenBabel::Peptide or OpenBabel::Nucleotide
-       * @param tmax Number of entries in @p templ
-       */
-    //   void ConstrainBackbone(OBMol &mol, Template *templ, int tmax);
+    * First the bitmasks[i] will be OR-ed with Template::flag for all atoms based on
+    * on Template::element and Template::count.
+    *
+    * Next, the bitmasks[i] are iteratively resolved by matching the
+    * constraints in OpenBabel::Peptide or OpenBabel::Nucleotide.
+    * @param mol The molecule.
+    * @param templ OpenBabel::Peptide or OpenBabel::Nucleotide
+    * @param tmax Number of entries in @p templ
+    */
+    func constrainBackbond(_ mol: MKMol, _ templ: [Template], _ tmax: Int) {
+
+        var neighhbour: [MKAtom?] = [nil, nil, nil, nil, nil, nil]
+        var change: Bool = false
+        var result: Bool = false 
+        var idx: Int 
+        var count: Int 
+
+        var na: MKAtom?
+        var nb: MKAtom?
+        var nc: MKAtom?
+        var nd: MKAtom?
+
+
+        // first pass 
+
+        for atom in mol.getAtomIterator() {
+            idx = atom.getIdx() - 1
+            bitmasks[idx] = 0
+            for i in 0..<tmax {
+                if templ[i].elem == atom.getAtomicNum() || templ[i].count == atom.getHeavyDegree() {
+                    bitmasks[idx] |= UInt16(templ[i].flag)
+                }
+            }
+        }
+        
+        // second pass 
+
+        repeat {
+            change = false
+            for atom in mol.getAtomIterator() {
+                idx = atom.getIdx() - 1
+                if bitmasks[idx] != 0 { // determine neighbors 
+                    count = 0 
+                    for nbr in atom.getNbrAtomIterator()! where nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                        neighhbour[count] = nbr
+                        count += 1
+                    }
+                    if count >= 1 {
+                        na = neighhbour[0]
+                    }
+                    if count >= 2 {
+                        nb = neighhbour[1]
+                    }
+                    if count >= 3 {
+                        nc = neighhbour[2]
+                    }
+                    if count >= 4 {
+                        nd = neighhbour[3]
+                    }
+                    for i in 0..<tmax where templ[i].flag & Int(bitmasks[idx]) != 0 {
+                        let pep = templ[i]
+                        result = true
+                        if count == 4 {
+                            if na != nil, nb != nil, nc != nil, nd != nil {
+                                result = match4Constraints(pep, na!, nb!, nc!, nd!)
+                            }
+                        } else if count == 3 {
+                            if na != nil, nb != nil, nc != nil {
+                                result = match3Constraints(pep, na!, nb!, nc!)
+                            }
+                        } else if count == 2 {
+                            if na != nil, nb != nil {
+                                result = match2Constraints(pep, na!, nb!)
+                            }
+                        } else if count == 1 {
+                            if na != nil {
+                                result = match1Constraint(na!, pep.n1)
+                            }
+                        }
+                        if result == false {
+                            bitmasks[idx] &= ~UInt16(pep.flag)
+                            change = true
+                        }
+                    }
+                }
+            }
+        } while change
+    }
     
-    //   /**
-    //    * @return True if the bitmasks[i] for @p atom matches @p mask.
-    //    */
-    //   bool MatchConstraint(OBAtom *atom, int mask);
+    /**
+    * @return True if the bitmasks[i] for @p atom matches @p mask.
+    */
+    func match1Constraint(_ atom: MKAtom, _ mask: Int) -> Bool {
+        if mask < 0 {
+            return atom.getAtomicNum() == -mask
+        } else {
+            return Int(bitmasks[atom.getIdx() - 1]) & mask != 0
+        }
+    }
+    
+    /**
+    * @return True if atom @p na and @p nb match the Template::n1 and
+    * Template::n2.
+    */
+    func match2Constraints(_ templ: Template, _ na: MKAtom, _ nb: MKAtom) -> Bool {
+        if match1Constraint(na, templ.n2) {
+            if match1Constraint(nb, templ.n1) { return true }
+        } 
+        if match1Constraint(nb, templ.n2) {
+            if match1Constraint(na, templ.n1) { return true }
+        }
+        return false
+    }
 
-    //   /**
-    //    * @return True if atom @p na and @p nb match the Template::n1 and
-    //    * Template::n2.
-    //    */
-    //   bool Match2Constraints(Template *templ, OBAtom *na, OBAtom *nb);
+    /**
+    * @return True if atom @p na, @p nb and @p nc match the Template::n1,
+    * Template::n2 and Template::n3.
+    */
+    func match3Constraints(_ templ: Template, _ na: MKAtom, _ nb: MKAtom, _ nc: MKAtom) -> Bool {
+        if match1Constraint(na, templ.n3) {
+            if match2Constraints(templ, nb, nc) { return true }
+        }
+        if match1Constraint(nb, templ.n3) {
+            if match2Constraints(templ, na, nc) { return true }
+        }
+        if match1Constraint(nc, templ.n3) {
+            if match2Constraints(templ, na, nb) { return true }
+        }
+        return false
+    }
 
-    //   /**
-    //    * @return True if atom @p na, @p nb and @p nc match the Template::n1,
-    //    * Template::n2 and Template::n3.
-    //    */
-    //   bool Match3Constraints(Template *templ, OBAtom *na, OBAtom *nb, OBAtom *nc);
+    /**
+    * @return True if atom @p na, @p nb, @p nc and @p nd match the Template::n1,
+    * Template::n2, Template::n3 and Template::n4.
+    */
+    func match4Constraints(_ templ: Template, _ na: MKAtom, _ nb: MKAtom, _ nc: MKAtom, _ nd: MKAtom) -> Bool {
+        if match1Constraint(na, templ.n4) {
+            if match3Constraints(templ, nb, nc, nd) { return true }
+        }
+        if match1Constraint(nb, templ.n4) {
+            if match3Constraints(templ, na, nc, nd) { return true }
+        }
+        if match1Constraint(nc, templ.n4) {
+            if match3Constraints(templ, na, nb, nd) { return true }
+        }
+        if match1Constraint(nd, templ.n4) {
+            if match3Constraints(templ, na, nb, nc) { return true }
+        }
+        return false
+    }
 
-    //   /**
-    //    * @return True if atom @p na, @p nb, @p nc and @p nd match the Template::n1,
-    //    * Template::n2, Template::n3 and Template::n4.
-    //    */
-    //   bool Match4Constraints(Template *templ, OBAtom *na, OBAtom *nb, OBAtom *nc, OBAtom *nd);
+      /**
+       * Now we have the constrained bitmaks[i], trace N-CA-C-O-... and set
+       * resnos[i] and atomids[i] for each N-CA-C-O sequence.
+       *
+       * Also adds BF_DOUBLE to flags[b] for< each carbonyl bond in N-CA-C=O.
+       * @param mol The molecule.
+       * @param i Index for the current atom. (TracePeptideChain() will be called for all neighbours)
+       * @param r The residue number which we are tracing.
+       */
+      //@}
+    func tracePeptideChain(_ mol: MKMol, _ i: Int, _ r: Int ) {
 
-    //   /**
-    //    * Now we have the constrained bitmaks[i], trace N-CA-C-O-... and set
-    //    * resnos[i] and atomids[i] for each N-CA-C-O sequence.
-    //    *
-    //    * Also adds BF_DOUBLE to flags[b] for< each carbonyl bond in N-CA-C=O.
-    //    * @param mol The molecule.
-    //    * @param i Index for the current atom. (TracePeptideChain() will be called for all neighbours)
-    //    * @param r The residue number which we are tracing.
-    //    */
-    //   void TracePeptideChain(OBMol &mol, unsigned int i, int r);
-    //   //@}
-
+    }
+    
     //   //! @name Step 4: Determine peptide side chains
     //   //@{
     //   /**
@@ -674,30 +1144,67 @@ class MKChainsParser {
     //   bool  DetermineNucleicSidechains(OBMol &);
     //   //@}
 
-    //   /**
-    //    * Set up the chain perception to operate on the supplied molecule
-    //    * by resizing and initializing the private data vectors.
-    //    */
-    //   void  SetupMol(OBMol &);
+    /**
+    * Set up the chain perception to operate on the supplied molecule
+    * by resizing and initializing the private data vectors.
+    */
+    func setupMol(_ mol: MKMol) {
+        cleanupMol()
+        
+        let asize = mol.numAtoms()
+        let bsize = mol.numBonds()
+        bitmasks = [UInt16](repeating: 0, count: asize)
+        visits = [Bool](repeating: false, count: asize)
+        resids = [UInt8](repeating: 0, count: asize)
+        flags = [UInt8](repeating: 0, count: bsize)
+        hetflags = [Bool](repeating: false, count: asize)
+        atomids = [Int](repeating: 0, count: asize)
+        resnos = [Int](repeating: 0, count: asize)
+        sernos = [Int](repeating: 0, count: asize)
+        hcounts = [Int](repeating: 0, count: asize)
+        chains = [Character](repeating: " ", count: asize)
+
+        for i in 0..<asize {
+            atomids[i] = -1
+        }
+    }
     
-    //   /**
-    //    * Delete all residues in @p mol
-    //    */
-    //   void  ClearResidueInformation(OBMol &mol);
+    /**
+    * Delete all residues in @p mol
+    */
+    func clearResidueInformation(_ mol: MKMol) {
+        if mol.numResidues() == 0 { return }
+        // TODO: Make sure this works
+        for residue in mol.getResidueIterator() {
+            mol.deleteResidue(residue)
+        }
+    }
+    /**
+    * Clear all private data vectors
+    */
+    func cleanupMol() {
+        bitmasks.removeAll()
+        visits.removeAll()
+        atomids.removeAll()
+        resnos.removeAll()
+        resids.removeAll()
+        chains.removeAll()
+        hcounts.removeAll()
+        sernos.removeAll()
+        hetflags.removeAll()
+        flags.removeAll()
+    }
     
-    //   /**
-    //    * Clear all private data vectors
-    //    */
-    //   void CleanupMol();
-    
-    //   /**
-    //    * Construct and add ByteCode to the @p tree for a single residue.
-    //    * @param tree Bytecode for the residues. (OBChainsParser::PDecisionTree or OBChainsParser::NDecisionTree)
-    //    * @param resid The residue id.
-    //    * @param smiles The pseudo-smiles string (from OpenBabel::AminoAcids or OpenBabel::Nucleotides)
-    //    */
-    //   void  DefineMonomer(void **tree, int resid, const char *smiles); // ByteCode **
-    
+    /**
+    * Construct and add ByteCode to the @p tree for a single residue.
+    * @param tree Bytecode for the residues. (OBChainsParser::PDecisionTree or OBChainsParser::NDecisionTree)
+    * @param resid The residue id.
+    * @param smiles The pseudo-smiles string (from OpenBabel::AminoAcids or OpenBabel::Nucleotides)
+    */
+    func defineMonomer(_ tree: inout ByteCode?, _ resid: Int, _ smiles: String) {
+        fatalError()
+    }
+
     //   /**
     //    * @param ptr Element id (from OpenBabel::ChainsAtomName)
     //    * @return The element number.

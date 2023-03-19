@@ -44,7 +44,7 @@ let package = Package(
                     // Use to retain directory structure.
                     // Will be at top level in bundle.
                     .copy("Data"),
-                  ]),
+                  ])
     ]
 )
 

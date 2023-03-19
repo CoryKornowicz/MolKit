@@ -47,7 +47,32 @@ enum from_or_towrds: Equatable {
                 ref = newValue
             }
         }
+    }
         
+    var from: Ref? {
+        get {
+            if case .from(let value) = self {
+                return value
+            } else {
+                return nil
+            }
+        }
+        set {
+            self = .from(newValue!)
+        }
+    }
+    
+    var towards: Ref? {
+        get {
+            if case .towards(let value) = self {
+                return value
+            } else {
+                return nil
+            }
+        }
+        set {
+            self = .towards(newValue!)
+        }
     }
     
     static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {

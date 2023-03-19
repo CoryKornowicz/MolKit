@@ -136,8 +136,6 @@ class MKConversion {
     var SupportedInputFormat:  [String] = [] ///< list of supported input format
     var SupportedOutputFormat: [String] = []///< list of supported output format
     
-//
-    
     private func defaultInit() {
         self.pInput = nil
         self.pOutput = nil
@@ -420,6 +418,16 @@ Conversion options
             return pos
         } else {
             return nil
+        }
+    }
+    
+    ///@brief Determine whether an option is set. \return NULL if option not and a pointer to the associated text if it is
+    func isOption(_ opt: String, _ opttype: Option_Type = .OUTOPTIONS) -> Bool {
+        //Returns NULL if option not found or a pointer to the text if it is
+        if OptionsArray[opttype]![opt] != nil {
+            return true
+        } else {
+            return false
         }
     }
 
@@ -879,7 +887,9 @@ Conversion options
       /// This method is primarily intended for scripting languages without "stream" classes
       /// The optional "trimWhitespace" parameter allows trailing whitespace to be removed
       /// (e.g., in a SMILES string or InChI, etc.)
-    func writeString<T: MKBase>(_ pOb: T, _ trimWhitespace: Bool = true) -> String { fatalError("writeString is not implemented in base class MKConversion") }
+    func writeString<T: MKBase>(_ pOb: T, _ trimWhitespace: Bool = true) -> String { 
+        fatalError("writeString is not implemented in base class MKConversion") 
+    }
     
     /// @brief Outputs an object of a class derived from OBBase as a file (with the supplied path)
       /// Part of "API" interface.
@@ -1040,7 +1050,7 @@ Conversion options
     
     func setStartAndEnd() -> Bool {
         var TempStartNumber = 0
-        var p = isOption("f", .GENOPTIONS)
+        var p: String? = isOption("f", .GENOPTIONS)
         if p != nil {
             do {
                 StartNumber = try Int(p!, format: .number)

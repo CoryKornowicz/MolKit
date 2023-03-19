@@ -140,6 +140,19 @@ extension InputFileHandler: InputFileHandlerProtocol {
         self.streamStatus = .open
         return data
     }
+
+    public func readIntoString() throws -> String {
+        self.streamStatus = .reading
+        // Max string length is 2^31-1
+        var data = Data(count: Int.max)
+        let readSize = data.withUnsafeMutableBytes { (bytes) in
+            Darwin.fread(bytes, 1, Int.max, handle)
+        }
+        data.count = readSize
+        self.streamStatus = .open
+        guard let stringChar = String.init(data: data, encoding: String.Encoding.utf8) else { return "\0" }
+        return stringChar
+    }
     
     public func peek() -> Int {
 //        returns a copy of the next byte
@@ -194,3 +207,63 @@ extension OutputFileHandler: OutputFileHandlerProtocol {
 
 }
 
+//class QFile {
+//
+//    init(fileURL: URL) {
+//        self.fileURL = fileURL
+//    }
+//
+//    deinit {
+//        // You must close before releasing the last reference.
+//        precondition(self.file == nil)
+//    }
+//
+//    let fileURL: URL
+//
+//    private var file: UnsafeMutablePointer<FILE>? = nil
+//
+//    func open() throws {
+//        guard let f = fopen(fileURL.path, "r") else {
+//            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
+//        }
+//        self.file = f
+//    }
+//
+//    func close() {
+//        if let f = self.file {
+//            self.file = nil
+//            let success = fclose(f) == 0
+//            assert(success)
+//        }
+//    }
+//
+//    func readLine(maxLength: Int = 1024) throws -> String? {
+//        guard let f = self.file else {
+//            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EBADF), userInfo: nil)
+//        }
+//        var buffer = [CChar](repeating: 0, count: maxLength)
+//        guard fgets(&buffer, Int32(maxLength), f) != nil else {
+//            if feof(f) != 0 {
+//                return nil
+//            } else {
+//                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: nil)
+//            }
+//        }
+//        return String(cString: buffer)
+//    }
+//}
+
+
+extension Character {
+
+    // mutating func to edit character by offsetting its unicode scalar value
+    mutating func offset(by offset: Int) -> Self {
+        guard let unicode = unicodeScalars.first else { return self }
+        let value = unicode.value
+        let offsetValue = value + UInt32(offset)
+        guard let scalar = UnicodeScalar(offsetValue) else { return self }
+        self = Character(scalar)
+        return self
+    }
+
+}

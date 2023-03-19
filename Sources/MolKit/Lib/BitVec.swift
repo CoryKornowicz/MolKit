@@ -69,6 +69,10 @@ public class MKBitVec: Equatable {
         self._set = WordVector(repeating: 0, count: Int(WORDSIZE_OF_BITSIZE(size_in_bits)))
     }
     
+    public init(_ size_in_bits: Int) {
+        self._set = WordVector(repeating: 0, count: Int(WORDSIZE_OF_BITSIZE(UInt32(size_in_bits))))
+    }
+    
     public init(_ vec: MKBitVec) {
         self._set = vec._set
     }
@@ -96,6 +100,10 @@ public class MKBitVec: Equatable {
     
     func setBitOff(_ bit_offset: Int) {
         setBitOff(UInt32(bit_offset))
+    }
+    
+    func setBitOn(_ bit_offset: UInt) {
+        setBitOn(UInt32(bit_offset))
     }
     
 

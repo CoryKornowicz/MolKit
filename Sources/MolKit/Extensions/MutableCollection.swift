@@ -47,7 +47,7 @@ extension Collection where Element: Equatable, Index: SignedInteger, Index.Strid
 
 
 extension Array {
-    public mutating func resize(_ newSize: Int, with new: Element) {
+    public mutating func resize(_ newSize: Int, with new: Self.Element) {
         if newSize < self.count { return }
         while self.count < newSize {
             self.append(new)

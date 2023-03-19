@@ -69,6 +69,22 @@ public enum RefValue: Equatable, Hashable {
         return lhs.intValue == rhs.value
     }
     
+    static func -= (_ lhs: RefValue, _ rhs: Int) {
+        if var refVal = lhs.intValue {
+            refVal -= rhs
+        }
+    }
+    
+    static func - (_ lhs: RefValue, _ rhs: Int) -> RefValue {
+        if case .Ref(var val) = lhs {
+            val -= rhs
+            return lhs
+        } else if case .ImplicitRef = lhs {
+            return .ImplicitRef
+        }
+        return lhs
+    }
+    
     public func hash(into hasher: inout Hasher) {
         hasher.combine(self.intValue ?? 0)
     }
