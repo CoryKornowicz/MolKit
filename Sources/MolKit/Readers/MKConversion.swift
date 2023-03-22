@@ -32,10 +32,11 @@ class MKConversion {
     private struct StreamState {
         
         var pStream: FileHandler?
-        var owndedStreams: [FileHandler] = []
+        var owndedStreams: [FileHandlerProtocol?]
         
         init() {
             self.pStream = nil
+            self.owndedStreams = []
         }
         
         //save the current input state to this streamstate and clear conv
@@ -43,7 +44,10 @@ class MKConversion {
             precondition(owndedStreams.count == 0, "ownedStreams be empty")
             
             pStream = conv.pInput
-            owndedStreams.append(contentsOf: conv.ownedInStreams)
+            
+            conv.ownedInStreams.forEach { ifp in
+                owndedStreams.append(ifp as? FileHandlerProtocol)
+            }
             
             conv.pInput = nil
             conv.ownedInStreams = []
@@ -67,8 +71,12 @@ class MKConversion {
         mutating func pushOutput(_ conv: MKConversion) {
             precondition(owndedStreams.count == 0, "ownedStreams be empty")
             
-            pStream = conv.pOutput
-            owndedStreams.append(contentsOf: conv.ownedOutStreams)
+            pStream = conv.pOutput as? FileHandler
+            
+            conv.ownedOutStreams.forEach { ofp in
+                owndedStreams.append(ofp as! OutputFileHandler)
+            }
+            
             
             conv.pOutput = nil
             conv.ownedOutStreams = []
@@ -96,11 +104,11 @@ class MKConversion {
     var inFilename: String = ""
     var outFilename: String = ""
     
-    var pInput: InputFileHandler?  //input stream, may be filtered
-    var ownedInStreams: [InputFileHandler] = []
+    var pInput: InputFileHandler? //input stream, may be filtered
+    var ownedInStreams: [InputFileHandlerProtocol] = []
     
-    var pOutput: OutputFileHandler?  //output stream, may have filters applied
-    var ownedOutStreams: [OutputFileHandler] = []
+    var pOutput: OutputFileHandlerProtocol?  //output stream, may have filters applied
+    var ownedOutStreams: [OutputFileHandlerProtocol] = []
     
     static var pDefaultFormat: MKFormat?
     var pInFormat: MKFormat?
@@ -251,8 +259,8 @@ Conversion options
     /// These return a filtered stream for reading/writing (possible filters include compression, decompression, and newline transformation)
     /// @name Parameter get and set
     //@{
-    func getInStream() -> InputFileHandler? { return pInput ?? nil }
-    func getOutStream() -> OutputFileHandler? { return pOutput ?? nil }
+    func getInStream() -> (any InputFileHandlerProtocol)? { return pInput ?? nil }
+    func getOutStream() -> (any OutputFileHandlerProtocol)? { return pOutput ?? nil }
     
     /// @brief Set input stream.  If takeOwnership is true, will deallocate when done.
     /// If isGzipped is true, will treat as a gzipped stream regardless of option settings,
@@ -288,7 +296,7 @@ Conversion options
     /// Be aware that if the output stream is gzipped format, then this outstream
     /// either needs to be replaced (e.g., SetOutStream(NULL)) or the OBConversion
     /// destroyed before the underlying OutputFileHandler is deallocated.
-    func setOutStream(_ pOut: OutputFileHandler?, _ takeOwnership: Bool = false) {
+    func setOutStream(_ pOut: (any OutputFileHandlerProtocol)?, _ takeOwnership: Bool = false) {
         ownedOutStreams.removeAll()
         pOutput = nil
         if pOut != nil {
@@ -370,7 +378,7 @@ Conversion options
 
     ///@brief Extension method: deleted in ~OBConversion()
     func getAuxConv() -> MKConversion? { return pAuxConv }
-    func setAuxConv(_ pConv: MKConversion) { pAuxConv = pConv }
+    func setAuxConv(_ pConv: MKConversion?) { pAuxConv = pConv }
     
     //@}
       /** @name Option handling
@@ -964,7 +972,7 @@ Conversion options
         
         // If we failed to read, plus the stream is over, then check if this is a stream from ReadFile
         if (!success && !(pInput!.streamStatus == .error) && ownedInStreams.count > 0) {
-            let inFstream = ownedInStreams[0] as InputFileHandler
+            let inFstream = ownedInStreams[0] as! InputFileHandler
             do {
                 try inFstream.close()
             } catch {

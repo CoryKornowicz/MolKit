@@ -3420,7 +3420,7 @@ class MKMol: MKBase, Copying {
       \param bondorder Record the Idxs of the original bonds. See \p atomorder above.
 
       **/
-    func copySubstructure(_ newmol: MKMol, _ atoms: MKBitVec, _ excludedBonds: MKBitVec? = nil, _ correctValence: Int = 1, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?) -> Bool {
+    func copySubstructure(_ newmol: MKMol, _ atoms: MKBitVec, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?, _ excludedBonds: MKBitVec? = nil, _ correctValence: Int = 1) -> Bool {
         
         let record_atomorder: Bool = atomOrder != nil
         let record_bondorder: Bool = bondOrder != nil
@@ -3686,7 +3686,7 @@ class MKMol: MKBase, Copying {
         var atomO: [Int]? = nil
         var bondO: [Int]? = nil
         
-        return copySubstructure(newmol, infragment, nil, 1, &atomO, &bondO)
+        return copySubstructure(newmol, infragment, &atomO, &bondO)
     }
     
     

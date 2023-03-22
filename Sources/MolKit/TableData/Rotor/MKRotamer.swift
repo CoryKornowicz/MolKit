@@ -9,22 +9,6 @@ import Foundation
 //! \brief Supports a set of rotamer coordinate sets for some number of potentially rotatable bonds
 // Further class introduction in rotamer.cpp
 class MKRotamerList: MKGenericData {
-
-    //! Number of atoms in the base coordinate set (i.e., OBMol::NumAtoms())
-    // unsigned int                         _NBaseCoords;
-    // //! Base coordinate sets (i.e., existing conformers to be modified)
-    // std::vector<double*>                 _c;
-    // //! Individual bond rotors (from an OBRotor object or other)
-    // std::vector<std::pair<OBAtom**,std::vector<int> > > _vrotor;
-    // //! \brief Index of each rotor's different sampling states ("resolution")
-    // //! Usually from OBRotor::GetResolution()
-    // std::vector<std::vector<double> >    _vres;
-    // //! Individual rotamer states (i.e., the array of rotor settings)
-    // std::vector<unsigned char*>          _vrotamer;
-    // //! Rotors in rings
-    // std::vector<std::vector<int> >       _vrings;
-    // //! Dihedral angles of ring bonds
-    // std::vector<std::vector<double> >    _vringTors;
     var _NBaseCoords: Int = 0                 //! Number of atoms in the base coordinate set (i.e., OBMol::NumAtoms())
     var _c: [Double]  = []                    //! Base coordinate sets (i.e., existing conformers to be modified)
     var _vrotor: [Pair<[MKAtom], [Int]>] = [] //! Individual bond rotors (from an OBRotor object or other)
@@ -39,10 +23,7 @@ class MKRotamerList: MKGenericData {
         _NBaseCoords = 0 
     }
 
-    
-
-
-
-
-
+//    override func clone<T>(_ mol: T) -> MKGenericData? where T : MKBase {
+//
+//    }
 }

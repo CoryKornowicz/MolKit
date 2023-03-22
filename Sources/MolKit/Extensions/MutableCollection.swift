@@ -55,6 +55,7 @@ extension Array {
     }
 }
 
+
 func compareArraysLessThan(_ arr1: [UInt], _ arr2: [UInt]) -> Bool {
     let minLength = min(arr1.count, arr2.count)
     
@@ -110,7 +111,7 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
     public func seekg(_ pos: Int) {
         self.index = pos
     }
-
+    
     public func next() -> T? {
         defer { index += 1 }
         return index < collection.count ? collection[index] : nil
@@ -144,6 +145,15 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
         if self.index > 0 {
             self.index -= 1
         }
+    }
+    
+    public func curr() -> T? {
+        return self.collection[index]
+    }
+    
+    public func prev() -> T? {
+        self.unget()
+        return self.curr()
     }
     
     public func nextElement(_ elem: T, updateIndex: Bool = false) -> T? {
@@ -212,6 +222,16 @@ public class Iterator<T>: IteratorProtocol, Sequence where T: Equatable {
         return self.collection.suffix(from: self.index)
     }
     
+    func constructFromStartToCurr() -> ArraySlice<T> {
+        return self.collection[0..<self.index] // up to self.index - 1, [0, N)
+    }
+    
+}
+
+extension Iterator where T == Character {
+    static func fromString(_ input: String) -> Iterator {
+        return Iterator([T](input))
+    }
 }
 
 

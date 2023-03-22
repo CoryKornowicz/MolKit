@@ -613,16 +613,7 @@ class MKSmilesParser {
     //        return(true);
     //
     //
-    //     bool ParseSimple(OBMol&);
-    //     bool ParseComplex(OBMol&);
-    //     bool ParseRingBond(OBMol&);
-    //     bool ParseExternalBond(OBMol&);
-    //     bool CapExternalBonds(OBMol &mol);
-    //     int  NumConnections(OBAtom *, bool isImplicitRef=false);
-    //            func createCisTrans(_ mol: inout MKMol) {}
-    //     char SetRingClosureStereo(StereoRingBond rcstereo, OBBond* dbl_bond);
-    //     void InsertTetrahedralRef(OBMol &mol, unsigned long id);
-    //     void InsertSquarePlanarRef(OBMol &mol, unsigned long id);
+    //        }
     
     func isUp(_ bond: MKBond) -> Bool {
         if _upDownMap[bond] == BondUpChar {
@@ -2230,7 +2221,146 @@ class MKMol2Cansmi {
         return true
     }
     
-    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: MKBitVec, _ smi: inout String) {}
+    /***************************************************************************
+    * FUNCTION: CreateFragCansmiString
+    *
+    * DESCRIPTION:
+    *       Selects the "root" atom, which will be first in the SMILES, then
+    *       builds a tree in canonical order, and finally generates the SMILES.
+    *       If there are then atoms that haven't been visited (i.e. a molecule
+    *       with disconnected parts), selects a new root from the remaining
+    *       atoms and repeats the process.
+    ***************************************************************************/
+    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: MKBitVec, _ smi: inout String) {
+        
+        var symmetry_classes: [Ref] = []
+        var canonical_order: [Ref] = []
+        
+        symmetry_classes.reserveCapacity(mol.numAtoms())
+        canonical_order.reserveCapacity(mol.numAtoms())
+        
+        // Remember the desired endatom, if specified
+        var pp: String? = _pconv.isOption("l")
+        var atom_idx: Int = pp != nil ? Int(pp!)! : 0
+        if atom_idx >= 1 && atom_idx <= mol.numAtoms() {
+            guard let _endatom = mol.getAtom(atom_idx) else { fatalError("ERROR: Could not find atom") }
+        }
+        // Was a start atom specified?
+        pp = _pconv.isOption("f")
+        atom_idx  = pp != nil ? Int(pp!)! : 0
+        if atom_idx >= 1 && atom_idx <= mol.numAtoms() {
+            guard let _startatom = mol.getAtom(atom_idx) else { fatalError("ERROR: Could not find atom") }
+        }
+        
+        // Was an atom ordering specified?
+        var ppo = Optional(options.ordering)
+        var s_atom_order: [String] = []
+        var atom_order: [Int] = []
+        if ppo != nil {
+            s_atom_order = ppo!.components(separatedBy: "-()")
+            if s_atom_order.count != mol.numHeavyAtoms() {
+                ppo = nil
+            } else {
+                for s_atom in s_atom_order {
+                    atom_order.append(Int(s_atom)!)
+                }
+                atom_idx = atom_order[0]
+                if atom_idx >= 1 && atom_idx <= mol.numAtoms() {
+                    guard let _startatom = mol.getAtom(atom_idx) else { fatalError("ERROR: Could not find atom") }
+                }
+            }
+        }
+        // Was Universal SMILES requested?
+        var universal_smiles: Bool = _pconv.isOption("U")
+        if universal_smiles {
+            let parsedOkay = parseInChI(mol, atom_order)
+            if !parsedOkay {
+                universal_smiles = false
+            }
+        }
+        if _canonicalOutput {
+            // Find the (dis)connected fragments.
+            var visited = MKBitVec()
+            var fragments: [MKBitVec] = []
+            for i in 0..<mol.numAtoms() {
+                if !frag_atoms.bitIsSet(i+1) || visited.bitIsSet(i+1) { continue }
+                if let atom = mol.getAtom(i+1) {
+                    fragments.append(getFragment(atom, frag_atoms))
+                    visited |= fragments.last!
+                } else {
+                    fatalError("ERROR: Could not find atom")
+                }
+            }
+            // Determine symmetry classes for each disconnected fragment separately
+            symmetry_classes = Array(repeating: 0, count: mol.numAtoms())
+            for i in 0..<fragments.count {
+                let gs = MKGraphSym(mol, &fragments[i])
+                var tmp: [Ref] = []
+                gs.getSymmetry(&tmp)
+                for j in 0..<mol.numAtoms() {
+                    if fragments[i].bitIsSet(j+1) {
+                        symmetry_classes[j] = tmp[j]
+                    }
+                }
+            }
+            // Was a canonicalization timeout given?
+            var maxSeconds: Int = 5
+            let timeoutString: String? = _pconv.isOption("T")
+            if timeoutString != nil {
+                if let seconds = Int(timeoutString!) {
+                    maxSeconds = seconds
+                } else {
+                    print("ERROR: Canonicalization timeout should be a number")
+                    maxSeconds = 5
+                }
+            }
+            var symclasses = symmetry_classes.map { UInt($0.intValue!) }
+            var canorder = canonical_order.map { UInt($0.intValue!) }
+            canonicalLabels(mol, &symclasses, &canorder, frag_atoms, maxSeconds)
+        } else {
+            if _pconv.isOption("C") { // "C" == "anti-canonical form"
+                randomLabels(mol, frag_atoms, &symmetry_classes, &canonical_order)
+            } else if ppo != nil || universal_smiles { // user-specified or InChI canonical labels
+                canonical_order = Array(repeating: 0, count: mol.numAtoms())
+                symmetry_classes = Array(repeating: 0, count: mol.numAtoms())
+                var idx = 3 // Start the labels at 3 (to leave space for special values 0, 1 and 2)
+                for i in 0..<atom_order.count {
+                    if canonical_order[atom_order[i] - 1] == 0 { // Ignore ring closures (for "U")
+                        canonical_order[atom_order[i] - 1] = Ref(integerLiteral: idx)
+                        symmetry_classes[atom_order[i] - 1] = Ref(integerLiteral: idx)
+                        idx += 1
+                    }
+                }
+                for i in 0..<canonical_order.count {
+                    if canonical_order[i] == 0 { // Explicit hydrogens
+                        if let atom = mol.getAtom(i+1) {
+                            if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum && atom.getIsotope() != 0 { // [2H] or [3H]
+                                canonical_order[i] = .Ref(Int(atom.getIsotope()) - 1) // i.e. 1 or 2
+                                symmetry_classes[i] = canonical_order[i]
+                            }
+                        } else {
+                            fatalError("ERROR: Could not find atom")
+                        }
+                    }
+                }
+            } else {
+                standardLabels(mol, frag_atoms, &symmetry_classes, &canonical_order)
+            }
+        }
+        
+        // OUTER LOOP: Handles dot-disconnected structures and reactions.  Finds the
+        // lowest unmarked canorder atom in the current reaction role, and starts there
+        // to generate a SMILES.
+        // Repeats until no atoms remain unmarked.
+
+        var new_rxn_role = false // flag to indicate whether we have started a new reaction role
+        var isrxn: Bool = mol.isReaction()
+        let rxnFacade = MKReactionFacacde(mol)
+        
+        
+        
+        
+    }
     
     
     /***************************************************************************
@@ -3002,11 +3132,20 @@ class MKMol2Cansmi {
         // //pInChIFormat->WriteMolecule(&mol, &MolConv);
         // MolConv.Write(&mol);
 
+        var MolCov = MKConversion()
+        MolCov.setOutFormat("InChI")
+        MolCov.setAuxConv(nil) //temporary until a proper OBConversion copy constructor written
+        var newstream = OutputStringStream()
+        MolCov.setOutStream(newstream)
+
         // vector<string> splitlines;
         // string tmp = newstream.str();
         // tokenize(splitlines, tmp,"\n");
         // vector<string> split, split_aux;
         // string aux_part;
+
+        var splitlines = newstream.string.components(separatedBy: .whitespacesAndNewlines)
+
 
         // size_t rm_start = splitlines.at(0).find("/r"); // Correct for reconnected metal if necessary
         // if (rm_start == string::npos) {
@@ -3074,7 +3213,7 @@ class MKMol2Cansmi {
         // atom_order.insert(atom_order.end(), it->begin(), it->end());
         // }
 
-        return true 
+        fatalError() 
     }
     
     
@@ -3129,7 +3268,7 @@ func standardLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: in
 
 func randomLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
     let natoms = mol.numAtoms()
-    var used = MKBitVec(natoms)
+    let used = MKBitVec(natoms)
     
     for atom in mol.getAtomIterator() {
         if frag_atoms[atom.getIdx()] {
@@ -3173,6 +3312,80 @@ func getFragment(_ atom: MKAtom, _ mask: MKBitVec) -> MKBitVec {
     return fragment
 }
 
+/***************************************************************************
+* FUNCTION: CreateCansmiString
+*
+* DESCRIPTION:
+*       Writes the canonical SMILES for a molecule or molecular fragment
+*       to the given buffer.
+*
+*       frag_atoms represents atoms in a fragment of the molecule; the
+*       SMILES will contain those atoms only.
+*
+*       (Note: This is an ordinary public C++ function, not a member
+*       of any class.)
+*
+***************************************************************************/
+func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms: inout MKBitVec, _ pConv: MKConversion) {
+    let canonical: Bool = pConv.isOption("c")
+
+    // OutOptions options(!pConv->IsOption("i"), pConv->IsOption("k"),
+    //   pConv->IsOption("a"),
+    //   pConv->IsOption("h"), pConv->IsOption("s"),
+    //   pConv->IsOption("o"));
+    let options = OutOptions(isomeric: !pConv.isOption("i"), kekulesmi: pConv.isOption("k"),
+                             showatomclass: pConv.isOption("a"),
+                             showexplicitH: pConv.isOption("h"), smarts: pConv.isOption("s"),
+                             ordering: pConv.isOption("o")!)
+    
+    let m2s = MKMol2Cansmi(options, mol, canonical, pConv)
+
+    if options.isomeric {
+        perceiveStereo(&mol)
+        m2s.createCisTrans(mol) // No need for this if not iso
+    } else {
+        // Not isomeric - be sure there are no Z coordinates, clear
+        // all stereo-center and cis/trans information.
+        for bond in mol.getBondIterator() {
+            bond.setHash(false)
+            bond.setWedge(false)
+        }
+    }
+
+    if !options.showexplicitH {
+        // If the fragment includes explicit hydrogens, exclude them.
+        // They won't appear in the SMILES anyway (unless they're attached to
+        // a chiral center, or it's something like [H][H]).
+        for atom in mol.getAtomIterator() {
+            if frag_atoms[atom.getIdx()] && atom.getAtomicNum() == MKElements.Hydrogen.atomicNum
+                && (!options.isomeric || m2s.isSuppressedHydrogen(atom)) {
+                frag_atoms.setBitOff(atom.getIdx())
+            }
+        }
+    }
+    m2s.createFragCansmiString(mol, frag_atoms, &buffer)
+    if pConv.isOption("O") {
+        // This atom order data is useful not just for canonical SMILES
+        // Could also save canonical bond order if anyone desires
+        var canData: MKPairData<String>
+        if mol.hasData("SMILES Atom Order") {
+            // Create new OBPairData
+            canData = MKPairData()
+            canData.setAttribute("SMILES Atom Order")
+            canData.setOrigin(.local)
+            mol.setData(canData)
+        }
+        else {
+            // Recanonicalizing - update existing new OBPairData
+            canData = mol.getData("SMILES Atom Order") as! MKPairData
+        }
+        var atmorder = ""
+        m2s.getOutputOrder(&atmorder)
+        canData.setValue(atmorder)
+    }
+
+}
+
 
 class FIXFormat: MKMoleculeFormat {
     
@@ -3198,59 +3411,54 @@ class FIXFormat: MKMoleculeFormat {
     }
 
     override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
-        // OBMol* pmol = dynamic_cast<OBMol*>(pOb);
-        // if (pmol == nullptr)
-        // return false;
+        guard var mol = pOb as? MKMol else { return false }
+        //Define some references so we can use the old parameter names
+        let ofs = pConv.getOutStream()
 
-        // //Define some references so we can use the old parameter names
-        // ostream &ofs = *pConv->GetOutStream();
-        // OBMol &mol = *pmol;
+        var buffer = ""
 
-        // std::string buffer;
-        // OutOptions options(!pConv->IsOption("i"), pConv->IsOption("k"),
-        // pConv->IsOption("a"),
-        // pConv->IsOption("h"), pConv->IsOption("s"),
-        // pConv->IsOption("o"));
-        // OBMol2Cansmi m2s(options);
+        let options = OutOptions(isomeric: !pConv.isOption("i"), kekulesmi: pConv.isOption("k"),
+                                 showatomclass: pConv.isOption("a"),
+                                 showexplicitH: pConv.isOption("h"), smarts: pConv.isOption("s"),
+                                 ordering: pConv.isOption("o")!)
+        let m2s = MKMol2Cansmi(options, mol, true, pConv)
+        
+        var allbits = MKBitVec(mol.numAtoms())
+        for a in mol.getAtomIterator() {
+            allbits.setBitOn(a.getIdx())
+        }
+        
+        if mol.numAtoms() > 0 {
+            createCansmiString(&mol, &buffer, &allbits, pConv)
+        }
+        // add newline to end of buffer 
+        buffer += "\n"
+        do {
+            try ofs?.write(data: buffer.data(using: .utf8)!)
+        } catch {
+            print("Error writing to output stream")
+        }
+        var orderString: String = ""
+        m2s.getOutputOrder(&orderString)
+        let canonical_order = orderString.components(separatedBy: .whitespacesAndNewlines)
 
-        // m2s.Init(pmol, true, pConv);
-
-        // // We're outputting a full molecule
-        // // so we pass a bitvec for all atoms
-        // OBBitVec allbits(mol.NumAtoms());
-        // FOR_ATOMS_OF_MOL(a, mol) {
-        // allbits.SetBitOn(a->GetIdx());
-        // }
-
-        // if (mol.NumAtoms() > 0) {
-        // CreateCansmiString(mol, buffer, allbits, pConv);
-        // }
-        // ofs << buffer << endl;
-
-        // OBAtom *atom;
-        // vector<int>::iterator i;
-        // // Retrieve the canonical order of the molecule
-        // std::string orderString;
-        // m2s.GetOutputOrder(orderString);
-        // vector<string> canonical_order;
-        // tokenize(canonical_order, orderString);
-
-        // int j;
-        // int atomIdx;
-        // char coords[100];
-        // for (j = 0;j < mol.NumConformers();j++)
-        // {
-        //     mol.SetConformer(j);
-        //     for (unsigned int index = 0; index < canonical_order.size();
-        //         ++index) {
-        //     atomIdx = atoi(canonical_order[index].c_str());
-        //     atom = mol.GetAtom(atomIdx);
-        //     snprintf(coords, 100, "%9.3f %9.3f %9.3f", atom->GetX(), atom->GetY(), atom->GetZ());
-        //     ofs << coords << endl;
-        //     }
-        // }
-        // return(true);
-        fatalError()
+        for j in 0..<mol.numConformers() {
+            mol.setConformer(j)
+            for index in 0..<canonical_order.count {
+                let atomIdx = Int(canonical_order[index])!
+                guard let atom = mol.getAtom(atomIdx) else {
+                    fatalError("Could not get atom \(atomIdx)")
+                }
+                var coords = String(format: "%9.3f %9.3f %9.3f", atom.getX(), atom.getY(), atom.getZ())
+                coords += "\n"
+                do {
+                    try ofs?.write(data: coords.data(using: .utf8)!)
+                } catch {
+                    print("Error writing coords to output stream")
+                }
+            }
+        }
+        return true 
     }
 
 }

@@ -49,7 +49,6 @@ public class FileHandler : FileHandlerProtocol {
     var filepath: URL
     var streamStatus: Stream.Status = .notOpen
     
-    
     public convenience init(path: URL, mode: String) throws {
         guard let handle = Darwin.fopen(path.path, mode) else {
             throw PosixError.current
@@ -207,6 +206,70 @@ extension OutputFileHandler: OutputFileHandlerProtocol {
 
 }
 
+
+class StringStream: FileHandlerProtocol {
+    var _wrappedBuffer: String = ""
+    
+    var isEOF: Bool {
+        return false
+    }
+    
+    func tellg() throws -> Int {
+        return self._wrappedBuffer.length
+    }
+    
+    func seekg(to position: Int) throws {
+        return
+    }
+    
+    init() {}
+    
+    init(_wrappedBuffer: String) {
+        self._wrappedBuffer = _wrappedBuffer
+    }
+}
+
+class InputStringStream: StringStream, InputFileHandlerProtocol {
+    func read(maxSize: Int) throws -> Data {
+        if maxSize > self._wrappedBuffer.length {
+            return self._wrappedBuffer.data(using: .utf8)!
+        } else {
+            return self._wrappedBuffer.substring(toIndex: maxSize).data(using: .utf8)!
+        }
+    }
+    
+    func read(maxLength: Int) -> String {
+        if maxLength < self._wrappedBuffer.length {
+            return self._wrappedBuffer.substring(toIndex: maxLength)
+        } else {
+            return self._wrappedBuffer
+        }
+    }
+    
+}
+
+class OutputStringStream: StringStream, OutputFileHandlerProtocol {
+
+    var string: String {
+        return self._wrappedBuffer
+    }
+
+    func write(data: Data) throws {
+        // convert data to string
+        if let dataStr: String = String.init(data: data, encoding: .utf8) {
+            self._wrappedBuffer += dataStr
+        }
+    }
+    
+    func write(data: String) {
+        self._wrappedBuffer += data
+    }
+    
+}
+
+
+
+
 //class QFile {
 //
 //    init(fileURL: URL) {
@@ -254,16 +317,14 @@ extension OutputFileHandler: OutputFileHandlerProtocol {
 //}
 
 
-extension Character {
 
+extension Character {
     // mutating func to edit character by offsetting its unicode scalar value
-    mutating func offset(by offset: Int) -> Self {
+    func offset(by offset: Int) -> Character {
         guard let unicode = unicodeScalars.first else { return self }
         let value = unicode.value
         let offsetValue = value + UInt32(offset)
         guard let scalar = UnicodeScalar(offsetValue) else { return self }
-        self = Character(scalar)
-        return self
+        return Character(scalar)
     }
-
 }

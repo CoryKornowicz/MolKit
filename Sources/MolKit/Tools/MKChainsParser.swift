@@ -743,8 +743,105 @@ class MKChainsParser {
        * @param nukeSingleResidue If only one residue is found, clear information
        * default = false  -- single residue files should still be recognized.
        */
-    func perceiveChains(_ mol: MKMol) {
+    @discardableResult
+    func perceiveChains(_ mol: MKMol, _ nukeSingleResidue: Bool = false) -> Bool {
+
+        var result: Bool = true
+        var idx: Int = 0
         
+        setupMol(mol)
+        clearResidueInformation(mol)
+        result = determineHetAtoms(mol)          && result
+        result = determineConnectedChains(mol)   && result
+        result = determinePeptideBackbone(mol)   && result
+        result = determinePeptideSidechains(mol) && result
+        result = determineNucleicBackbone(mol)   && result
+        result = determineNucleicSidechains(mol) && result
+        result = determineHydrogens(mol)         && result
+
+        // Partially identified residues
+        // example: CSD in 1LWF (CYS with two Os on the S)
+        var changed: Bool = false
+        var invalidResidues: [(Character, Int)] = []
+        repeat {
+            changed = false
+            for atom in mol.getAtomIterator() {
+                idx = atom.getIdx() - 1
+                if resids[idx] == 0 { // UNK
+                    for nbr in atom.getNbrAtomIterator()! {
+                        let idx2 = nbr.getIdx() - 1
+                        if resids[idx2] != 0 { // !UNK
+                            if atomids[idx2] == AI_N || atomids[idx2] == AI_C {
+                                // bound to backbone-N/C
+                                hetflags[idx] = true
+                                resids[idx] = 3 // ACE
+                                atomids[idx] = -1
+                            } else {
+                                resnos[idx] = resnos[idx2]
+                                resids[idx] = resids[idx2]
+                                changed = true
+                                var addResidue = true
+                                for i in 0..<invalidResidues.count {
+                                    if invalidResidues[i].0 == chains[idx2] &&
+                                        invalidResidues[i].1 == resnos[idx2] {
+                                        addResidue = false
+                                    }
+                                }
+                                if addResidue {
+                                    invalidResidues.append((chains[idx2], resnos[idx2]))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } while changed
+        
+        for i in 0..<invalidResidues.count {
+            for atom in mol.getAtomIterator() {
+                idx = atom.getIdx() - 1
+                if ( (invalidResidues[i].0 == chains[idx]) &&
+                    (invalidResidues[i].1 == resnos[idx]) ) {
+                    hetflags[idx] = true
+                    resids[idx] = 0 // UNK
+                    atomids[idx] = -1
+                }
+            }
+        }
+        invalidResidues.removeAll()
+
+        // number the element in the ' ' chain (water, ions, ligands, ...)
+        var resno: Int = 1
+        for atom in mol.getAtomIterator() {
+            idx = atom.getIdx() - 1
+            if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                chains[idx] = " "
+                resnos[idx] = resno
+                resno += 1
+            } else {
+                if resids[idx] != 0 { // UNK
+                    continue
+                }
+                if hetflags[idx] {
+                    continue
+                }
+                let chain = chains[idx]
+                for b in mol.getAtomIterator() {
+                    let idx2 = b.getIdx() - 1
+                    if chains[idx2] == chain && !hetflags[idx2] {
+                        hetflags[idx2] = true
+                        chains[idx2] = " "
+                        resnos[idx2] = resno
+                        resids[idx2] = 2 // unknown ligand
+                    }
+                }
+                resno += 1
+            }
+        }
+        setResidueInformation(mol, nukeSingleResidue)
+        cleanupMol()
+        mol.setChainsPerceived()
+        return result
     }
     
     //! @name Step 1: Determine hetero atoms
@@ -1059,90 +1156,557 @@ class MKChainsParser {
        */
       //@}
     func tracePeptideChain(_ mol: MKMol, _ i: Int, _ r: Int ) {
+        var neighbor: [Int] = [0,0,0,0]
+        var na: Int = 0
+        var nb: Int = 0
+        var nc: Int = 0
+        var count: Int = 0 
 
+        //determine neighbors 
+        guard let atom = mol.getAtom(i+1) else { return }
+        let idx = atom.getIdx() - 1 
+        if visits[i] {
+            return 
+        }
+        visits[i] = true
+
+        for nbr in atom.getNbrAtomIterator()! where nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+            neighbor[count] = nbr.getIdx() - 1
+            count += 1
+        }
+
+        resnos[idx] = r 
+        if count >= 1 { 
+            na = neighbor[0]
+        }
+        if count >= 2 { 
+            nb = neighbor[1]
+        }
+        if count >= 3 { 
+            nc = neighbor[2]
+        }
+
+        switch atomids[i] {
+            case AI_N: 
+                for j in 0..<count {
+                    if (Int(bitmasks[neighbor[j]]) & BitCAll) != 0 {
+                        atomids[neighbor[j]] = AI_CA
+                        if !visits[neighbor[j]] {
+                            tracePeptideChain(mol, neighbor[j], r)
+                        }
+                    } 
+                }
+            case AI_CA: 
+            if count == 3 {
+                if bitmasks[na] & BitNAll != 0 {
+                    na = nc 
+                } else if bitmasks[nb] & BitNAll != 0 {
+                    nb = nc 
+                } 
+                var j: Int = 0
+                var k: Int = 0 
+                if bitmasks[na] & BitC != 0 {
+                    j = na
+                    k = nb
+                } else if bitmasks[nb] & BitC != 0 {
+                    j = nb
+                    k = na
+                } else if bitmasks[na] & BitCAll != 0 {
+                    j = na
+                    k = nb
+                } else if bitmasks[nb] & BitCAll != 0 {
+                    j = nb
+                    k = na
+                } 
+
+                atomids[j] = AI_C
+                atomids[k] = 0 
+
+                if !visits[j] {
+                    tracePeptideChain(mol, j, r)
+                }
+            } else if count == 2 {
+                if bitmasks[na] & BitCAll != 0 {
+                    atomids[na] = AI_C
+                    if !visits[na] {
+                        tracePeptideChain(mol, na, r)
+                    }
+                } else if bitmasks[nb] & BitCAll != 0 {
+                    atomids[nb] = AI_C
+                    if !visits[nb] {
+                        tracePeptideChain(mol, nb, r)
+                    }
+                }
+            }
+            case AI_C: 
+                var k = AI_O 
+                for j in 0..<count {
+                    if bitmasks[neighbor[j]] & BitNAll != 0 {
+                        atomids[neighbor[j]] = AI_N
+                        if !visits[neighbor[j]] {
+                            tracePeptideChain(mol, neighbor[j], r + 1)
+                        }
+                    } else if bitmasks[neighbor[j]] & BitOAll != 0 {
+                        atomids[neighbor[j]] = k
+                        resnos[neighbor[j]] = r
+                        k = AI_OXT // OXT
+                    }
+                }
+            default: break 
+        }
     }
-    
-    //   //! @name Step 4: Determine peptide side chains
-    //   //@{
-    //   /**
-    //    * Look for atoms with atomids[i] CA and identify their side chain.
-    //    *
-    //    * Sets resnos[i] and resids[i] for all identified residues (including the N-CA-C-O).
-    //    * (through IdentifyResidue() and AssignResidue())
-    //    */
-    //   bool  DeterminePeptideSidechains(OBMol &);
 
-    //   /**
-    //    * Identify a residue based on the @p tree ByteCode.
-    //    *
-    //    * Sets resnos[i] for all sidechain atoms to the residue number of
-    //    * the seed CA/C1 atom.
-    //    * @param tree Bytecode for the residues. (OBChainsParser::PDecisionTree or OBChainsParser::NDecisionTree)
-    //    * @param mol The molecule.
-    //    * @param seed Atom index for the CA (peptides) or C1 (nucleotides) atom.
-    //    * @param resno The residue number for this residue.
-    //    * @return The resids[i] for the identified residue.
-    //    */
-    //   int IdentifyResidue(void *tree, OBMol &mol, unsigned int seed, int resno); // ByteCode *
+    //! @name Step 4: Determine peptide side chains
+    //@{
+    /**
+    * Look for atoms with atomids[i] CA and identify their side chain.
+    *
+    * Sets resnos[i] and resids[i] for all identified residues (including the N-CA-C-O).
+    * (through IdentifyResidue() and AssignResidue())
+    */
+    @discardableResult
+    func determinePeptideSidechains(_ mol: MKMol) -> Bool {
+        var resid = 0
+        let max = mol.numAtoms()
+        for i in 0..<max where atomids[i] == AI_CA {
+            resid = identifyResidue(&PDecisionTree, mol, i, resnos[i])
+            assignResidue(mol, resnos[i], chains[i], resid)
+        }
+        return true
+    }
 
-    //   /**
-    //    * Set resids[i] for all atoms where resids[i] = @p r and chains[i] = @p c.
-    //    * @param mol The molecule.
-    //    * @param r The residue number.
-    //    * @param c The chain number.
-    //    * @param i The residue id (resids[i] returned by IdentifyResidue())
-    //    */
-    //   void  AssignResidue(OBMol &mol, int r, int c, int i);
-    //   //@}
+      /**
+       * Identify a residue based on the @p tree ByteCode.
+       *
+       * Sets resnos[i] for all sidechain atoms to the residue number of
+       * the seed CA/C1 atom.
+       * @param tree Bytecode for the residues. (OBChainsParser::PDecisionTree or OBChainsParser::NDecisionTree)
+       * @param mol The molecule.
+       * @param seed Atom index for the CA (peptides) or C1 (nucleotides) atom.
+       * @param resno The residue number for this residue.
+       * @return The resids[i] for the identified residue.
+       */
+    func identifyResidue(_ tree: inout ByteCode?, _ mol: MKMol, _ seed: Int, _ resno: Int) -> Int {
+        var ptr: ByteCode? = tree 
+        var AtomCount = 0
+        var BondCount = 0
+        var curr = 0
+        var prev = 0
+        var bond = 0
+        var bcount = 0
 
-    //   //! @name Step 5: Assign hydrogens
-    //   //@{
-    //   /**
-    //    * Assign the resids[i], resnos[i], ... for all hydrogens based on the
-    //    * atom they are bound to.
-    //    */
-    //   bool  DetermineHydrogens(OBMol &);
-    //   //@}
+        Stackk[0].atom = seed
+        Stackk[0].prev = seed
+        StackPtr = 0
 
-    //   //! @name Step 6: Set the residue information
-    //   //@{
-    //   /**
-    //    * Convert the private data vectors to OBResidue objects and add them to @p mol.
-    //    * @param mol The molecule to parse and update
-    //    * @param nukeSingleResidue If only one residue is found, clear information
-    //    * default = false  -- single residue files should still be recognized.
-    //    */
-    //   void  SetResidueInformation(OBMol &, bool nukeSingleResidue);
-    //   //@}
+        ResMonoAtom[0] = seed
+        AtomCount = 1
+        BondCount = 0
+        
+        while ptr != nil {
+            switch ptr?.type {
+            case BC_IDENT:
+                curr = Stackk[StackPtr - 1].atom!
+                if atomids[curr] == ptr?.ident.value {
+                    bond = Stackk[StackPtr - 1].bond!
+                    ResMonoBond[BondCount] = bond
+                    BondCount += 1
+                    ptr = ptr?.ident.tcond as? ByteCode
+                    StackPtr -= 1
+                } else {
+                    ptr = ptr?.ident.fcond as? ByteCode
+                }
+            case BC_LOCAL:
+                curr = Stackk[StackPtr - 1].atom!
+                if curr == ResMonoAtom[ptr!.local.value!] {
+                    bond = Stackk[StackPtr - 1].bond!
+                    ResMonoBond[BondCount] = bond
+                    BondCount += 1
+                    ptr = ptr?.local.tcond as? ByteCode
+                    StackPtr -= 1
+                } else {
+                    ptr = ptr?.local.fcond as? ByteCode
+                }
+            case BC_ELEM:
+                curr = Stackk[StackPtr - 1].atom! 
+                if mol.getAtom(curr + 1)?.getAtomicNum() == ptr?.elem.value {
+                    bond = Stackk[StackPtr - 1].bond!
+                    ResMonoAtom[AtomCount] = curr
+                    AtomCount += 1
+                    ResMonoBond[BondCount] = bond
+                    resnos[curr] = resno
+                    BondCount += 1
+                    ptr = ptr?.elem.tcond as? ByteCode
+                    StackPtr -= 1
+                } else {
+                    ptr = ptr?.elem.fcond as? ByteCode
+                }
+            case BC_EVAL:
+                curr = Stackk[StackPtr].atom!
+                prev = Stackk[StackPtr].prev!
 
-    //   //! @name Nucleic acids (analog to peptides)
-    //   //@{
-    //   /**
-    //    * Walk a nucleic "backbone" atom sequence, from one residue to the next. This
-    //    * function will look for ribose-5-P sequences and mark these atoms.
-    //    *
-    //    * Sets bitmaks[i] for these atoms. (through ConstrainBackbone())
-    //    * Sets resnos[i] for these atoms. (through TraceNucleicChain())
-    //    */
-    //   bool  DetermineNucleicBackbone(OBMol &);
+                if let atom = mol.getAtom(curr + 1) {
+                    for nbr in atom.getNbrAtomIterator()! where nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {  
+                        let j = nbr.getIdx() - 1
 
-    //   /**
-    //    * Now we have the constrained bitmaks[i], trace nucleic backbone and set
-    //    * resnos[i] and atomids[i] for each ribose-5-P sequence.
-    //    * @param mol The molecule.
-    //    * @param i Index for the current atom. (TraceNucleicChain() will be called for all neighbours)
-    //    * @param r The residue number which we are tracing.
-    //    */
-    //   void  TraceNucleicChain(OBMol &, unsigned int i, int r);
+                        if !((curr == prev) && bitmasks[j] != 0) && j != prev {
+                            Stackk[StackPtr].prev = curr
+                            Stackk[StackPtr].atom = j
+                            if let b = mol.getBond(atom, nbr) {
+                                Stackk[StackPtr].bond = Int(b.getIdx())
+                            } else {
+                                fatalError("Bond not found when it should be accessible")
+                            }
+                            StackPtr += 1
+                            bcount += 1
+                        }
+                    }
+                    ptr = ptr?.eval.next as? ByteCode
+                } else {
+                    fatalError("ATOM accessed out of bounds") 
+                } // TODO: fix potential index issue here
 
-    //   /**
-    //    * Look for atoms with atomids[i] C1 and identify their side chain.
-    //    *
-    //    * Sets resnos[i] and resids[i] for all identified residues.
-    //    * (through IdentifyResidue() and AssignResidue())
-    //    */
-    //   bool  DetermineNucleicSidechains(OBMol &);
-    //   //@}
+            case BC_COUNT:
+                if bcount == ptr?.count.value {
+                    ptr = ptr?.count.tcond as? ByteCode
+                } else {
+                    ptr = ptr?.count.fcond as? ByteCode
+                }
+            case BC_ASSIGN:
+                for i in 0..<AtomCount {
+                    if (bitmasks[ResMonoAtom[i]] == 0) {
+                        let j = ptr?.assign.atomid![i]
+                        atomids[ResMonoAtom[i]] = j!
+                    }
+                }
+                for i in 0..<BondCount {
+                    let j = ptr?.assign.bflags![i]
+                    flags[ResMonoBond[i]] = UInt8(j!)
+                }
+                return (ptr?.assign.resid)!
+            default: // illegal instruction
+                return 0
+            } // switch
+        } // while loop through atoms
+        return 0
+    }
+
+    /**
+    * Set resids[i] for all atoms where resids[i] = @p r and chains[i] = @p c.
+    * @param mol The molecule.
+    * @param r The residue number.
+    * @param c The chain number.
+    * @param i The residue id (resids[i] returned by IdentifyResidue())
+    */
+    //@}
+    func assignResidue(_ mol: MKMol, _ r: Int, _ c: Character, _ i: Int) {
+        let max = mol.numAtoms()
+        for j in 0..<max where resnos[j] == r && chains[j] == c && !hetflags[j]{
+            resids[j] = UInt8(i)
+        }
+    }
+
+    //! @name Step 5: Assign hydrogens
+    //@{
+    /**
+    * Assign the resids[i], resnos[i], ... for all hydrogens based on the
+    * atom they are bound to.
+    */
+    //@}
+    func determineHydrogens(_ mol: MKMol) -> Bool {
+        let max = mol.numAtoms()
+        for i in 0..<max {
+            hcounts[i] = 0
+        }
+        /* First Pass */
+        for atom in mol.getAtomIterator() {
+            if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                if let nbr = atom.getNbrAtomIterator()!.next() {
+                    let idx = atom.getIdx() - 1
+                    let sidx = nbr.getIdx() - 1
+
+                    hcounts[idx] = hcounts[sidx] + 1
+                    hetflags[idx] = hetflags[sidx]
+                    atomids[idx] = atomids[sidx]
+                    resids[idx] = resids[sidx]
+                    resnos[idx] = resnos[sidx]
+                    chains[idx] = chains[sidx]
+                }
+            }
+        }
+        /* Second Pass */
+        for atom in mol.getAtomIterator() {
+            if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                if let nbr = atom.getNbrAtomIterator()!.next() {
+                    if hcounts[nbr.getIdx() - 1] == 1 {
+                        hcounts[atom.getIdx() - 1] = 0
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    //! @name Step 6: Set the residue information
+    //@{
+    /**
+    * Convert the private data vectors to OBResidue objects and add them to @p mol.
+    * @param mol The molecule to parse and update
+    * @param nukeSingleResidue If only one residue is found, clear information
+    * default = false  -- single residue files should still be recognized.
+    */
+    //@}
+    func setResidueInformation(_ mol: MKMol, _ nukeSingleResidue: Bool = false) {
+
+        var buffer = ""
+        var atomid: String
+        var name: String
+        var symbol = ""
+
+        let numAtoms = mol.numAtoms()
+        var resmap = [Character: [Int: MKResidue]]()
+        //DumpState();
+
+        // correct serine OG
+        for i in 0..<numAtoms where resids[i] == RESIDMIN + 17 { // serine
+            if atomids[i] == -1 {
+                guard let atom = mol.getAtom(i + 1) else {
+                    fatalError("Atom not found when it should be accessible")
+                }
+                for nbr in atom.getNbrAtomIterator()! {
+                    if atomids[nbr.getIdx() - 1] == 4 { // CB
+                        atomids[i] = 6 // OG
+                    }
+                }
+            }
+        }
+        for i in 0..<numAtoms {
+            guard let atom = mol.getAtom(i + 1) else { // TODO: fix potential atom index issue
+                fatalError("Atom not found when it should be accessible")
+            }
+
+            if atomids[i] == -1 {
+                symbol = MKElements.getSymbol(atom.getAtomicNum())
+                // TODO: Maybe enforce symbol sizes here
+                if symbol.count > 1 {
+                    buffer = String(symbol.prefix(1)) + String(symbol.suffix(1).uppercased())
+                } else {
+                    buffer = " " + symbol
+                }
+                buffer += "  "
+                buffer += "  "
+                assert(buffer.length == 4, "Incorrect amount of characters in buffer")
+                 
+            } else if atom.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                // TODO: Fix this because it is not moving the characters around currently 
+            //     if (hcounts[i]) {
+                //     snprintf(buffer, BUFF_SIZE, "H%.2s%c", ChainsAtomName[atomids[i]]+2, hcounts[i]+'0');
+                //     if (buffer[1] == ' ') {
+                //         buffer[1] = buffer[3];
+                //         buffer[2] = '\0';
+                //     }
+                //     else if (buffer[2] == ' ') {
+                //         buffer[2] = buffer[3];
+                //         buffer[3] = '\0';
+                //     }
+            //     } else {
+            //     snprintf(buffer, BUFF_SIZE, "H%.2s", ChainsAtomName[atomids[i]]+2);
+            //     }
+                if hcounts[i] != 0 {
+                    buffer = "H" + ChainsAtomName[atomids[i]].suffix(2).reduce("", +) + String(hcounts[i])
+                    if buffer.length == 3 {
+                        buffer += " "
+                    }
+                } else {
+                    buffer = "H" + ChainsAtomName[atomids[i]].suffix(2).reduce("", +)
+                    buffer += "  "
+                    buffer += "  "
+                }
+                assert(buffer.length == 4, "Incorrect amount of characters in buffer")
+            } else {
+                buffer = ChainsAtomName[atomids[i]].reduce("", +)
+                assert(buffer.length == 4, "Incorrect amount of characters in buffer")
+            }
+
+            if buffer[3] == " " {
+                buffer = String(buffer.prefix(3))
+            }
+            
+            atomid = buffer[0] == " " ? String(buffer.suffix(3)) : buffer
+
+            if let residue = resmap[chains[i]]?[resnos[i]] {
+                residue.addAtom(atom)
+                residue.setAtomID(atom, atomid)
+                residue.setHetAtom(atom, hetflags[i])
+                residue.setSerialNum(atom, sernos[i])
+            } else {
+                name = ChainsResName[Int(resids[i])]
+                let residue = MKResidue()
+                residue.setName(name)
+                residue.setNum(resnos[i])
+                residue.setChain(String(chains[i]))
+                residue.addAtom(atom)
+                residue.setAtomID(atom, atomid)
+                residue.setHetAtom(atom, hetflags[i])
+                residue.setSerialNum(atom, sernos[i])
+                if resmap[chains[i]] == nil {
+                    resmap[chains[i]] = [Int: MKResidue]()
+                }
+                resmap[chains[i]]![resnos[i]] = residue
+            }
+
+        }
+
+        if mol.numResidues() == 1 && nukeSingleResidue {
+            mol.deleteResidue(mol.getResidue(0)!)
+        } else if mol.numResidues() == 1 && mol.getResidue(0)!.getName() == "UNK" {
+            mol.deleteResidue(mol.getResidue(0)!)
+        }
+    }
+
+    //! @name Nucleic acids (analog to peptides)
+    //@{
+    /**
+    * Walk a nucleic "backbone" atom sequence, from one residue to the next. This
+    * function will look for ribose-5-P sequences and mark these atoms.
+    *
+    * Sets bitmaks[i] for these atoms. (through ConstrainBackbone())
+    * Sets resnos[i] for these atoms. (through TraceNucleicChain())
+    */
+    func determineNucleicBackbone(_ mol: MKMol) -> Bool {
+        constrainBackbond(mol, Nucleotide, MAXNUCLEIC)
+        let max = mol.numAtoms()
+        // Order Nucleic backbone 
+        for i in 0..<max where atomids[i] == -1 {
+            if( bitmasks[i] & BitPTer ) != 0 {
+              atomids[i] = AI_P
+              traceNucleicChain(mol, i, 1)
+            } else if( bitmasks[i] & BitO5Ter ) != 0 {
+              atomids[i] = AI_O5
+              traceNucleicChain(mol, i, 1)
+            }
+        }
+        return true
+    }
+
+    /**
+    * Now we have the constrained bitmaks[i], trace nucleic backbone and set
+    * resnos[i] and atomids[i] for each ribose-5-P sequence.
+    * @param mol The molecule.
+    * @param i Index for the current atom. (TraceNucleicChain() will be called for all neighbours)
+    * @param r The residue number which we are tracing.
+    */
+    func traceNucleicChain(_ mol: MKMol, _ i: Int, _ r: Int) {
+        var neighbor: [Int] = [0, 0, 0, 0]
+        if visits[i] {
+            return
+        }
+        visits[i] = true
+        var count = 0
+        guard let atom = mol.getAtom(i + 1) else {
+            fatalError("No atom at \(i + 1)")
+        }
+
+        for nbr in atom.getNbrAtomIterator()! {
+            if nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                neighbor[count] = nbr.getIdx() - 1
+                count += 1
+            }
+        }
+        resnos[i] = r 
+        switch atomids[i] {
+        case AI_P: 
+            var k = AI_O1P /* O1P */
+            for j in 0..<count {
+                if (bitmasks[neighbor[j]] & BitO5) != 0 {
+                    atomids[neighbor[j]] = AI_O5
+                    if !visits[neighbor[j]] {
+                        traceNucleicChain(mol, neighbor[j], r)
+                    }
+                } else if (bitmasks[neighbor[j]] & BitOP) != 0 {
+                    atomids[neighbor[j]] = k
+                    resnos[neighbor[j]] = r
+                    k = AI_O2P  /* O2P */
+                }
+            }
+        case AI_O5:
+            for j in 0..<count where (bitmasks[neighbor[j]] & BitC5) != 0 {
+                atomids[neighbor[j]] = AI_C5
+                if !visits[neighbor[j]] {
+                    traceNucleicChain(mol, neighbor[j], r)
+                }
+            }
+        case AI_C5:
+            for j in 0..<count where (bitmasks[neighbor[j]] & BitC4) != 0 {
+                atomids[neighbor[j]] = AI_C4
+                if !visits[neighbor[j]] {
+                    traceNucleicChain(mol, neighbor[j], r)
+                }
+            }
+        case AI_C4:
+            for j in 0..<count {
+                if (bitmasks[neighbor[j]] & BitC3) != 0 {
+                    atomids[neighbor[j]] = AI_C3
+                    if !visits[neighbor[j]] {
+                        traceNucleicChain(mol, neighbor[j], r)
+                    }
+                } else if (bitmasks[neighbor[j]] & BitO4) != 0 {
+                    atomids[neighbor[j]] = AI_O4
+                    resnos[neighbor[j]] = r
+                }
+            }
+        case AI_C3:
+            for j in 0..<count {
+                if (bitmasks[neighbor[j]] & BitO3All) != 0 {
+                    atomids[neighbor[j]] = AI_O3
+                    if !visits[neighbor[j]] {
+                        traceNucleicChain(mol, neighbor[j], r)
+                    }
+                } else if (bitmasks[neighbor[j]] & BitC2All) != 0 {
+                    atomids[neighbor[j]] = AI_C2
+                    if !visits[neighbor[j]] {
+                        traceNucleicChain(mol, neighbor[j], r)
+                    }
+                }
+            }
+        case AI_O3:
+            for j in 0..<count where (bitmasks[neighbor[j]] & BitP) != 0 {
+                atomids[neighbor[j]] = AI_P
+                if !visits[neighbor[j]] {
+                    traceNucleicChain(mol, neighbor[j], r + 1)
+                }
+            }
+        case AI_C2:
+            for j in 0..<count {
+                if (bitmasks[neighbor[j]] & BitC1) != 0 {
+                    atomids[neighbor[j]] = AI_C1
+                    resnos[neighbor[j]] = r
+                } else if (bitmasks[neighbor[j]] & BitO2) != 0 {
+                    atomids[neighbor[j]] = AI_O2
+                    resnos[neighbor[j]] = r
+                }
+            }
+        default:
+            fatalError("Unknown atomid \(atomids[i])")
+        }
+    }
+
+    /**
+    * Look for atoms with atomids[i] C1 and identify their side chain.
+    *
+    * Sets resnos[i] and resids[i] for all identified residues.
+    * (through IdentifyResidue() and AssignResidue())
+    */
+    //@}
+    func determineNucleicSidechains(_ mol: MKMol) -> Bool {
+        for i in 0..<mol.numAtoms() {
+            if atomids[i] == 49 {
+                let resid = identifyResidue(&NDecisionTree, mol, i, resnos[i])
+                assignResidue(mol, resnos[i], chains[i], resid)
+            }
+        }
+        return true
+    }
 
     /**
     * Set up the chain perception to operate on the supplied molecule
@@ -1202,33 +1766,375 @@ class MKChainsParser {
     * @param smiles The pseudo-smiles string (from OpenBabel::AminoAcids or OpenBabel::Nucleotides)
     */
     func defineMonomer(_ tree: inout ByteCode?, _ resid: Int, _ smiles: String) {
-        fatalError()
+        MonoAtomCount = 0
+        MonoBondCount = 0
+        var prev = -1
+        parseSmiles(smiles, &prev)
+        for i in 0..<MonoBondCount {
+            MonoBond[i].index = -1
+        }
+        for i in 0..<MonoAtomCount {
+            MonoAtom[i].index = -1
+        }
+        AtomIndex = 0
+        BondIndex = 0
+        StackPtr = 0
+        generateByteCodes(&tree, resid, 0, 0, 0)
     }
 
-    //   /**
-    //    * @param ptr Element id (from OpenBabel::ChainsAtomName)
-    //    * @return The element number.
-    //    */
-    //   int   IdentifyElement(char *ptr);
-    
-       /**
-        * Parse a pseudo smiles from OpenBabel::AminoAcids or OpenBabel::Nucleotides.
-        * @param smiles The pseudo-smiles string.
-        * @param prev The previous position (used for recursing, use -1 to start).
-        */
-    private func parseSmiles(_ smiles: String, _ prev: Int) -> String {
-        fatalError()
+    /**
+    * @param ptr Element id (from OpenBabel::ChainsAtomName)
+    * @return The element number.
+     */
+    func identifyElement(_ ptr: [Character]) -> Int {
+        
+        let ch = ptr[1].uppercased()
+        switch ptr[0].uppercased() {
+        case " ":
+            switch ch {
+            case "B": return 5
+            case "C": return 6
+            case "D": return 1
+            case "F": return 9
+            case "H": return 1
+            case "I": return 53
+            case "K": return 19
+            case "L": return 1
+            case "N": return 7
+            case "O": return 8
+            case "P": return 15
+            case "S": return 16
+            case "U": return 92
+            case "V": return 23
+            case "W": return 74
+            case "Y": return 39
+            default: return 0
+            }
+        case "A":
+            switch ch {
+            case "C": return 89
+            case "G": return 47
+            case "L": return 13
+            case "M": return 95
+            case "R": return 18
+            case "S": return 33
+            case "T": return 85
+            case "U": return 79
+            default: return 0
+            }
+        case "B":
+            switch ch {
+            case "A": return 56
+            case "E": return 4
+            case "I": return 83
+            case "K": return 97
+            case "R": return 35
+            case " ": return 5
+            default: return 0
+            }
+        case "C":
+            switch ch {
+            case "A": return 20
+            case "D": return 48
+            case "E": return 58
+            case "F": return 98
+            case "L": return 17
+            case "M": return 96
+            case "O": return 27
+            case "R": return 24
+            case "S": return 55
+            case "U": return 29
+            case " ": return 6
+            default: return 0
+            }
+            
+        case "D":
+            if ch == "Y" {
+                return 66
+            } else if ch == " " {
+                return 1
+            }
+        case "E":
+            if ch == "R" {
+                return 68
+            } else if ch == "S" {
+                return 99
+            } else if ch == "U" {
+                return 63
+            }
+        case "F":
+            if ch == "E" {
+                return 26
+            } else if ch == "M" {
+                return 100
+            } else if ch == "R" {
+                return 87
+            } else if ch == "F" {
+                return 9
+            }
+        case "G":
+            if ch == "A" {
+                return 31
+            } else if ch == "D" {
+                return 64
+            } else if ch == "E" {
+                return 32
+            }
+        case "H":
+            if ch == "E" {
+                return 2
+            } else if ch == "F" {
+                return 72
+            } else if ch == "G" {
+                return 80
+            } else if ch == "O" {
+                return 67
+            } else if ch == " " {
+                return 1
+            }
+        case "I":
+            if ch == "N" {
+                return 49
+            } else if ch == "R" {
+                return 77
+            } else if ch == " " {
+                return 53
+            }
+        case "K":
+            if ch == "R" {
+                return 36
+            } else if ch == " " {
+                return 19
+            }
+        case "L":
+            if ch == "A" {
+                return 57
+            } else if ch == "I" {
+                return 3
+            } else if ch == "R" || ch == "W" {
+                return 103
+            } else if ch == "U" {
+                return 71
+            } else if ch == " " {
+                return 1
+            }
+        case "M":
+            if ch == "D" {
+                return 101
+            } else if ch == "G" {
+                return 12
+            } else if ch == "N" {
+                return 25
+            } else if ch == "O" {
+                return 42
+            }
+        case "N":
+            if ch == "A" {
+                return 11
+            } else if ch == "B" {
+                return 41
+            } else if ch == "D" {
+                return 60
+            } else if ch == "E" {
+                return 10
+            } else if ch == "I" {
+                return 28
+            } else if ch == "O" {
+                return 102
+            } else if ch == "P" {
+                return 93
+            } else if ch == " " {
+                return 7
+            }
+        case "O":
+            if ch == "S" {
+                return 76
+            } else if ch == " " {
+                return 8
+            }
+        case "P":
+            if ch == "A" {
+                return 91
+            } else if ch == "B" {
+                return 82
+            } else if ch == "D" {
+                return 46
+            } else if ch == "M" {
+                return 61
+            } else if ch == "O" {
+                return 84
+            } else if ch == "R" {
+                return 59
+            } else if ch == "T" {
+                return 78
+            } else if ch == "U" {
+                return 94
+            } else if ch == " " {
+                return 15
+            }
+        case "R":
+            if ch == "A" {
+                return 88
+            } else if ch == "B" {
+                return 37
+            } else if ch == "E" {
+                return 75
+            } else if ch == "H" {
+                return 45
+            } else if ch == "N" {
+                return 86
+            } else if ch == "U" {
+                return 44
+            }
+        case "S":
+            if ch == "B" {
+                return 51
+            } else if ch == "C" {
+                return 21
+            } else if ch == "E" {
+                return 34
+            } else if ch == "I" {
+                return 14
+            } else if ch == "M" {
+                return 62
+            } else if ch == "N" {
+                return 50
+            } else if ch == "R" {
+                return 38
+            } else if ch == " " {
+                return 16
+            }
+        case "T":
+            if ch == "A" {
+                return 73
+            } else if ch == "B" {
+                return 65
+            } else if ch == "C" {
+                return 43
+            } else if ch == "E" {
+                return 52
+            } else if ch == "H" {
+                return 90
+            } else if ch == "I" {
+                return 22
+            } else if ch == "L" {
+                return 81
+            } else if ch == "M" {
+                return 69
+            }
+        case "U":
+            if ch == " " {
+                return 92
+            }
+        case "V":
+            if ch == " " {
+                return 23
+            }
+        case "W":
+            if ch == " " {
+                return 74
+            }
+        case "X":
+            if ch == "E" {
+                return 54
+            }
+        case "Y":
+            if ch == "B" {
+                return 70
+            } else if ch == " " {
+                return 39
+            }
+        case "Z":
+            if ch == "N" {
+                return 30
+            } else if ch == "R" {
+                return 40
+            }
+        default:
+            break
+        }
+        
+        if ptr[0].isNumber {
+            if ptr[0] == "H" || ptr[0] == "D" {
+                return 1
+            }
+        } 
+        return 0 
     }
     
-    
+    /**
+     * Parse a pseudo smiles from OpenBabel::AminoAcids or OpenBabel::Nucleotides.
+     * @param smiles The pseudo-smiles string.
+     * @param prev The previous position (used for recursing, use -1 to start).
+     */
+    @discardableResult
+    private func parseSmiles(_ smiles: String, _ prev: inout Int) -> String {
+        
+        var ptr = Iterator<Character>([Character](smiles))
+        
+        var type: Int = 0
+        var ch: Character?
+        ch = ptr.next()
+        while ch != nil {
+            switch ch {
+            case "-": 
+                type = BF_SINGLE
+            case "=": 
+                type = BF_DOUBLE
+            case "#": 
+                type = BF_TRIPLE
+            case "^": 
+                type = BF_SINGLE|BF_AROMATIC
+            case "~": 
+                type = BF_DOUBLE|BF_AROMATIC
+
+            case ")": 
+                return String(ptr)
+            case ".": 
+                prev = -1
+            case "(": 
+                ptr = Iterator<Character>([Character](parseSmiles(String(ptr.constructToEnd()), &prev)))
+            default: 
+                guard var atomid = ch!.wholeNumberValue else {
+                    fatalError("Invalid character in smiles")
+                }
+                while ptr[0]!.isNumber {
+                    atomid = atomid * 10 + (ptr[0]?.wholeNumberValue!)!
+                    ptr.ignore()
+                }
+                var next = 0
+                while next < MonoAtomCount {
+                    if MonoAtom[next].atomid == atomid {
+                        break
+                    }
+                    next += 1
+                }
+                if next == MonoAtomCount {
+                    let name = ChainsAtomName[atomid]
+                    MonoAtom[next].elem = identifyElement(name.map(Character.init))
+                    MonoAtom[next].atomid = atomid
+                    MonoAtom[next].bcount = 0
+                    MonoAtomCount += 1
+                }
+                if prev != -1 {
+                    MonoBond[MonoBondCount].flag = type
+                    MonoBond[MonoBondCount].src = prev
+                    MonoBond[MonoBondCount].dst = next
+                    MonoBondCount += 1
+                    MonoAtom[prev].bcount += 1
+                    MonoAtom[next].bcount += 1
+                }
+                prev = next
+            }
+            ch = ptr.next()
+        }
+        ptr.unget()
+        return String(ptr.constructToEnd())
+    }
     
     //   /**
     //    * Debugging function.
     //    */
     //   void DumpState();
-
-
     
-    
-
 }

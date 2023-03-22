@@ -236,9 +236,9 @@ func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ m
     }
     // get the symmetry classes
     let gs = MKGraphSym(mol, &queriedMask)
-    var symClasses = [UInt]()
+    var symClasses = [Ref]()
     gs.getSymmetry(&symClasses)
-    return findAutomorphisms(mol, &aut, symClasses, queriedMask!, maxMemory) // TODO: Check if using queriedMask here is bad. In default impl they had mask instead
+    return findAutomorphisms(mol, &aut, symClasses.map {UInt($0.intValue!)}, queriedMask!, maxMemory) // TODO: Check if using queriedMask here is bad. In default impl they had mask instead
 }
 /**
 * Find the automorphisms of a molecule by using an OBIsomorphismMapper. This
@@ -270,16 +270,15 @@ func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol,
         fragments.append(getFragment(mol.getAtom(i + 1)!, &queriedMask))
         visited |= fragments.last!
     }
-
-    // count the symmetry classes
-    var symClassCounts: [UInt] = [UInt].init(repeating: 0, count: symmetry_classes.count + 1)
-    for i in 0..<symmetry_classes.count {
-        if !queriedMask.bitIsSet(i + 1) {
-            continue
-        }
-        let symClass = symmetry_classes[i]
-        symClassCounts[Int(symClass)] += 1
-    }
+    // count the symmetry classes, TODO: figure out why this was here in the first place
+//    var symClassCounts: [UInt] = [UInt].init(repeating: 0, count: symmetry_classes.count + 1)
+//    for i in 0..<symmetry_classes.count {
+//        if !queriedMask.bitIsSet(i + 1) {
+//            continue
+//        }
+//        let symClass = symmetry_classes[i]
+//        symClassCounts[Int(symClass)] += 1
+//    }
     for i in 0..<fragments.count {
         let query = compileAutomorphismQuery(mol, symmetry_classes, fragments[i])
         guard let mapper = MKIsomorphMapper.getInstance(query) else {

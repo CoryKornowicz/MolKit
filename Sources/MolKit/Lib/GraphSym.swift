@@ -396,7 +396,7 @@ class MKGraphSymPrivate {
     * the fragment.  Symmetry is computed as though the fragment is the
     * only part that exists.
     */
-    func calculateSymmetry(_ atom_sym_classes: inout [UInt]) -> Int {
+    func calculateSymmetry(_ atom_sym_classes: inout [Ref]) -> Int {
 
         // Get vector of graph invariants.  These are the starting "symmetry classes".
 
@@ -422,9 +422,9 @@ class MKGraphSymPrivate {
         // Convert to a vector indexed by Index
         // Atoms not in the fragment will have a value of OBGraphSym::NoSymmetryClass
         atom_sym_classes.removeAll()
-        atom_sym_classes = [UInt](repeating: UInt(MKGraphSym.NoSymmetryClass), count: _pmol.numAtoms())
+        atom_sym_classes = [Ref](repeating: .Ref(Int(MKGraphSym.NoSymmetryClass)), count: _pmol.numAtoms())
         for i in 0..<symmetry_classes.count {
-            atom_sym_classes[symmetry_classes[i].0.getIdx()] = UInt(symmetry_classes[i].1)
+            atom_sym_classes[symmetry_classes[i].0.getIdx()] = .Ref(symmetry_classes[i].1)
         }
 
         // Store the symmetry classes in an OBPairData
@@ -490,6 +490,15 @@ class MKGraphSym {
         }
     }
     
+    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec) {
+        self.d = MKGraphSymPrivate(pmol)
+        d._pmol = pmol
+        d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))
+        for atom in d._pmol.getAtomIterator() {
+            d._frag_atoms.setBitOn(UInt32(atom.getIdx()))
+        }
+    }
+    
     /**
     * Calculate the symmetry classes for the molecule. The result will be
     * stored in @p symmetry_classes.
@@ -501,7 +510,7 @@ class MKGraphSym {
     * @return The number of symmetry classes.
     */
     @discardableResult
-    func getSymmetry(_ symmetry_classes: inout [UInt]) -> Int {
+    func getSymmetry(_ symmetry_classes: inout [Ref]) -> Int {
         clearSymmetry() // For the moment just recalculate the symmetry classes
         // Check to see whether we have already calculated the symmetry classes
         let pd: MKPairData<String>? = d._pmol.getData("OpenBabel Symmetry Classes") as? MKPairData<String>
@@ -517,7 +526,7 @@ class MKGraphSym {
             let parts = iss.components(separatedBy: .whitespaces)
             for part in parts {
                 if let num = part.toInt() {
-                    symmetry_classes.append(UInt(num))
+                    symmetry_classes.append(.Ref(num))
                 }
             }
             // Now find the number of unique elements

@@ -88,6 +88,8 @@ public class MKIterator<T>: IteratorProtocol, Sequence {
       \endcode
   **/
 
+postfix operator ++
+
 public class MKAtomDFSIterator: IteratorProtocol {
     
     var _parent: MKMol 
@@ -120,31 +122,38 @@ public class MKAtomDFSIterator: IteratorProtocol {
         return self._ptr
     }
 
+    @discardableResult
     public func next() -> MKAtom? {
-        defer {
-            if !_stack.isEmpty() {
-                _ptr = _stack.pop()
-            } else { // are there any disconnected subgraphs?
-                let next = _notVisited.firstBit()
-                if next != _notVisited.endBit() {
-                    _ptr = _parent.getAtom(next + 1)
-                    _notVisited.setBitOff(next)
-                } else {
-                    _ptr = nil
-                }
-            }
-            if _ptr != nil {
-                if let nbrs = _ptr?.getNbrAtomIterator() {
-                    for a in nbrs {
-                        if _notVisited[a.getIdx() - 1] {
-                            _stack.push(a)
-                            _notVisited.setBitOff(a.getIdx() - 1)
-                        }
-                    }
-                }
-            }
+//        defer {
+//            if !_stack.isEmpty() {
+//                _ptr = _stack.pop()
+//            } else { // are there any disconnected subgraphs?
+//                let next = _notVisited.firstBit()
+//                if next != _notVisited.endBit() {
+//                    _ptr = _parent.getAtom(next + 1)
+//                    _notVisited.setBitOff(next)
+//                } else {
+//                    _ptr = nil
+//                }
+//            }
+//            if _ptr != nil {
+//                if let nbrs = _ptr?.getNbrAtomIterator() {
+//                    for a in nbrs {
+//                        if _notVisited[a.getIdx() - 1] {
+//                            _stack.push(a)
+//                            _notVisited.setBitOff(a.getIdx() - 1)
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        return self._ptr
+        if self._stack.isEmpty() {
+            return nil
+        } else {
+            self._ptr = self._stack.pop()
         }
-        
         return self._ptr
     }
     
@@ -155,6 +164,33 @@ public class MKAtomDFSIterator: IteratorProtocol {
     func isEmpty() -> Bool {
         return self._ptr == nil
     }
+    
+    static postfix func ++ (_ iter: inout MKAtomDFSIterator) {
+        
+        if !iter._stack.isEmpty() {
+            iter._ptr = iter._stack.pop()
+        } else { // are there any disconnected subgraphs?
+            let next = iter._notVisited.firstBit()
+            if next != iter._notVisited.endBit() {
+                iter._ptr = iter._parent.getAtom(next + 1)
+                iter._notVisited.setBitOff(next)
+            } else {
+                iter._ptr = nil
+            }
+        }
+        if iter._ptr != nil {
+            if let nbrs = iter._ptr?.getNbrAtomIterator() {
+                for a in nbrs {
+                    if iter._notVisited[a.getIdx() - 1] {
+                        iter._stack.push(a)
+                        iter._notVisited.setBitOff(a.getIdx() - 1)
+                    }
+                }
+            }
+        }
+    }
+    
+    
 }
 
 //public class MKBFSIterator<T>: IteratorProtocol, Sequence {

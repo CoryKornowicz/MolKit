@@ -25,7 +25,11 @@ File Reader Class is not as expansive as OpenBabel's. Order of importance is SMI
 
 Strong/Weak references (weak var/self) will need to be introduced to reduce the chances of ARC leaving dangling memory. 
 
+If plugins are buggy, static variables may need to be swapped out for class variables to scope the instances better. 
 
+If chains parsing is being difficult, rethink how to implement typeunion for ByteCode.
+
+Huge up and coming debt bill on the the RefValue object. It needs to be refactored into a single protocol + wrapper class(avoid CoW) to supply either a UInt or RefValue 
 
 ## Installation
 

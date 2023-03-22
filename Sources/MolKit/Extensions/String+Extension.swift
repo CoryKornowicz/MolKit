@@ -91,7 +91,9 @@ extension String {
         }
         return result
     }
+    
 }
+
 
 extension URL {
     func foreachRow(_ rowParcer:((String, Int) -> Void) )

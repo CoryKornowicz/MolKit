@@ -90,6 +90,15 @@ public enum RefValue: Equatable, Hashable {
     }
 }
 
+extension RefValue: ExpressibleByIntegerLiteral {
+    public typealias IntegerLiteralType = Int
+    
+    public init(integerLiteral value: Int) {
+        self = .Ref(value)
+    }
+    
+}
+
 typealias Ref = RefValue
 typealias Refs = [Ref]
 
@@ -642,7 +651,7 @@ func stereoFrom3D(_ mol: inout MKMol,_ force: Bool = false) {
     if mol.hasChiralityPerceived() && !force {
         return
     }
-    var symmetryClasses = findSymmetry(mol)
+    var symmetryClasses = findSymmetry(mol).map { UInt($0.intValue!) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetryClasses)
     mol.deleteData(.StereoData)
     tetrahedralFrom3D(mol, stereogenicUnits)
@@ -1025,7 +1034,7 @@ func stereoFrom2D(_ mol: MKMol, _ updown: [MKBond: MKStereo.BondDirection]? = ni
         return
     }
     // TODO: Log here 
-    var symmetry_classes = findSymmetry(mol)
+    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue!) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetry_classes)
     mol.deleteData(.StereoData)
     tetrahedralFrom2D(mol, stereogenicUnits)
@@ -1125,7 +1134,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
     var configs: [MKTetrahedralStereo] = []
 
     // find all tetrahedral centers
-    var centers = stereoUnits.filter { $0.type == .Tetrahedral }.map { $0.id }
+    let centers = stereoUnits.filter { $0.type == .Tetrahedral }.map { $0.id }
     for i in centers {
         guard let center = mol.getAtomById(i) else {
             fatalError("atom \(i) not found")
@@ -1139,7 +1148,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
         config.center = i
         // We assume the 'tip-only' convention. That is, wedge or hash bonds only
         // determine the stereochemistry at their thin end (the BeginAtom)
-        var tiponly: Bool = true 
+        let tiponly: Bool = true
         // find the hash, wedge and 2 plane atoms
         var planeAtoms: [MKAtom] = []
         var wedgeAtoms: [MKAtom] = []
@@ -1153,11 +1162,12 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                     hashAtoms.append(nbr)
                 } else {
                     // this is an 'inverted' hash bond going from the neighbor to the center
-                    if tiponly {
-                        planeAtoms.append(nbr)
-                    } else {
-                        wedgeAtoms.append(nbr)
-                    }
+                    planeAtoms.append(nbr)
+//                    if tiponly {
+//                        planeAtoms.append(nbr)
+//                    } else {
+//                        wedgeAtoms.append(nbr)
+//                    }
                 } 
             } else if bond.isWedge() {
                 // wedge bonds 
@@ -1166,11 +1176,12 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                     wedgeAtoms.append(nbr)
                 } else {
                     // this is an 'inverted' wedge bond going from the neighbor to the center
-                    if tiponly {
-                        planeAtoms.append(nbr)
-                    } else {
-                        hashAtoms.append(nbr)
-                    }
+                    planeAtoms.append(nbr)
+//                    if tiponly {
+//                        planeAtoms.append(nbr)
+//                    } else {
+//                        hashAtoms.append(nbr)
+//                    }
                 }
             } else if bond.isWedgeOrHash() {
                 if !tiponly || (tiponly && bond.getBeginAtom().getId() == center.getId()) {
@@ -1408,7 +1419,7 @@ func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKB
 
         // Create a vector with the coordinates of the neighbor atoms
         var bondVecs: [Vector<Double>] = []
-        var config: MKCisTransStereo.Config = MKCisTransStereo.Config()
+        let config: MKCisTransStereo.Config = MKCisTransStereo.Config()
         config.specified = true
 
         // begin 
@@ -1553,7 +1564,7 @@ func stereoFrom0D(_ mol: MKMol) {
     if mol.hasChiralityPerceived() {
         return
     }
-    var symmetry_classes = findSymmetry(mol)
+    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue!) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetry_classes)
     tetrahedralFrom0D(mol, stereogenicUnits)
     cisTransFrom0D(mol, stereogenicUnits)

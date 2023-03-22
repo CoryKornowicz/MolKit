@@ -25,12 +25,10 @@ public class MolKit {
     
     static let theSMIFormat: SMIFormat = SMIFormat()
     static let theCANSMIFormat: CANSMIFormat = CANSMIFormat()
+    static let theGastegierCharges: GasteigerCharges = GasteigerCharges("gasteiger", false)
     
     init() {
         
-//        Enable Plugins??
-//        MolKit._plugin_ids.append([MolKit.theSMIFormat,
-//                                   MolKit.theCANSMIFormat])
     }
     
 }

@@ -1960,10 +1960,10 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
 *
 * @return vector containing symmetry classes index by OBAtom::GetIndex().
 */
-func findSymmetry(_ mol: MKMol) -> [UInt] {
+func findSymmetry(_ mol: MKMol) -> [Ref] {
     var symVec: MKBitVec? = nil
     let symmetry = MKGraphSym(mol, &symVec)
-    var symClasses = [UInt](repeating: 0, count: mol.numAtoms())
+    var symClasses = [Ref](repeating: .NoRef, count: mol.numAtoms())
     symmetry.getSymmetry(&symClasses)
     return symClasses
 }
