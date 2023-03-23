@@ -26,14 +26,23 @@ public struct PosixError : Error, CustomStringConvertible {
 }
 
 public protocol InputFileHandlerProtocol {
+    var streamStatus: Stream.Status { get }
+    var isEOF: Bool { get }
     func read(maxSize: Int) throws -> Data
+    func peek() -> Int
+    func peek() -> String
+    func getLine(_: inout String) -> Bool
+    func tellg() throws -> Int
+    func seekg(to position: Int) throws
 }
 
 public protocol OutputFileHandlerProtocol {
     func write(data: Data) throws
+    func writeNewLine() throws
 }
 
 public protocol FileHandlerProtocol {
+    var streamStatus: Stream.Status { get }
     var isEOF: Bool { get }
     func tellg() throws -> Int
     func seekg(to position: Int) throws
@@ -47,7 +56,7 @@ public class FileHandler : FileHandlerProtocol {
     }
     
     var filepath: URL
-    var streamStatus: Stream.Status = .notOpen
+    public var streamStatus: Stream.Status = .notOpen
     
     public convenience init(path: URL, mode: String) throws {
         guard let handle = Darwin.fopen(path.path, mode) else {
@@ -126,6 +135,30 @@ public class FileHandler : FileHandlerProtocol {
 class InputFileHandler: FileHandler {}
 
 extension InputFileHandler: InputFileHandlerProtocol {
+    
+    func getLine(_ s: inout String) -> Bool {
+        //  Read bytes until a newline is found
+        self.streamStatus = .reading
+        var data = Data()
+        while true {
+            var byte = Data(count: 1)
+            let readSize = byte.withUnsafeMutableBytes { (bytes) in
+                Darwin.fread(bytes, 1, 1, handle)
+            }
+            if readSize == 0 {
+                return false
+            }
+            byte.count = readSize
+            guard let stringChar = String.init(data: byte, encoding: String.Encoding.utf8) else { return false }
+            if stringChar == "\n" {
+                break
+            }
+            s += stringChar
+        }
+        self.streamStatus = .open
+        return true
+    }
+    
     public func read(maxSize: Int) throws -> Data {
         self.streamStatus = .reading
         var data = Data(count: maxSize)
@@ -192,8 +225,9 @@ extension InputFileHandler: InputFileHandlerProtocol {
 class OutputFileHandler: FileHandler{}
 
 extension OutputFileHandler: OutputFileHandlerProtocol {
-    public func write(data: Data) throws {
+    func writeNewLine() throws {
         self.streamStatus = .writing
+        guard let data = "\n".data(using: .utf8) else { return }
         let writtenSize = data.withUnsafeBytes { (bytes) in
             Darwin.fwrite(bytes, 1, data.count, handle)
         }
@@ -203,23 +237,44 @@ extension OutputFileHandler: OutputFileHandlerProtocol {
         }
         self.streamStatus = .atEnd
     }
+    
+    public func write(data: Data) throws {
+            self.streamStatus = .writing
+            let writtenSize = data.withUnsafeBytes { (bytes) in
+                Darwin.fwrite(bytes, 1, data.count, handle)
+            }
+            if writtenSize != data.count {
+                self.streamStatus = .error
+                throw PosixError(code: Darwin.ferror(handle))
+            }
+            self.streamStatus = .atEnd
+    }
 
 }
 
 
 class StringStream: FileHandlerProtocol {
+    
+    var streamStatus: Stream.Status = .open
+    
     var _wrappedBuffer: String = ""
+    var _offset: Int = 0
     
     var isEOF: Bool {
-        return false
+        return _offset >= self._wrappedBuffer.length
     }
     
     func tellg() throws -> Int {
-        return self._wrappedBuffer.length
+        return self._offset
     }
     
     func seekg(to position: Int) throws {
-        return
+        if position < self._wrappedBuffer.length {
+            self._offset = position
+            return
+        }
+        self.streamStatus = .error
+        throw PosixError.init(code: Darwin.errno)
     }
     
     init() {}
@@ -230,11 +285,29 @@ class StringStream: FileHandlerProtocol {
 }
 
 class InputStringStream: StringStream, InputFileHandlerProtocol {
+    
+    func getLine(_ s: inout String) -> Bool {
+        self.streamStatus = .writing
+        if let newLinePos = self._wrappedBuffer.firstIndex(of: Character("\n")) {
+            self._offset = newLinePos.utf16Offset(in: self._wrappedBuffer)
+            s = self._wrappedBuffer.substring(toIndex: newLinePos)
+            self.streamStatus = .open
+            return true
+        }
+//        Does no longer contain a new line
+        self.streamStatus = .atEnd
+        return false
+    }
+    
+    
     func read(maxSize: Int) throws -> Data {
-        if maxSize > self._wrappedBuffer.length {
-            return self._wrappedBuffer.data(using: .utf8)!
+        if maxSize > self._wrappedBuffer.length - self._offset {
+            self._offset = self._wrappedBuffer.count
+            self.streamStatus = .atEnd
+            return self._wrappedBuffer[self._offset..<self._wrappedBuffer.count].data(using: .utf8)!
         } else {
-            return self._wrappedBuffer.substring(toIndex: maxSize).data(using: .utf8)!
+            self._offset = maxSize
+            return self._wrappedBuffer[self._offset..<maxSize].data(using: .utf8)!
         }
     }
     
@@ -242,8 +315,18 @@ class InputStringStream: StringStream, InputFileHandlerProtocol {
         if maxLength < self._wrappedBuffer.length {
             return self._wrappedBuffer.substring(toIndex: maxLength)
         } else {
+            self.streamStatus = .atEnd
             return self._wrappedBuffer
         }
+    }
+    
+    func peek() -> Int {
+//        TODO: Kind of dumb needs error handling
+        return self._wrappedBuffer.first!.wholeNumberValue!
+    }
+    
+    func peek() -> String {
+        return String(self._wrappedBuffer.first!)
     }
     
 }
@@ -256,15 +339,20 @@ class OutputStringStream: StringStream, OutputFileHandlerProtocol {
 
     func write(data: Data) throws {
         // convert data to string
+        self.streamStatus = .writing
         if let dataStr: String = String.init(data: data, encoding: .utf8) {
             self._wrappedBuffer += dataStr
         }
+        self.streamStatus = .open
     }
     
     func write(data: String) {
         self._wrappedBuffer += data
     }
     
+    func writeNewLine() throws {
+        self._wrappedBuffer += "\n"
+    }
 }
 
 

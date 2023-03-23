@@ -46,37 +46,33 @@ class SMIBaseFormat: MKMoleculeFormat {
      and ReadFile all SMILES reactions give an error when read with this format.
      */
     override func readMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
-        var pmol = pOb.castAndClear(true) as! MKMol
-        var ifs = pConv.getInStream()
-        var ln: String
+        let pmol = pOb.castAndClear(true) as! MKMol
+        let ifs = pConv.getInStream()
+        var ln: String = ""
         var title: String
-        var smiles: String
+        var smiles: String = ""
         var pos: String.Index
         
         //Ignore lines that start with #
-        fatalError()
-        //        while(ifs != nil && ifs!.peek() == "#") {
-        //            if(!getline(ifs, ln))
-        //                return false;
-        //        }
-        //
-        //        //Get title
-        //        if(getline(ifs, ln)) {
-        //            pos = ln.find_first_of(" \t");
-        //            if(pos!=string::npos)
-        //            {
-        //                smiles = ln.substr(0,pos);
-        //                title = ln.substr(pos+1);
-        //                Trim(title);
-        //                pmol->SetTitle(title.c_str());
-        //            } else {
-        //                smiles = ln
-        //            }
-        //        }
+        while ifs != nil && ifs!.peek() == "#" {
+            if !ifs!.getLine(&ln) { return false }
+        }
+        //Get title
+        if ifs!.getLine(&ln) {
+            pos = ln.firstIndex(of: " ") ?? ln.firstIndex(of: "\t") ?? ln.endIndex
+            if pos != ln.endIndex {
+                smiles = String(ln[ln.startIndex..<pos])
+                title = String(ln[ln.index(after: pos)..<ln.endIndex])
+                title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                pmol.setTitle(title)
+            } else {
+                smiles = ln
+            }
+        }
         
         pmol.setDimension(0)
-        var sp = MKSmilesParser(preserve_aromaticity: (pConv.isOption("a", .INOPTIONS) != nil))
-        if !(pConv.isOption("S", .INOPTIONS) == nil){
+        let sp = MKSmilesParser(preserve_aromaticity: pConv.isOption("a", .INOPTIONS))
+        if !pConv.isOption("S", .INOPTIONS) {
             pmol.setChiralityPerceived()
         }
         
@@ -84,7 +80,113 @@ class SMIBaseFormat: MKMoleculeFormat {
     }
     
     override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
-        fatalError()
+        var pmol: MKMol = pOb as! MKMol
+        // Define some references so we can use the old parameter names
+        let ofs = pConv.getOutStream()
+
+        // Inchified SMILES? If so, then replace mol with the new 'normalised' one
+        if pConv.isOption("I") {
+            let success = getInchifiedSMILESMolecules(&pmol, false)
+            if !success {
+                do {
+                    try ofs?.writeNewLine()
+                } catch {
+                    print("ERROR: unable to write to buffer")
+                }
+                print("Cannot generate Universal NSMILES for this molecule")
+                return false
+            }
+        }
+
+        // Title only option?
+        if pConv.isOption("t") {
+            do {
+                try ofs?.write(data: pmol.getTitle().data(using: .utf8)!)
+                try ofs?.writeNewLine()
+            } catch {
+                print("ERROR: unable to write to buffer")
+            }
+            return true
+        }
+
+        // Option 'x' needs "SMILES Atom Order" to be set
+        // FIXME: When we support features of CXN extended SMILES
+        //        we can rewrite this
+        if pConv.isOption("x") {
+            pConv.addOption("O")
+        }
+
+        var buffer = ""
+
+        // If there is data attached called "SMILES_Fragment", then it's
+        // an ascii OBBitVec, representing the atoms of a fragment.  The
+        // SMILES generated will only include these fragment atoms.
+
+        var fragatoms = MKBitVec(pmol.numAtoms())
+
+        if let dp = pmol.getData("SMILES_Fragment") as? MKPairData<String> {
+            fragatoms.fromString(dp.getValue()!, new_bit_size: UInt32(pmol.numAtoms()))
+        } else if let ppF = pConv.isOption("F") {
+            fragatoms.fromString(ppF, new_bit_size: UInt32(pmol.numAtoms()))
+        } else {
+        // If no "SMILES_Fragment" data, fill the entire OBBitVec
+        // with 1's so that the SMILES will be for the whole molecule.
+            for a in pmol.getAtomIterator() {
+                fragatoms.setBitOn(a.getIdx())
+            }
+        }
+
+        if pmol.numAtoms() > 0 || pmol.isReaction() {
+            createCansmiString(&pmol, &buffer, &fragatoms, pConv)
+        }
+
+        var writenewline = false
+    
+        if !pConv.isOption("smilesonly") {
+            if !pConv.isOption("n") {
+                buffer += "\t"
+                buffer += pmol.getTitle()
+            }
+            if pConv.isOption("x") && pmol.hasData("SMILES Atom Order") {
+                guard var canorder = (pmol.getData("SMILES Atom Order") as? MKPairData<String>)?.getValue() else {
+                    print("ERROR: Could not find atom order in mol data")
+                    return false
+                }
+                let vs = canorder.components(separatedBy: " ")
+                buffer += "\t"
+                var tmp = ""
+                for i in 0..<vs.count {
+                    let idx = Int(vs[i])!
+                    guard let atom = pmol.getAtom(idx) else {
+                        print("ERROR: Could not find atom in mol at \(idx)")
+                        return false
+                    }
+                    if i > 0 {
+                        buffer += ","
+                    }
+                    tmp = String(format: "%.4f", atom.getX())
+                    buffer += tmp
+                    buffer += ","
+                    tmp = String(format: "%.4f", atom.getY())
+                    buffer += tmp
+                }
+            }
+        }
+
+        if !pConv.isOption("nonewline") {
+            writenewline = true
+        }
+
+        do {
+            try ofs?.write(data: buffer.data(using: .utf8)!)
+            if writenewline {
+                try ofs?.writeNewLine()
+            }
+        } catch {
+            print("ERROR: unable to write to buffer")
+        }
+        return true 
+
     }
     
     override func getMIMEType() -> String {
@@ -101,11 +203,45 @@ class SMIBaseFormat: MKMoleculeFormat {
     
     override func skipObjects(_ n: Int, _ pConv: MKConversion) -> Int {
         if n == 0 { return 1 } // already points after the current line
-        var ifs = pConv.getInStream()
-        fatalError()
+        let ifs = pConv.getInStream()
+        if ifs!.isEOF { return -1 }
+        var i = 0
+        var tmp: String = ""
+        while i < n {
+            if ifs!.isEOF { return -1 }
+            if ifs!.getLine(&tmp) {
+                i += 1
+            } else {
+                break
+            }
+        }
+        return ifs!.isEOF ? -1 : 1
     }
     
-    private func getInchifiedSMILESMolecules(_ mol: MKMol, _ useFixedHRecMet: Bool) { }
+    private func getInchifiedSMILESMolecules(_ mol: inout MKMol, _ useFixedHRecMet: Bool) -> Bool {
+        let MolConv = MKConversion()
+        guard let pInChIFormat = MKConversion.findFormat("InChI") else {
+            print("InChI format not available")
+            return false
+        }
+        let newstream = OutputStringStream()
+        MolConv.setOutStream(newstream)
+        if useFixedHRecMet {
+            MolConv.addOption("w", .OUTOPTIONS)
+            MolConv.addOption("X", .OUTOPTIONS, "RecMet FixedH")
+        } else {
+            MolConv.addOption("w", .OUTOPTIONS)
+        }
+        var success = pInChIFormat.writeMolecule(mol, MolConv)
+        if !success { return false }
+        let inchi = newstream.string
+        if inchi.count == 0 { return false }
+        let vs = inchi.components(separatedBy: " ")
+        MolConv.setInFormat(pInChIFormat)
+        success = MolConv.readString(&mol, vs[0])
+        mol.deleteData("inchi") // Tidy up this side-effect
+        return success
+    }
     
 }
 
@@ -319,301 +455,246 @@ class MKSmilesParser {
     }
     
     
-    func smiToMol(_ mol: MKMol, _ name: String) -> Bool {
-        //        _vprev.clear();
-        //        _rclose.clear();
-        //        _prev=0;
-        //        chiralWatch=false;
-        //        squarePlanarWatch = false;
-        //
-        //        // We allow the empty reaction (">>") but not the empty molecule ("")
-        //        if (!ParseSmiles(mol, s) || (!mol.IsReaction() && mol.NumAtoms() == 0))
-        //        {
-        //            mol.Clear();
-        //            return(false);
-        //        }
-        //
-        //        // TODO: Is the following a memory leak? - there are return statements above
-        //        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator i;
-        //        for (i = _tetrahedralMap.begin(); i != _tetrahedralMap.end(); ++i)
-        //        delete i->second;
-        //        _tetrahedralMap.clear();
-        //
-        //        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator j;
-        //        for (j = _squarePlanarMap.begin(); j != _squarePlanarMap.end(); ++j)
-        //        delete j->second;
-        //        _squarePlanarMap.clear();
-        //
-        //        mol.SetAutomaticFormalCharge(false);
-        //
-        //        return(true);
-        fatalError()
+    func smiToMol(_ mol: MKMol, _ s: String) -> Bool {
+        _vprev.removeAll()
+        _rclose.removeAll()
+        _prev = 0
+        chiralWatch = false
+        squarePlanarWatch = false
+        // We allow the empty reaction (">>") but not the empty molecule ("")
+        if !parseSmiles(mol, s) || (mol.isReaction() && mol.numAtoms() == 0) {
+            mol.clear()
+            return false
+        }
+        // TODO: Is the following a memory leak? - there are return statements above
+        _tetrahedralMap.removeAll()        
+        _squarePlanarMap.removeAll()
+        mol.setAutomaticFormalCharge(false)
+        return true
     }
     
-    //    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
+    func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
     //        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
+        mol.setAromaticPerceived() // Turn off perception until the end of this function
     //        mol.BeginModify();
-    //
-    //        for (_ptr=smiles.c_str();*_ptr;_ptr++)
-    //        {
-    //        switch(*_ptr)
-    //        {
-    //        case '\r':
-    //            if (*(_ptr+1) == '\0') // may have a terminating '\r' due to Windows line-endings
-    //            break;
-    //            return false;
-    //        case '0': case '1': case '2': case '3': case '4':
-    //        case '5': case '6': case '7': case '8': case '9':
-    //        case '%':  //ring open/close
-    //            if (_prev == 0)
-    //            return false;
-    //            if (!ParseRingBond(mol))
-    //            return false;
-    //            break;
-    //        case '&': //external bond
-    //            if (_prev == 0)
-    //            return false;
-    //            if (!ParseExternalBond(mol))
-    //            return false;
-    //            break;
-    //        case '.':
-    //            _prev=0;
-    //            break;
-    //        case '>':
-    //            _prev = 0;
-    //            _rxnrole++;
-    //            if (_rxnrole == 2) {
-    //            mol.SetIsReaction();
-    //            // Handle all the reactant atoms
-    //            // - the remaining atoms will be handled on-the-fly
-    //            FOR_ATOMS_OF_MOL(atom, mol) {
-    //                OBPairInteger *pi = new OBPairInteger();
-    //                pi->SetAttribute("rxnrole");
-    //                pi->SetValue(1);
-    //                atom->SetData(pi);
-    //            }
-    //            }
-    //            else if (_rxnrole == 4) {
-    //            stringstream errorMsg;
-    //            errorMsg << "Too many greater-than signs in SMILES string";
-    //            std::string title = mol.GetTitle();
-    //            if (!title.empty())
-    //                errorMsg << " (title is " << title << ")";
-    //            errorMsg << endl;
-    //            obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-    //            return false;
-    //            }
-    //            break;
-    //        case '(':
-    //            _vprev.push_back(_prev);
-    //            break;
-    //        case ')':
-    //            if(_vprev.empty()) //CM
-    //            return false;
-    //            _prev = _vprev.back();
-    //            _vprev.pop_back();
-    //            break;
-    //        case '[':
-    //            if (!ParseComplex(mol))
-    //            {
-    //            mol.EndModify();
-    //            mol.Clear();
-    //            return false;
-    //            }
-    //            break;
-    //        case '-':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 1;
-    //            break;
-    //        case '=':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 2;
-    //            break;
-    //        case '#':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 3;
-    //            break;
-    //        case '$':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 4;
-    //            break;
-    //        case ':':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 0; // no-op
-    //            break;
-    //        case '/':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 1;
-    //            _updown = BondDownChar;
-    //            break;
-    //        case '\\':
-    //            if (_prev == 0)
-    //            return false;
-    //            _order = 1;
-    //            _updown = BondUpChar;
-    //            break;
-    //        default:
-    //            if (!ParseSimple(mol))
-    //            {
-    //            mol.EndModify();
-    //            mol.Clear();
-    //            return false;
-    //            }
-    //        } // end switch
-    //        } // end for _ptr
-    //
-    //        // place dummy atoms for each unfilled external bond
-    //        if(!_extbond.empty())
-    //        CapExternalBonds(mol);
-    //
-    //        // Check to see if we've balanced out all ring closures
-    //        // They are removed from _rclose when matched
-    //        if (!_rclose.empty()) {
-    //        mol.EndModify();
-    //        mol.Clear();
-    //
-    //        stringstream errorMsg;
-    //        errorMsg << "Invalid SMILES string: " << _rclose.size() << " unmatched "
-    //                << "ring bonds." << endl;
-    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-    //        return false; // invalid SMILES since rings aren't properly closed
-    //        }
-    //
-    //        // Check to see if we've the right number of '>' for reactions
-    //        if (_rxnrole > 1 && _rxnrole !=3) {
-    //        mol.EndModify();
-    //        stringstream errorMsg;
-    //        errorMsg << "Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).";
-    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-    //        return false; // invalid SMILES since rings aren't properly closed
-    //        }
-    //        if (mol.IsReaction()) {
-    //        OBReactionFacade facade(&mol);
-    //        facade.AssignComponentIds();
-    //        }
-    //
-    //        // Apply the SMILES valence model
-    //        FOR_ATOMS_OF_MOL(atom, mol) {
-    //        unsigned int idx = atom->GetIdx();
-    //        int hcount = _hcount[idx - 1];
-    //        if (hcount == -1) { // Apply SMILES implicit valence model
-    //            unsigned int bosum = 0;
-    //            FOR_BONDS_OF_ATOM(bond, &(*atom)) {
-    //            bosum += bond->GetBondOrder();
-    //            }
-    //            unsigned int impval = SmilesValence(atom->GetAtomicNum(), bosum);
-    //            unsigned int imph = impval - bosum;
-    //            if (imph > 0 && atom->IsAromatic())
-    //            imph--;
-    //            atom->SetImplicitHCount(imph);
-    //        }
-    //        else // valence is explicit e.g. [CH3]
-    //            atom->SetImplicitHCount(hcount);
-    //        }
-    //
-    //        mol.EndModify(false);
-    //
-    //        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
-    //        // This is rather subtle, but it's correct and reduces the burden of kekulization
-    //        FOR_BONDS_OF_MOL(bond, mol) {
-    //        if (bond->IsAromatic() && !bond->IsInRing()) {
-    //            if (bond->GetBeginAtom()->IsInRing() && bond->GetEndAtom()->IsInRing())
-    //            bond->SetAromatic(false);
-    //        }
-    //        }
-    //
-    //        // TODO: Only Kekulize if the molecule has a lower case atom
-    //        bool ok = OBKekulize(&mol);
-    //        if (!ok) {
-    //        stringstream errorMsg;
-    //        errorMsg << "Failed to kekulize aromatic SMILES";
-    //        std::string title = mol.GetTitle();
-    //        if (!title.empty())
-    //            errorMsg << " (title is " << title << ")";
-    //        errorMsg << endl;
-    //        obErrorLog.ThrowError(__FUNCTION__, errorMsg.str(), obWarning);
-    //        // return false; // Should we return false for a kekulization failure?
-    //        }
-    //
-    //        // Add the data stored inside the _tetrahedralMap to the atoms now after end
-    //        // modify so they don't get lost.
-    //        if(!_tetrahedralMap.empty()) {
-    //        OBAtom* atom;
-    //        map<OBAtom*, OBTetrahedralStereo::Config*>::iterator ChiralSearch;
-    //        for(ChiralSearch = _tetrahedralMap.begin(); ChiralSearch != _tetrahedralMap.end(); ++ChiralSearch) {
-    //            atom = ChiralSearch->first;
-    //            OBTetrahedralStereo::Config *ts = ChiralSearch->second;
-    //            if (!ts)
-    //            continue;
-    //            if (ts->refs.size() != 3)
-    //            continue;
-    //            if (ts->refs[2] == OBStereo::NoRef) {
-    //            // This happens where there is chiral lone pair or where there simply aren't enough connections
-    //            // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
-    //            // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
-    //            // a lone pair, think of C[S@](=X)(=Y)Cl.
-    //
-    //            // We have remembered where to insert the lone pair in the _chiralLonePair map
-    //            map<unsigned int, char>::iterator m_it = _chiralLonePair.find(atom->GetIdx());
-    //            if (CanHaveLonePair(atom->GetAtomicNum()) && m_it != _chiralLonePair.end()) {
-    //                ts->refs[2] = ts->refs[1]; ts->refs[1] = ts->refs[0];
-    //                if (m_it->second == 0) { // Insert in the 'from' position
-    //                ts->refs[0] = ts->from;
-    //                ts->from = OBStereo::ImplicitRef;
-    //                }
-    //                else // Insert in the refs[0] position
-    //                ts->refs[0] = OBStereo::ImplicitRef;
-    //            }
-    //            else { // Ignored by Open Babel
-    //                stringstream ss;
-    //                ss << "Ignoring stereochemistry. Not enough connections to this atom. " << mol.GetTitle();
-    //                obErrorLog.ThrowError(__FUNCTION__, ss.str(), obWarning);
-    //                continue;
-    //            }
-    //            }
-    //
-    //            // cout << "*ts = " << *ts << endl;
-    //            OBTetrahedralStereo *obts = new OBTetrahedralStereo(&mol);
-    //            obts->SetConfig(*ts);
-    //            mol.SetData(obts);
-    //        }
-    //        }
-    //
-    //        // Add the data stored inside the _squarePlanarMap to the atoms now after end
-    //        // modify so they don't get lost.
-    //        if(!_squarePlanarMap.empty()) {
-    //        OBAtom* atom;
-    //        map<OBAtom*, OBSquarePlanarStereo::Config*>::iterator ChiralSearch;
-    //        for(ChiralSearch = _squarePlanarMap.begin(); ChiralSearch != _squarePlanarMap.end(); ++ChiralSearch) {
-    //            atom = ChiralSearch->first;
-    //            OBSquarePlanarStereo::Config *sp = ChiralSearch->second;
-    //            if (!sp)
-    //            continue;
-    //            if (sp->refs.size() != 4)
-    //            continue;
-    //
-    //            // cout << "*ts = " << *ts << endl;
-    //            OBSquarePlanarStereo *obsp = new OBSquarePlanarStereo(&mol);
-    //            obsp->SetConfig(*sp);
-    //            mol.SetData(obsp);
-    //        }
-    //        }
-    //
-    //        if (!_preserve_aromaticity)
-    //        mol.SetAromaticPerceived(false);
-    //
-    //        createCisTrans(mol);
-    //
-    //        return(true);
-    //
-    //
-    //        }
+        mol.beginModify()
+        let _ptr = Iterator<Character>([Character](smiles))
+
+        while !_ptr.isEmpty() {
+            switch _ptr.curr()! {
+            case "\r":
+                if _ptr[1] == nil {
+                    break
+                }
+                return false
+            case "0"..."9", "%":
+                if _prev == 0 {
+                    return false
+                }
+                if !parseRingBond(mol) {
+                    return false
+                }
+            case "&":
+                if _prev == 0 {
+                    return false
+                }
+                if !parseExternalBond(mol) {
+                    return false
+                }
+            case ".":
+                _prev = 0
+            case ">":
+                _prev = 0
+                _rxnrole += 1
+                if _rxnrole == 2 {
+                    mol.setIsReaction()
+                    for atom in mol.getAtomIterator() {
+                        let pi = MKPairData<Int>()
+                        pi.setAttribute("rxnrole")
+                        pi.setValue(1)
+                        atom.setData(pi)
+                    }
+                } else if _rxnrole == 4 {
+                    print("Too many greater-than signs in SMILES string")
+                    print("Title is \(mol.getTitle())")
+                    return false
+                }
+            case "(":
+                _vprev.append(_prev)
+            case ")":
+                if _vprev.isEmpty { //CM
+                    return false
+                }
+                _prev = _vprev.last!
+                _vprev.removeLast()
+            case "[":
+                if !parseComplex(mol) {
+                    mol.endModify()
+                    mol.clear()
+                    return false
+                }
+            case "-":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 1
+
+            case "=":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 2
+            case "#":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 3
+            case "$":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 4
+            case ":":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 0 // no-op
+            case "/":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 1
+                _updown = BondDownChar
+            case "\\":
+                if _prev == 0 {
+                    return false
+                }
+                _order = 1
+                _updown = BondUpChar
+            default:
+                if !parseSimple(mol) {
+                    mol.endModify()
+                    mol.clear()
+                    return false
+                }
+            } // end switch
+            _ptr.ignore() // advance to next character
+        } // end ofr _ptr
+        // place dummy atoms for each unfilled external bond
+        if !_extbond.isEmpty {
+            capExternalBonds(mol)
+        }
+           // Check to see if we've balanced out all ring closures
+           // They are removed from _rclose when matched
+        if !_rclose.isEmpty {
+            mol.endModify()
+            mol.clear()
+            print("Invalid SMILES string: \(_rclose.count) unmatched ring bonds.")
+            return false // invalid SMILES since rings aren't properly closed
+        }
+           // Check to see if we've the right number of '>' for reactions
+        if _rxnrole > 1 && _rxnrole != 3 {
+            mol.endModify()
+            print("Invalid reaction SMILES string: only a single '>' sign found (two required to be valid).")
+            return false // invalid SMILES since rings aren't properly closed
+        }
+        if mol.isReaction() {
+            let facade = MKReactionFacade(mol)
+            facade.assignComponentIds()
+        }
+        // Apply the SMILES valence model
+        for atom in mol.getAtomIterator() {
+            let idx = atom.getIdx()
+            let hcount = _hcount[idx - 1]
+            if hcount == -1 { // Apply SMILES implicit valence model
+                var bosum = 0
+                for bond in atom.getBondIterator()! {
+                    bosum += Int(bond.getBondOrder())
+                }
+                let impval = smilesValence(atom.getAtomicNum(), bosum)
+                var imph = impval - bosum
+                if imph > 0 && atom.isAromatic() {
+                    imph -= 1
+                }
+                atom.setImplicitHCount(UInt(imph))
+            } else { // valence is explicit e.g. [CH3]
+                atom.setImplicitHCount(UInt(hcount))
+            }
+        }
+        mol.endModify(false)
+        // Unset any aromatic bonds that *are not* in rings where the two aromatic atoms *are* in a ring
+        // This is rather subtle, but it's correct and reduces the burden of kekulization
+        
+        for bond in mol.getBondIterator() {
+            if bond.isAromatic() && !bond.isInRing() {
+                if bond.getBeginAtom().isInRing() && bond.getEndAtom().isInRing() {
+                    bond.setAromatic(false)
+                }
+            }
+        }
+        // TODO: Only Kekulize if the molecule has a lower case atom
+        var ok = MKKekulize(mol)
+        if !ok {
+            print("Failed to kekulize aromatic SMILES")
+            print("Title is \(mol.getTitle())")
+            return false // Should we return false for a kekulization failure?
+        }
+        // Add the data stored inside the _tetrahedralMap to the atoms now after end
+        // modify so they don't get lost.
+        if !_tetrahedralMap.isEmpty {
+            for ChiralSearch in _tetrahedralMap {
+                let atom = ChiralSearch.key
+                var ts = ChiralSearch.value
+                if ts.refs.count != 3 { continue }
+                if ts.refs[2] == .NoRef {
+                    // This happens where there is chiral lone pair or where there simply aren't enough connections
+                    // around a chiral atom. We handle the case where there is a S with a chiral lone pair.
+                    // All other cases are ignored, and raise a warning. (Note that S can be chiral even without
+                    // a lone pair, think of C[S@](=X)(=Y)Cl.
+                    
+                    // We have remembered where to insert the lone pair in the _chiralLonePair map
+                    if let chiralLonePair = _chiralLonePair.first(where: { $0.key == atom.getIdx() }) {
+                        if canHaveLonePair(atom.getAtomicNum()) {
+                            ts.refs[2] = ts.refs[1]
+                            ts.refs[1] = ts.refs[0]
+                            if chiralLonePair.value.wholeNumberValue! == 0 { // Insert in the 'from' position
+                                // TODO: probably need to guard this statement
+                                ts.refs[0] = ts.from_or_towrds.from!
+                                ts.from_or_towrds.from = .ImplicitRef
+                            } else { // Insert in the refs[0] position
+                                ts.refs[0] = .ImplicitRef
+                            }
+                        }
+                    } else {
+                        print("Ignoring stereochemistry. Not enough connections to this atom. \(mol.getTitle())")
+                        continue
+                    }
+                }
+                let obts = MKTetrahedralStereo(mol)
+                obts.setConfig(ts)
+                mol.setData(obts)
+            }
+        }
+        // Add the data stored inside the _squarePlanarMap to the atoms now after end
+        // modify so they don't get lost.
+        
+        if !_squarePlanarMap.isEmpty {
+            for ChiralSearch in _squarePlanarMap {
+                let sp = ChiralSearch.value
+                if sp.refs.count != 4 { continue }
+                let obsp = MKSquarePlanarStereo(mol)
+                obsp.setConfig(sp)
+                mol.setData(obsp)
+            }
+        }
+        
+        if !_preserve_aromaticity {
+            mol.setAromaticPerceived(false)
+        }
+        
+        createCisTrans(mol)
+        return true
+    }
     
     func isUp(_ bond: MKBond) -> Bool {
         if _upDownMap[bond] == BondUpChar {
@@ -2231,7 +2312,7 @@ class MKMol2Cansmi {
     *       with disconnected parts), selects a new root from the remaining
     *       atoms and repeats the process.
     ***************************************************************************/
-    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: MKBitVec, _ smi: inout String) {
+    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: inout MKBitVec, _ buffer: inout String) {
         
         var symmetry_classes: [Ref] = []
         var canonical_order: [Ref] = []
@@ -2273,7 +2354,7 @@ class MKMol2Cansmi {
         // Was Universal SMILES requested?
         var universal_smiles: Bool = _pconv.isOption("U")
         if universal_smiles {
-            let parsedOkay = parseInChI(mol, atom_order)
+            let parsedOkay = parseInChI(mol, &atom_order)
             if !parsedOkay {
                 universal_smiles = false
             }
@@ -2355,11 +2436,86 @@ class MKMol2Cansmi {
 
         var new_rxn_role = false // flag to indicate whether we have started a new reaction role
         var isrxn: Bool = mol.isReaction()
-        let rxnFacade = MKReactionFacacde(mol)
-        
-        
-        
-        
+        let rxn = MKReactionFacade(mol)
+        var rxnrole: UInt = 1 
+        while true {
+            if _pconv.isOption("R") {
+                _bcdigit = 0 // Reset the bond closure index for each disconnected component 
+            }
+
+            // It happens that the lowest canonically-numbered atom is usually a place to start the 
+            // canonical SMILES 
+            var root_atom: MKAtom? = nil 
+            var lowest_canorder = 999999
+            // If we specified a startatom_idx & it's in this fragment, use it to start the fragment
+            if (_startatom != nil) {
+                if !_uatoms[_startatom!.getIdx()] && frag_atoms.bitIsSet(_startatom!.getIdx()) &&
+                    (!isrxn || rxn.getRole(atom: _startatom!).rawValue == rxnrole) {
+                    root_atom = _startatom
+                }
+            }
+            if root_atom == nil {
+                for atom in mol.getAtomIterator() {
+                    let idx = atom.getIdx()
+                    if ( //atom.getAtomicNum() != MKElements.Hydrogen       // don't start with a hydrogen
+                        !_uatoms[idx]          // skip atoms already used (for fragments)
+                        && frag_atoms.bitIsSet(idx)// skip atoms not in this fragment
+                        && (!isrxn || rxn.getRole(atom: atom).rawValue == rxnrole) // skip atoms not in this rxn role
+                        //&& !atom->IsChiral()    // don't use chiral atoms as root node
+                        && canonical_order[idx-1].intValue! < lowest_canorder) {
+                        root_atom = atom
+                        lowest_canorder = canonical_order[idx-1].intValue!
+                    }
+                }
+                // For Inchified or Universal SMILES, if the start atom is an [O-] attached to atom X, choose any =O attached to X instead.
+                //          Ditto for [S-] and =S.
+                if (_pconv.isOption("I") || universal_smiles)
+                    && (root_atom != nil) && root_atom!.getFormalCharge() == -1  && root_atom!.getExplicitDegree() == 1
+                    && root_atom!.hasSingleBond() && (root_atom!.getAtomicNum() == MKElements.Oxygen.atomicNum || root_atom!.getAtomicNum() == MKElements.Sulfur.atomicNum) {
+                    if let central_atom = root_atom?.getNbrAtomIterator()?.next() {
+                        for nbr in central_atom.getNbrAtomIterator()! {
+                            if (root_atom == nbr) { continue }
+                            if (nbr.getAtomicNum() == root_atom!.getAtomicNum() && nbr.getExplicitDegree() == 1 && nbr.hasDoubleBond()) {
+                                root_atom = nbr
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // No atom found?  If it's not a reaction, then we've done all fragments.
+            // If it is, then increment the rxn role and try again.
+            if root_atom == nil {
+                if mol.isReaction() {
+                    rxnrole += 1
+                    if rxnrole == 4 {
+                        break
+                    }
+                    buffer += ">"
+                    new_rxn_role = true
+                    continue
+                } else {
+                    break
+                }
+            }
+            // Clear out closures in case structure is dot disconnected
+            //      _atmorder.clear();
+            _vopen.removeAll()
+            // Dot disconnected structure or new rxn role?
+            if new_rxn_role {
+                new_rxn_role = false
+            } else if !buffer.isEmpty {
+                buffer += "."
+            }
+            // root = new OBCanSmiNode (root_atom);
+            let root = MKCanSmiNode(atom: root_atom!)
+            let symclasses = symmetry_classes.map { $0.intValue! }
+            let canorder = canonical_order.map { $0.intValue! }
+            buildCanonTree(mol, &frag_atoms, canorder, root)
+            toCansmilesString(root, &buffer, &frag_atoms, symclasses, canorder)
+
+        }
     }
     
     
@@ -2902,7 +3058,7 @@ class MKMol2Cansmi {
             // Ok, done with H. Now we need to consider the case where there is a chiral
             // lone pair. If it exists (and we won't know for sure until we've counted up
             // all the neighbours) it will go in here
-            var lonepair_location = chiral_neighbors.count
+            let lonepair_location = chiral_neighbors.count
             // Ok, done with all that. Next in the SMILES will be the ring-closure characters.
             // So we need to find the corresponding atoms and add them to the list.
             // (We got the canonical ring-closure list earlier.)
@@ -3118,102 +3274,95 @@ class MKMol2Cansmi {
     }
 
     // Returns canonical label order
-    func parseInChI(_ mol: MKMol, _ atom_order: [Int]) -> Bool { 
-
-        // OBConversion MolConv;
-        // MolConv.SetOutFormat("InChI");
-        // MolConv.SetAuxConv(nullptr); //temporary until a proper OBConversion copy constructor written
-        // stringstream newstream;
-        // MolConv.SetOutStream(&newstream);
-        // // I'm sure there's a better way of preventing InChI warning output
-        // MolConv.AddOption("w", OBConversion::OUTOPTIONS);
-        // MolConv.AddOption("a", OBConversion::OUTOPTIONS);
-        // MolConv.AddOption("X", OBConversion::OUTOPTIONS, "RecMet FixedH");
-        // //pInChIFormat->WriteMolecule(&mol, &MolConv);
-        // MolConv.Write(&mol);
-
-        var MolCov = MKConversion()
-        MolCov.setOutFormat("InChI")
-        MolCov.setAuxConv(nil) //temporary until a proper OBConversion copy constructor written
+    func parseInChI(_ mol: MKMol, _ atom_order: inout [Int]) -> Bool {
+        var MolConv = MKConversion()
+        MolConv.setOutFormat("InChI")
+        MolConv.setAuxConv(nil) //temporary until a proper OBConversion copy constructor written
         var newstream = OutputStringStream()
-        MolCov.setOutStream(newstream)
+        MolConv.setOutStream(newstream)
+        // I'm sure there's a better way of preventing InChI warning output
+        MolConv.addOption("w", .OUTOPTIONS)
+        MolConv.addOption("a", .OUTOPTIONS)
+        MolConv.addOption("X", .OUTOPTIONS, "RecMet FixedH")
+        MolConv.write(mol)
 
-        // vector<string> splitlines;
-        // string tmp = newstream.str();
-        // tokenize(splitlines, tmp,"\n");
-        // vector<string> split, split_aux;
-        // string aux_part;
 
         var splitlines = newstream.string.components(separatedBy: .whitespacesAndNewlines)
 
+        var split: [String]
+        var split_aux: [String]
+        var aux_part: String
+        
+        let rm_start = splitlines[0].firstIndex(of: Character("/r"))
 
-        // size_t rm_start = splitlines.at(0).find("/r"); // Correct for reconnected metal if necessary
-        // if (rm_start == string::npos) {
-        // tokenize(split, splitlines.at(0),"/");
-        // aux_part = splitlines.at(1); // Use the normal labels
-        // }
-        // else {
-        // tmp = splitlines.at(0).substr(rm_start);
-        // tokenize(split, tmp, "/");
-        // split.insert(split.begin(), "");
-        // size_t rm_start_b = splitlines.at(1).find("/R:");
-        // aux_part = splitlines.at(1).substr(rm_start_b); // Use the reconnected metal labels
-        // }
-        // tokenize(split_aux, aux_part, "/");
+        if rm_start == nil {
+            split = splitlines[0].components(separatedBy: "/")
+            aux_part = splitlines[1] // Use the normal labels
+        } else {
+            let tmp = splitlines[0].substring(fromIndex: rm_start!)
+            split = tmp.components(separatedBy: "/")
+            split.insert("", at: 0)
+            let rm_start_b = splitlines[1].firstIndex(of: Character("/R:"))
+            aux_part = splitlines[1].substring(fromIndex: rm_start_b!) // Use the reconnected metal labels
+        }
 
-        // // Parse the canonical labels
-        // vector<vector<int> > canonical_labels;
-        // vector<string> s_components, s_atoms;
+        split_aux = aux_part.components(separatedBy: "/")
 
-        // tmp = split_aux.at(2).substr(2);
-        // tokenize(s_components, tmp, ";");
-        // for(vector<string>::iterator it=s_components.begin(); it!=s_components.end(); ++it) {
-        // tokenize(s_atoms, *it, ",");
-        // vector<int> atoms;
-        // for(vector<string>::iterator itb=s_atoms.begin(); itb!=s_atoms.end(); ++itb)
-        //     atoms.push_back(atoi(itb->c_str()));
-        // canonical_labels.push_back(atoms);
-        // }
+        // Parse the canonical labels
 
-        // // Adjust the canonical labels if necessary using a /F section
-        // size_t f_start = aux_part.find("/F:");
-        // if (f_start != string::npos) {
-        // tmp = aux_part.substr(f_start+3);
-        // tokenize(split_aux, tmp, "/");
-        // tokenize(s_components, split_aux.at(0), ";");
-        // vector<vector<int> > new_canonical_labels;
-        // int total = 0;
-        // for(vector<string>::iterator it=s_components.begin(); it!=s_components.end(); ++it) {
-        //     // e.g. "1,2,3;2m" means replace the first component by "1,2,3"
-        //     //                       but keep the next two unchanged
-        //     if (*(it->rbegin()) == 'm') {
-        //     int mult;
-        //     if (it->size()==1)
-        //         mult = 1;
-        //     else
-        //         mult = atoi(it->substr(0, it->size()-1).c_str());
-        //     new_canonical_labels.insert(new_canonical_labels.end(),
-        //         canonical_labels.begin()+total, canonical_labels.begin()+total+mult);
-        //     total += mult;
-        //     }
-        //     else {
-        //     tokenize(s_atoms, *it, ",");
-        //     vector<int> atoms;
-        //     for(vector<string>::iterator itb=s_atoms.begin(); itb!=s_atoms.end(); ++itb)
-        //         atoms.push_back(atoi(itb->c_str()));
-        //     new_canonical_labels.push_back(atoms);
-        //     total++;
-        //     }
-        // }
-        // canonical_labels = new_canonical_labels;
-        // }
+        var canonical_labels: [[Int]] = []
+        var s_components: [String] = []
+        var s_atoms: [String] = []
 
-        // // Flatten the canonical_labels
-        // for(vector<vector<int> >::iterator it=canonical_labels.begin(); it!=canonical_labels.end(); ++it) {
-        // atom_order.insert(atom_order.end(), it->begin(), it->end());
-        // }
+        var tmp = split_aux[2].substring(fromIndex: 2)
+        s_components = tmp.components(separatedBy: ";")
+        for s_component in s_components {
+            s_atoms = s_component.components(separatedBy: ",")
+            var atoms: [Int] = []
+            for s_atom in s_atoms {
+                atoms.append(Int(s_atom)!)
+            }
+            canonical_labels.append(atoms)
+        }
 
-        fatalError() 
+        // Adjust the canonical labels if necessary using a /F section
+        if let f_start = aux_part.firstIndex(of: Character("/F:")) {
+            tmp = aux_part.substring(fromIndex: f_start.utf16Offset(in: aux_part) + 3)
+            split_aux = tmp.components(separatedBy: "/")
+            s_components = split_aux[0].components(separatedBy: ";")
+            var new_canonical_labels: [[Int]] = []
+            var total = 0
+            for it in s_components {
+                // e.g. "1,2,3;2m" means replace the first component by "1,2,3"
+                //                       but keep the next two unchanged
+                if it.last == "m" {
+                    var mult: Int
+                    if it.count == 1 {
+                        mult = 1
+                    } else {
+                        mult = Int(it.substring(toIndex: it.length - 1))!
+                    }
+                    // TODO: make sure this doesn't need to be inclusive of total+multi
+                    new_canonical_labels.append(contentsOf: canonical_labels[total..<total+mult])
+                    total += mult
+                } else {
+                    s_atoms = it.components(separatedBy: ",")
+                    var atoms: [Int] = []
+                    for itb in s_atoms {
+                        atoms.append(Int(itb)!)
+                    }
+                    new_canonical_labels.append(atoms)
+                    total += 1
+                }
+            }
+            canonical_labels = new_canonical_labels
+        }
+
+        // Flatten the canonical_labels
+        for it in canonical_labels {
+            atom_order.append(contentsOf: it)
+        }
+        return true
     }
     
     
@@ -3329,10 +3478,6 @@ func getFragment(_ atom: MKAtom, _ mask: MKBitVec) -> MKBitVec {
 func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms: inout MKBitVec, _ pConv: MKConversion) {
     let canonical: Bool = pConv.isOption("c")
 
-    // OutOptions options(!pConv->IsOption("i"), pConv->IsOption("k"),
-    //   pConv->IsOption("a"),
-    //   pConv->IsOption("h"), pConv->IsOption("s"),
-    //   pConv->IsOption("o"));
     let options = OutOptions(isomeric: !pConv.isOption("i"), kekulesmi: pConv.isOption("k"),
                              showatomclass: pConv.isOption("a"),
                              showexplicitH: pConv.isOption("h"), smarts: pConv.isOption("s"),
@@ -3363,7 +3508,7 @@ func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms
             }
         }
     }
-    m2s.createFragCansmiString(mol, frag_atoms, &buffer)
+    m2s.createFragCansmiString(mol, &frag_atoms, &buffer)
     if pConv.isOption("O") {
         // This atom order data is useful not just for canonical SMILES
         // Could also save canonical bond order if anyone desires

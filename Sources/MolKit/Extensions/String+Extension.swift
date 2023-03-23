@@ -40,9 +40,17 @@ extension String {
     func substring(fromIndex: Int) -> String {
         return self[min(fromIndex, length) ..< length]
     }
+    
+    func substring(fromIndex: Self.Index) -> String {
+        return self[min(fromIndex.utf16Offset(in: self), length) ..< length]
+    }
 
     func substring(toIndex: Int) -> String {
         return self[0 ..< max(0, toIndex)]
+    }
+    
+    func substring(toIndex: Self.Index) -> String {
+        return self[0 ..< max(0, toIndex.utf16Offset(in: self))]
     }
 
     subscript (r: Range<Int>) -> String {

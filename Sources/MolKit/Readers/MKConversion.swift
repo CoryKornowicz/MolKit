@@ -31,7 +31,7 @@ class MKConversion {
 //    MARK: StreamState
     private struct StreamState {
         
-        var pStream: FileHandler?
+        var pStream: FileHandlerProtocol?
         var owndedStreams: [FileHandlerProtocol?]
         
         init() {
@@ -43,7 +43,7 @@ class MKConversion {
         mutating func pushInput(_ conv: MKConversion) {
             precondition(owndedStreams.count == 0, "ownedStreams be empty")
             
-            pStream = conv.pInput
+            pStream = conv.pInput as? any FileHandlerProtocol
             
             conv.ownedInStreams.forEach { ifp in
                 owndedStreams.append(ifp as? FileHandlerProtocol)
@@ -82,7 +82,7 @@ class MKConversion {
             conv.ownedOutStreams = []
         }
         
-        mutating func popOuput(_ conv: MKConversion) {
+        mutating func popOutput(_ conv: MKConversion) {
             conv.setOutStream(nil)
             conv.pOutput = pStream as? OutputFileHandler
             
@@ -104,7 +104,7 @@ class MKConversion {
     var inFilename: String = ""
     var outFilename: String = ""
     
-    var pInput: InputFileHandler? //input stream, may be filtered
+    var pInput: InputFileHandlerProtocol? //input stream, may be filtered
     var ownedInStreams: [InputFileHandlerProtocol] = []
     
     var pOutput: OutputFileHandlerProtocol?  //output stream, may have filters applied
@@ -182,7 +182,6 @@ class MKConversion {
         defaultInit()
         openInAndOutFiles(inFilename, outFilename)
     }
-    
     
     
 //    MARK: Functions
@@ -267,7 +266,7 @@ Conversion options
     //  if false, then will be treated as gzipped stream only if z/zin is set.
     /// Set input stream, removing/deallocating previous stream if necessary.
     /// If takeOwnership is true, takes responsibility for freeing pIn
-    func setInStream(_ pIn: InputFileHandler?, _ takeOwnership: Bool = false) {
+    func setInStream(_ pIn: InputFileHandlerProtocol?, _ takeOwnership: Bool = false) {
         // clear and deallocate any existing streams
         ownedInStreams.removeAll()
         pInput = nil
@@ -282,7 +281,7 @@ Conversion options
             
             //always transform newlines if input isn't binary/xml
             // TODO: Will need to fix for other file types ??
-            if((pInFormat != nil) && !(((pInFormat?.flags() ?? 0) & (READBINARY | READXML)) == 0) && (pIn! != FileHandle.standardInput)) //avoid filtering stdin as well
+            if((pInFormat != nil) && !(((pInFormat?.flags() ?? 0) & (READBINARY | READXML)) == 0) && (pIn! as! FileHandler != FileHandle.standardInput)) //avoid filtering stdin as well
             {
                 //            LEInStream *leIn = new LEInStream(*pInput);
                 ownedInStreams.append(pInput!)
@@ -305,6 +304,7 @@ Conversion options
             }
         }
         pOutput = pOut
+        // libz support to come in the future
     }
     
     /// Sets the formats from their ids, e g CML
@@ -571,7 +571,7 @@ Conversion options
         let count = convert()
         
         if savedIn.isSet() { savedIn.popInout(self) }
-        if savedOut.isSet() { savedOut.popOuput(self) }
+        if savedOut.isSet() { savedOut.popOutput(self) }
         return count
     }
 
@@ -624,7 +624,7 @@ Conversion options
         //Input loop
         while (ReadyToInput && pInput!.streamStatus != .error) { //Possible to omit? && pInStream->peek() != EOF
         
-            if(pInput! == FileHandle.standardInput) {
+            if((pInput! as! FileHandler) == FileHandle.standardInput) {
                 if(pInput!.peek() == -1) { //Cntl Z Was \n but interfered with piping
                     break
                 }
@@ -857,7 +857,8 @@ Conversion options
     /// @brief Outputs an object of a class derived from OBBase.
     /// Part of "API" interface.
     /// The output stream can be specified and the change is retained in the OBConversion instance
-    func write<T: MKBase>(_ pOb: T, _ pout: OutputFileHandler?) -> Bool {
+    @discardableResult
+    func write<T: MKBase>(_ pOb: T, _ pout: OutputFileHandler? = nil) -> Bool {
         
         if(pout != nil) { setOutStream(pout, false) }
 
@@ -896,7 +897,35 @@ Conversion options
       /// The optional "trimWhitespace" parameter allows trailing whitespace to be removed
       /// (e.g., in a SMILES string or InChI, etc.)
     func writeString<T: MKBase>(_ pOb: T, _ trimWhitespace: Bool = true) -> String { 
-        fatalError("writeString is not implemented in base class MKConversion") 
+        var newStream: OutputStringStream = OutputStringStream()
+        var temp: String = "" 
+        if pOutFormat != nil {
+            var savedOut = StreamState()
+            savedOut.pushOutput(self)
+            // The StreamState doesn't save all of the properties so
+            // do it manually here.
+            // Set/reset the Index to 0 so that any initialization
+            // code in the formatters will be executed.
+            var oldIndex = Index
+            Index = 0
+            // We'll only send one object, so save those properties too.
+            var oldOneObjectOnly = OneObjectOnly
+            var oldm_IsLast = m_IsLast
+            setOneObjectOnly(true)
+            setOutStream(newStream, false)
+            write(pOb)
+            savedOut.popOutput(self)
+            // Restore the other stream properties
+            m_IsLast = oldm_IsLast
+            OneObjectOnly = oldOneObjectOnly
+            Index = oldIndex
+        } 
+
+        temp = newStream.string
+        if (trimWhitespace) { // trim the trailing whitespace
+            temp = temp.trimmingCharacters(in: .whitespaces)
+        }
+        return temp
     }
     
     /// @brief Outputs an object of a class derived from OBBase as a file (with the supplied path)
@@ -904,7 +933,26 @@ Conversion options
       /// The output stream is changed to the supplied file and the change is retained in the
       /// OBConversion instance.
       /// This method is primarily intended for scripting languages without "stream" classes
-    func writeFile<T: MKBase>(_ pOb: T, _ filePath: String) -> Bool { fatalError("writeFile is not implemented in base class MKConversion") }
+    func writeFile<T: MKBase>(_ pOb: T, _ filePath: String) -> Bool {
+        if pOutFormat == nil {
+            //attempt to autodetect format
+            pOutFormat = MKConversion.formatFromExt(filePath, &outFormatGzip)
+        }
+        var ofs: OutputFileHandler
+        do {
+            ofs = try OutputFileHandler(path: URL(string: filePath)!, mode: "w")
+        } catch {
+            print("Cannot write to \(filePath)")
+            return false
+        }
+        setOutStream(ofs, true)
+        // Set/reset the Index so that any initialization code
+        // in the formatters will be executed.
+        Index = 0
+        // We can't touch the Last property because only the caller
+        // knows if the first molecule is also the last molecule.
+        return write(pOb)
+    }
     
     
     /// @brief Manually closes and deletes the output stream
@@ -912,7 +960,7 @@ Conversion options
     /// is called again.
     /// \since version 2.1
     func closeOutFile() {
-        fatalError()
+        setOutStream(nil)
     }
     
     /// @brief Reads an object of a class derived from OBBase into pOb.
@@ -951,11 +999,11 @@ Conversion options
 
         // skip molecules if -f or -l option is set
         if (!SkippedMolecules) {
-            Count = 0; // make sure it's 0
+            Count = 0 // make sure it's 0
             if(!setStartAndEnd()) {
-               return false;
+               return false
             }
-            SkippedMolecules = true;
+            SkippedMolecules = true
         }
 
         // catch last molecule acording to -l
@@ -992,7 +1040,11 @@ Conversion options
     /// This method is primarily intended for scripting languages without "stream" classes
     /// Any existing input stream will be replaced by stringstream.
     @discardableResult
-    open func readString<T: MKBase>(_ pOb: inout T, _ input: String) -> Bool { fatalError("readString is not implemented in base class MKConversion")  }
+    open func readString<T: MKBase>(_ pOb: inout T, _ input: String) -> Bool {
+        let inStream = InputStringStream(_wrappedBuffer: input)
+        setInStream(inStream, true)
+        return read(&pOb)
+    }
     
     /// @brief Reads an object of a class derived from OBBase into pOb from the file specified
     
@@ -1003,7 +1055,25 @@ Conversion options
     /// \return false and pOb=NULL on error
     /// This method is primarily intended for scripting languages without "stream" classes
     @discardableResult
-    open func readFile<T: MKBase>(_ pOb: inout T, _ filePath: String) -> Bool { fatalError("readFile is not implemented in base class MKConversion") }
+    open func readFile<T: MKBase>(_ pOb: inout T, _ filePath: String) -> Bool {
+        if pInFormat == nil {
+            //attempt to autodetect format
+            pInFormat = MKConversion.formatFromExt(filePath, &inFormatGzip)
+        }
+        // save the filename
+        inFilename = filePath
+        var ifs: InputFileHandler
+        do {
+            ifs = try InputFileHandler(path: URL(string: inFilename)!, mode: "r")
+
+        } catch {
+            print("Cannot read from \(inFilename)")
+            return false
+        }
+        // libz support coming in the future 
+        setInStream(ifs, true)
+        return read(&pOb)
+    }
 
     /// Part of the "Convert" interface.
     /// Open the files and update the streams in the OBConversion object.
@@ -1014,7 +1084,41 @@ Conversion options
     /// \return false if unsuccessful.
     @discardableResult
     func openInAndOutFiles(_ infilepath: String, _ outfilepath: String) -> Bool {
-        fatalError()
+        if pInFormat == nil {
+            //attempt to autodetect format
+            pInFormat = MKConversion.formatFromExt(infilepath, &inFormatGzip)
+        }
+        // TODO: these might need to be rb instead of r
+        var ifstream: InputFileHandler
+        do {
+            ifstream = try InputFileHandler(path: URL(string: infilepath)!, mode: "r")
+        } catch {
+            print("Cannot read from \(infilepath)")
+            return false
+        }
+        setInStream(ifstream, true)
+        inFilename = infilepath
+
+        if outfilepath.isEmpty { // don't open an outfile with an emptry name
+            return true
+        }
+
+        if pOutFormat == nil {
+            //attempt to autodetect format
+            pOutFormat = MKConversion.formatFromExt(outfilepath, &outFormatGzip)
+        }
+
+        var ofstream: OutputFileHandler
+        do {
+            ofstream = try OutputFileHandler(path: URL(string: outfilepath)!, mode: "w")
+        } catch {
+            print("Cannot write to \(outfilepath)")
+            return false
+        }
+        setOutStream(ofstream, true)
+        outFilename = outfilepath
+
+        return true
     }
     
     /// @brief Sends a message like "2 molecules converted" to clog

@@ -1601,7 +1601,7 @@ class MKMol: MKBase, Copying {
         self.set_or_unsetFlag(OB_PATTERN_STRUCTURE, value)
     }
 
-    func setIsReaction(_ value: Bool) {
+    func setIsReaction(_ value: Bool = true) {
         self.set_or_unsetFlag(OB_REACTION_MOL, value)
     }
 

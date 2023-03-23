@@ -33,7 +33,7 @@ enum MKReactionRole: UInt {
 * @since version 3.0
 */
 
-class MKReactionFacacde {
+class MKReactionFacade {
 
     /**
      * @name Constructor
@@ -67,7 +67,7 @@ class MKReactionFacacde {
      * Assigns a component Id to every atom in the molecule based on connected components.
      * If @p wipe is \c false, then any atoms that already have a component Id are skipped.
      */
-    func assignComponentIds(wipe: Bool) {
+    func assignComponentIds(wipe: Bool = true) {
         _d.assignComponentIds(wipe)
     }
     
@@ -342,7 +342,7 @@ class MKReactionFacadePrivate {
         getComponentIds(rxnrole) { $0.append(new_compid) } 
     }
 
-    func assignComponentIds(_ wipe: Bool) {
+    func assignComponentIds(_ wipe: Bool = true) {
         var compid: UInt = 1
         var dfs_iter = MKAtomDFSIterator(_mol)
         // This code loops each stack set, when it is empty, it briefly returns nil, 
