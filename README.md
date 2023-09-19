@@ -3,7 +3,7 @@
 A Swift-version of a cheminformatics library, __shamelessly__ based off of OpenBabel to make adoption feel intuitive. 
 To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Swift wrappers, so might as well write it in pure Swift then.  
 
-~ 15,000 lines of code and still does not yet read molecules, but __almost__ there.
+~ 30,000 lines of code and still does not yet read molecules, but __almost__ there.
 
 ### Milestones:  
 -  Tests for typers is completed and passing 
