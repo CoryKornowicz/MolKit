@@ -724,7 +724,238 @@ Conversion options
        Returns the number of Chemical objects converted.
     */
     func fullConvert(_ fileList: [String], _ outputFileName: String, _ outputFileList: [String]) -> Int {
-        fatalError()
+        
+        var pIs: InputStringStream?
+        var pOs: OutputStringStream?
+
+        var ssOut: InputStringStream?
+        var ssIn: OutputStringStream?
+
+        var pInStream: InputStream?
+        var pOutStream: OutputStream?
+        
+        var hasMultipleOutputFile: Bool = false
+        var count: Int = 0 
+        setFirstInput()
+        var commonInFormat: Bool = pInFormat != nil ? true : false // whether set in calling routine
+        
+        //OUTPUT
+//         if(OutputFileName.empty())
+//           pOs = nullptr; //use existing stream
+//         else
+//           {
+//             if(OutputFileName.find_first_of('*')!=string::npos) HasMultipleOutputFiles = true;
+//             if(!HasMultipleOutputFiles)
+//               {
+//                 //If the output file is the same as any of the input
+//                 //files, send the output to a temporary stringstream
+//                 vector<string>::iterator itr;
+//                 for(itr=FileList.begin();itr!=FileList.end();++itr)
+//                   {
+//                     if(*itr==OutputFileName)
+//                       {
+
+//                         pOs = &ssOut;
+//                         break;
+//                       }
+//                   }
+//                 if(itr==FileList.end())
+//                   {
+//                     os.open(OutputFileName.c_str(),omode);
+//                     if(!os)
+//                       {
+//                         obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
+//                         return 0;
+//                       }
+//                     pOs=&os;
+//                   }
+//                 OutputFileList.push_back(OutputFileName);
+//               }
+//           }
+        if outputFileName.isEmpty {
+            
+        }
+
+//         if(IsOption("t",GENOPTIONS))
+//           {
+//             //Concatenate input file option (multiple files, single molecule)
+//             if(HasMultipleOutputFiles)
+//               {
+//                 obErrorLog.ThrowError(__FUNCTION__,
+//                                       "Cannot have multiple output files and also concatenate input files (-t option)",obError);
+//                 return 0;
+//               }
+
+//             stringstream allinput;
+//             vector<string>::iterator itr;
+//             for(itr=FileList.begin();itr!=FileList.end();++itr)
+//               {
+//                 ifstream ifs((*itr).c_str());
+//                 if(!ifs)
+//                   {
+//                     obErrorLog.ThrowError(__FUNCTION__,"Cannot open " + *itr, obError);
+//                     continue;
+//                   }
+//                 allinput << ifs.rdbuf(); //Copy all file contents
+//                 ifs.close();
+//               }
+//             Count = Convert(&allinput,pOs);
+//             return Count;
+//           }
+
+//         //INPUT
+//         if(FileList.empty())
+//           {
+//             pIs = nullptr;
+//             if(HasMultipleOutputFiles)
+//               {
+//                 obErrorLog.ThrowError(__FUNCTION__,"Cannot use multiple output files without an input file", obError);
+//                 return 0;
+//               }
+//           }
+//         else
+//           {
+//             if(FileList.size()>1 || OutputFileName.substr(0,2)=="*.")
+//               {
+//                 //multiple input files
+//                 vector<string>::iterator itr, tempitr;
+//                 tempitr = FileList.end();
+//                 --tempitr;
+//                 for(itr=FileList.begin();itr!=FileList.end();++itr)
+//                   {
+//                     InFilename = *itr;
+//                     ifstream ifs;
+//                     if(!OpenAndSetFormat(CommonInFormat, &ifs, &ssIn))
+//                       continue;
+//                     if(ifs)
+//                       pIs = &ifs;
+//                     else
+//                       pIs = &ssIn;
+
+//                     //pIs = ifs ? &ifs : &ssIn;
+
+
+//                     if(HasMultipleOutputFiles)
+//                       {
+//                         //Batch conversion
+//                         string batchfile = BatchFileName(OutputFileName,*itr);
+
+//                         //With inputs like babel test.xxx -oyyy -m
+//                         //the user may have wanted to do a splitting operation
+//                         //Issue a message and abort if xxx==yyy which would overwrite input file
+//                         if(FileList.size()==1 && !CheckForUnintendedBatch(batchfile, InFilename))
+//                           return Count;
+
+//                         if(ofs.is_open()) ofs.close();
+//                         ofs.open(batchfile.c_str(), omode);
+//                         if(!ofs)
+//                           {
+//                             obErrorLog.ThrowError(__FUNCTION__,"Cannot open " + batchfile, obError);
+//                             return Count;
+//                           }
+//                         OutputFileList.push_back(batchfile);
+//                         SetOutputIndex(0); //reset for new file
+//                         Count += Convert(pIs,&ofs);
+//                       }
+//                     else
+//                       {
+//                         //Aggregation
+//                         if(itr!=tempitr) SetMoreFilesToCome();
+//                         Count = Convert(pIs,pOs);
+//                       }
+//                   }
+
+//                 if(!os.is_open() && !OutputFileName.empty() && !HasMultipleOutputFiles)
+//                   {
+//                     //Output was written to temporary string stream. Output it to the file
+//                     os.open(OutputFileName.c_str(),omode);
+//                     if(!os)
+//                       {
+//                         obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
+//                         return Count;
+//                       }
+//                     os << ssOut.rdbuf();
+//                   }
+//                 return Count;
+//               }
+//             else
+//               {
+//                 //Single input file
+//                 InFilename = FileList[0];
+//                 if(!OpenAndSetFormat(CommonInFormat, &is, &ssIn))
+//                   return 0;
+//                 if(is)
+//                   pIs =&is;
+//                 else
+//                   pIs = &ssIn;
+
+//                 if(HasMultipleOutputFiles)
+//                   {
+//                     //Splitting
+//                     //Output is put in a temporary stream and written to a file
+//                     //with an augmenting name only when it contains a valid object.
+//                     int Indx=1;
+// #ifdef HAVE_LIBZ
+//                     if(pInFormat && zlib_stream::isGZip(*pIs))
+//                     {
+//                       //for backwards compat, attempt to autodetect gzip
+//                       inFormatGzip = true;
+//                     }
+// #endif
+//                     SetInStream(pIs, false);
+
+
+//                     for(;;)
+//                       {
+//                         stringstream ss;
+//                         SetOutStream(&ss);
+//                         SetOutputIndex(0); //reset for new file
+//                         SetOneObjectOnly();
+
+//                         int ThisFileCount = Convert();
+//                         if(ThisFileCount==0) break;
+//                         Count+=ThisFileCount;
+
+//                         if(ofs.is_open()) ofs.close();
+//                         string incrfile = IncrementedFileName(OutputFileName,Indx++);
+//                         ofs.open(incrfile.c_str(), omode);
+//                         if(!ofs)
+//                           {
+//                             obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + incrfile, obError);
+//                             return Count;
+//                           }
+
+//                         OutputFileList.push_back(incrfile);
+//                         SetOutStream(&ofs, false); //pickup possible gzip
+//                         *pOutput << ss.rdbuf();
+//                         SetOutStream(nullptr);
+//                         ofs.close();
+//                         ss.clear();
+//                       }
+//                     return Count;
+//                   }
+//               }
+//           }
+
+//         //Single input and output files
+//         Count = Convert(pIs,pOs);
+
+//         if(os && !os.is_open() && !OutputFileName.empty())
+//           {
+//             //Output was written to temporary string stream. Output it to the file
+//             os.open(OutputFileName.c_str(),omode);
+//             if(!os)
+//               {
+//                 obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
+//                 return Count;
+//               }
+//             SetOutStream(&os, false);
+//             *pOutput << ssOut.rdbuf();
+//             SetOutStream(nullptr);
+//           }
+
+        return Count
+
     }
     //@}
 
@@ -1125,30 +1356,113 @@ Conversion options
     /// The type of object is taken from the TargetClassDescription
     /// of the specified class (or the output format if not specified)and
     /// is appropriately singular or plural.
-    func reportNumberConverted(_ count: Int, _ pFormat: MKFormat? = nil) {
-        fatalError()
+    func reportNumberConverted(_ count: Int, _ pFormat: inout MKFormat?) {
+        //Send info message to clog. This constructed from the TargetClassDescription
+        //of the specified class (or the output format if not specified).
+        //Get the last word on the first line of the description which should
+        //be "molecules", "reactions", etc and remove the s if only one object converted
+        if pFormat == nil {
+            pFormat = pOutFormat
+        }
+        var objectname = pFormat!.targetClassDescription()
+        let pos = objectname.firstIndex(of: Character("\n"))
+        if pos == nil {
+            objectname = String(objectname[..<objectname.endIndex])
+        } else {
+            objectname = String(objectname[..<pos!])
+        }
+        if count == 1 {
+            objectname = String(objectname[..<objectname.index(before: objectname.endIndex)])
+        }
+        let pos2 = objectname.lastIndex(of: Character(" "))
+        if pos2 == nil {
+            objectname = String(objectname[objectname.startIndex...])
+        } else {
+            objectname = String(objectname[objectname.index(after: pos2!)...])
+        }
+        print("\(count) \(objectname) converted")
     }
     
     /// \return the number of objects in the InputFileHandler,
     /// or -1 if error or if SkipObjects for the input format is not implemented
     /// Adjusts for the value of -f and -l options (first and last objects).
     func numInputObjects() -> Int {
-        fatalError()
+        
+        guard let ifs = getInStream() else {
+            return -1
+        }
+        let pos = try! ifs.tellg()
+
+        //check that the input format supports SkipObjects()
+        if getInFormat()!.skipObjects(0, self) == 0 {
+            print("Input format does not have a SkipObjects function.")
+            return -1
+        }
+        //counts objects only between the values of -f and -l options
+        var nfirst = 1
+        var nlast = Int.max
+        if let p = isOption("f", .GENOPTIONS) { // extra parens to indicate truth value
+            nfirst = Int(p)!
+        }
+        if let p = isOption("l", .GENOPTIONS) { // extra parens to indicate truth value
+            nlast = Int(p)!
+        }
+        try! ifs.seekg(to: 0) //rewind
+        //Compressed files currently show an error here.***TAKE CHANCE: RESET ifs****
+        // ifs.clear();
+
+        guard let pFormat = getInFormat() else {
+            return -1
+        }
+        var count: Int = 0
+        //skip each object but stop after nlast objects
+        // while(ifs && pFormat->SkipObjects(1, this)>0  && count<nlast)
+        // ++count;
+        while !ifs.isEOF && pFormat.skipObjects(1, self) > 0 && count < nlast {
+            count += 1
+        }
+        // ifs.clear(); //clear eof
+        try! ifs.seekg(to: pos) //restore old position
+
+        count -= nfirst-1
+        return count
     }
 
 //    MARK: Protected methods
     ///Replaces * in BaseName by InFile without extension and path
     static func batchFileName(_ baseName: String, _ inFile: String) -> String {
-        fatalError()
+        //Replaces * in BaseName by InFile without extension and path
+        var ofname = baseName
+        if let pos = ofname.firstIndex(of: Character("*")) {
+            //Replace * by input filename
+            let posdot: String.Index = inFile.lastIndex(of: Character(".")) ?? inFile.endIndex
+            // } else  {
+            //     // if libz support is added, this will need to be changed
+            // }
+            // ofname.replace(pos,1, InFile, posname+1, posdot-posname-1);
+            if let posname = inFile.lastIndex(where: { $0 == Character("/") || $0 == Character("\\") }) {
+                ofname.replaceSubrange(pos...pos, with: inFile[posname...posdot])
+            } else {
+                ofname.replaceSubrange(pos...pos, with: inFile[...posdot])
+            }
+        }
+        return ofname
     }
+
     ///Replaces * in BaseName by Count
     static func incrementedFilename(_ baseName: String, _ Count: Int) -> String {
-        fatalError()
+        var ofname = baseName
+        if let pos = ofname.firstIndex(of: Character("*")) {
+            let num = String(Count)
+            ofname.replaceSubrange(pos...pos, with: num) // TODO: this might need to be an insert instead
+        }
+        return ofname
     }
+
     ///Checks for misunderstandings when using the -m option
     static func checkForUnintendedBatch(_ inFile: String, _ outFile: String) -> Bool {
-        let infile1 = inFile.substring(toIndex: (inFile.firstIndex(of: ".")?.utf16Offset(in: inFile))!)
-        let infile2 = outFile.substring(toIndex: (outFile.firstIndex(of: ".")?.utf16Offset(in: outFile))!)
+        let infile1 = inFile.substring(toIndex: (inFile.lastIndex(of: ".")?.utf16Offset(in: inFile))!)
+        let infile2 = outFile.substring(toIndex: (outFile.lastIndex(of: ".")?.utf16Offset(in: outFile))!)
         
         if infile1 == infile2 {
             print("ERROR: This was a batch operation. For splitting, use non-empty base name for the output files")

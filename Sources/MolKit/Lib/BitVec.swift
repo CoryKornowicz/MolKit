@@ -106,6 +106,10 @@ public class MKBitVec: Equatable {
         setBitOn(UInt32(bit_offset))
     }
     
+    func setBitOn(_ bit_offset: Ref) {
+        setBitOn(UInt32(bit_offset.intValue ?? Int.min))
+    }
+    
 
     /** Set the range of bits from \p lo_bit_offset to \p hi_bit_offset to 1
     Increases the size of this bit vector if necessary

@@ -820,6 +820,14 @@ extension Vector where Scalar == Double {
         }
         return true
     }
+    
+    static prefix func - (_ vec: Vector) -> Vector {
+        for var scalar in vec.scalars {
+            scalar *= -1
+        }
+        return vec
+    }
+    
 }
 
 // MARK: MATH Lib

@@ -33,7 +33,6 @@ final class MolKitTests: XCTestCase {
     
     // Test MKGlobalDataBase subclasses
     
-    
     func testMKSpaceGroups() throws {
         let spacegroups = MolKit._SpaceGroups
         print(spacegroups.getSize())

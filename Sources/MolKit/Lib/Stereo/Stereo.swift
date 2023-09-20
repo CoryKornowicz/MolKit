@@ -24,7 +24,7 @@ public enum RefValue: Equatable, Hashable {
             return nil
         case .ImplicitRef:
             return -9999 // SMARTS ImplicitRef number
-        case .Ref(var value):
+        case .Ref(let value):
             return value
         }
     }

@@ -638,7 +638,7 @@ class MKBuilder {
             return false
         }
 
-        var fragment: MKBitVec = getFragment(b)
+        let fragment: MKBitVec = getFragment(b)
 
         if fragment == getFragment(b) {
             return false // a and b are in the same fragment
@@ -849,6 +849,7 @@ class MKBuilder {
        *  \returns true if successful or fails when failed (most likely cause
        *  for failing: a and b are in the same fragment, they are connected)
        */
+    @discardableResult
     static func connect(_ mol: MKMol, _ idxA: Int, _ idxB: Int, _ bondOrder: Int = 1) -> Bool {
         let newpos = getCorrectedBondVector(mol.getAtom(idxA)!, mol.getAtom(idxB)!, bondOrder)
         return connect(mol, idxA, idxB, newpos, bondOrder)
@@ -934,14 +935,20 @@ class MKBuilder {
     static func correctStereoBonds(_ mol: MKMol) -> Bool {
         fatalError()
     }
+    
       /*! Correct stereochemistry at tetrahedral atoms with at least two non-ring
        * bonds. It also works for spiro atoms.
        *
        * \returns Success or failure
        */
     static func correctStereoAtoms(_ mol: MKMol, _ warn: Bool = true) -> Bool {
+        
+        var success: Bool = true // for now
+        // Get TetrahedralStereos and make a vector of corresponding MKStereoUnits
+        
         fatalError()
     }
+    
       /*! Does this atom connect two rings which are not otherwise connected?
       */
     static func isSpiroAtom(_ atomId: Int, _ mol: MKMol) -> Bool {
@@ -1016,8 +1023,80 @@ class MKBuilder {
         
     }
 
-    private static func fixRingStereo(_ atomIds: [Pair<Ref, Bool>], _ mol: MKMol, _ unfixedcenters: Refs) -> Bool {
-        fatalError()
+    private static func fixRingStereo(_ atomIds: [Pair<Ref, Bool>], _ mol: MKMol, _ unfixedcenters: inout Refs) -> Bool {
+        
+        var inversion: Bool = false
+        guard atomIds.count > 0 else { return inversion }
+        
+        // Have we dealt with a particular ring stereo? (Indexed by Id)
+        let seen: MKBitVec = MKBitVec()
+
+        for n in 0..<atomIds.count {
+            // Keep looping until you come to an unseen wrong stereo
+            if seen.bitIsSet(atomIds[n].0) || atomIds[n].1 { continue }
+            
+            var fragment: MKBitVec = MKBitVec() // indexed by id
+            guard let atom = mol.getAtomById(atomIds[n].0) else { return inversion }
+            addRingNbrs(&fragment, atom, mol)
+            
+            // which ring stereos does this fragment contain, and
+            // are the majority of them right or wrong?
+            var wrong: Refs = Refs()
+            var right: Refs = Refs()
+            for i in 0..<atomIds.count {
+                if fragment.bitIsSet(atomIds[i].0) {
+                    if atomIds[i].1 {
+                        right.append(atomIds[i].0)
+                    } else {
+                        wrong.append(atomIds[i].0)
+                    }
+                    seen.setBitOn(atomIds[i].0)
+                }
+            }
+            
+            if right.count > wrong.count { // inverting would make things worse
+                unfixedcenters.insert(contentsOf: wrong, at: unfixedcenters.count)
+                continue
+            }
+            
+            unfixedcenters.insert(contentsOf: right, at: unfixedcenters.count)
+            
+            // Invert the coordinates (QUESTION: should I invert relative to the centroid?)
+            inversion = true
+            
+            for a in mol.getAllAtoms() {
+                if fragment.bitIsSet(a.getId()) {
+                    a.setVector(-a.getVector())
+                }
+            }
+                
+            // Add neighbouring bonds back onto the fragment
+            // TODO: Handle spiro
+            var reconnect: [MKBond] = [MKBond]()
+            
+            for a in mol.getAllAtoms() {
+                if fragment.bitIsSet(a.getId()) {
+                    if let bonds = atom.getBondIterator() {
+                        for bond in bonds {
+                            if !bond.isInRing() {
+                                reconnect.append(bond)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            for bond in reconnect {
+                let bo = bond.getBondOrder()
+                let begin = bond.getBeginAtomIdx()
+                let end = bond.getEndAtomIdx()
+                mol.deleteBond(bond)
+                MKBuilder.connect(mol, begin, end, Int(bo))
+            }
+            
+        }
+
+        return inversion
     }
 
     private static func addRingNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mol: MKMol) {

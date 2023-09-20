@@ -148,7 +148,7 @@ class SMIBaseFormat: MKMoleculeFormat {
                 buffer += pmol.getTitle()
             }
             if pConv.isOption("x") && pmol.hasData("SMILES Atom Order") {
-                guard var canorder = (pmol.getData("SMILES Atom Order") as? MKPairData<String>)?.getValue() else {
+                guard let canorder = (pmol.getData("SMILES Atom Order") as? MKPairData<String>)?.getValue() else {
                     print("ERROR: Could not find atom order in mol data")
                     return false
                 }
