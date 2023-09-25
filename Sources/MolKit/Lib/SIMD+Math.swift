@@ -754,6 +754,7 @@ extension Vector where Scalar == Float {
 }
 
 extension Vector where Scalar == Double {
+    
     func canBeNormalized() -> Bool {
         if x == 0 && y == 0 && z == 0 {
             return false

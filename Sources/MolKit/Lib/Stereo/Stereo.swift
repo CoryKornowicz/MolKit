@@ -380,7 +380,7 @@ class MKStereoFacade {
             perceiveStereo(&m_mol)
         }
         
-        guard let stereoData = m_mol.getDataVector(.StereoData) else {
+        guard let stereoData = m_mol.getAllData(.StereoData) else {
             fatalError("FAILED to retrieve stereo data for mol")
         }
 
@@ -771,9 +771,8 @@ func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                 config.specified = false
             }
         }
-        // Checks for a neighbour having 0 co-ords (added hydrogen etc)
-        /* FIXME: needed? if the molecule has 3D coords, additional
-         * hydrogens will get coords using OBAtom::GetNewBondVector
+        // Checks for a neighbour having 0 coords (added hydrogen etc)
+        /* FIXME: needed? if the molecule has 3D coords, additional hydrogens will get coords using OBAtom::GetNewBondVector
         for (std::vector<vector3>::iterator coord = nbrCoords.begin(); coord != nbrCoords.end(); ++coord) {
           // are the coordinates zero to 6 or more significant figures
           if (coord->IsApprox(VZero, 1.0e-6)) {
@@ -1597,7 +1596,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
     // Delete any existing stereo objects that are not a member of 'centers'
     // and make a map of the remaining ones
     var existingMap: OrderedDictionary<Int, MKTetrahedralStereo> = [:]    
-    let stereoData: [MKGenericData] = mol.getDataVector(.StereoData)!
+    let stereoData: [MKGenericData] = mol.getAllData(.StereoData)!
     for data in stereoData {
         if (data as! MKStereoBase).getType() == .Tetrahedral {
             let ts = data as! MKTetrahedralStereo
@@ -1682,7 +1681,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
     // Delete any existing stereo objects that are not a member of 'bonds'
     // and make a map of the remaining ones
     var existingMap: OrderedDictionary<Int, MKCisTransStereo> = [:]    
-    let stereoData: [MKGenericData] = mol.getDataVector(.StereoData)!
+    let stereoData: [MKGenericData] = mol.getAllData(.StereoData)!
     for data in stereoData {
         if (data as! MKStereoBase).getType() == .CisTrans {
             let ct = data as! MKCisTransStereo
@@ -1787,7 +1786,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
 func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDirection], _ from: inout [MKBond: Ref]) -> Bool {
     // Store the tetcenters for the second loop (below)
     var tetcenters: Set<Ref> = []
-    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+    guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
         fatalError("No stereo data to work with???")
     }
     for data in vdata {
@@ -1978,7 +1977,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
 func getUnspecifiedCisTrans(_ mol: MKMol) -> Set<MKBond> {
     // get double bonds with unspecified CisTrans stereochemistry
     var unspec_ctstereo: Set<MKBond> = []
-    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+    guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
         fatalError("No stereo data to work with???")
         // TODO: maybe this should just return
     }

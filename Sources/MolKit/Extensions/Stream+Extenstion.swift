@@ -7,7 +7,6 @@
 
 import Foundation
 
-
 public struct PosixError : Error, CustomStringConvertible {
     public var code: Int32
     

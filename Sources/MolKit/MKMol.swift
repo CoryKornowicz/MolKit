@@ -729,7 +729,7 @@ class MKMol: MKBase, Copying {
         if self.hasData(.VirtualBondData) {
             /*add bonds that have been queued*/
 
-            guard let bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData)! as? [MKVirtualBond] else { return atom }
+            guard let bondQueue: [MKVirtualBond] = self.getAllData(.VirtualBondData)! as? [MKVirtualBond] else { return atom }
 
             for bond: MKVirtualBond in bondQueue {
                 if bond.getBgn() > self._natoms || bond.getEnd() > self._natoms {
@@ -818,7 +818,7 @@ class MKMol: MKBase, Copying {
         if self.hasData(.VirtualBondData) {
             /*add bonds that have been queued*/
 
-            guard let bondQueue: [MKVirtualBond] = self.getDataVector(.VirtualBondData)! as? [MKVirtualBond] else { return true }
+            guard let bondQueue: [MKVirtualBond] = self.getAllData(.VirtualBondData)! as? [MKVirtualBond] else { return true }
 
             for bond: MKVirtualBond in bondQueue {
                 if bond.getBgn() > self._natoms || bond.getEnd() > self._natoms {
@@ -1364,7 +1364,7 @@ class MKMol: MKBase, Copying {
     
     // Used by DeleteAtom below. Code based on StereoRefToImplicit
     static func deleteStereoOnAtom(_ mol: MKMol, _ atomId: Ref) {
-        guard let vdata = mol.getDataVector(.StereoData) else { return }
+        guard let vdata = mol.getAllData(.StereoData) else { return }
         for dat in vdata {
             let dataType: MKStereo.TType = (dat as! MKStereoBase).getType()
             if dataType != .CisTrans && dataType != .Tetrahedral {
@@ -3487,7 +3487,7 @@ class MKMol: MKBase, Copying {
         
         // Update Stereo
         
-        if let stereoData: [MKGenericData] = getDataVector(.StereoData) {
+        if let stereoData: [MKGenericData] = getAllData(.StereoData) {
             for data in stereoData {
                 if (data as? MKStereoBase)?.getType() == .CisTrans {
                     let ct: MKCisTransStereo = data as! MKCisTransStereo

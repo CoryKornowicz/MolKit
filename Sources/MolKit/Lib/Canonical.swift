@@ -1474,7 +1474,7 @@ func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical
         // Find the stereogenic units
         var stereoUnits: MKStereoUnitSet = findStereogenicUnits(mol, symClasses: &symmetry_classes)
         // Mark all invalid stereo data as unspecified
-        if var stereoData: [MKGenericData] = mol.getDataVector(.StereoData) {
+        if var stereoData: [MKGenericData] = mol.getAllData(.StereoData) {
             for data in stereoData {
                 let type: MKStereo.TType = (data as? MKStereoBase)!.getType()
                 if type == .Tetrahedral {

@@ -2029,7 +2029,7 @@ class MKMol2Cansmi {
     }
     
     func createCisTrans(_ mol: MKMol) {
-        guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+        guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
             print("ERROR: no stereodata found for mol")
             return
         }

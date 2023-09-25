@@ -19,7 +19,7 @@ import Foundation
 * @since version 2.3
 */
 func stereoRefToImplicit(_ mol: MKMol, _ atomId: Ref) {
-    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+    guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
         print("ERROR: no stereo data found in stereoRefToImplicit")
         return
     }
@@ -61,7 +61,7 @@ func stereoRefToImplicit(_ mol: MKMol, _ atomId: Ref) {
 * @since version 2.4
 */
 func implicitRefToStereo(_ mol: MKMol, _ centerId: Ref, _ newId: Ref) {
-    guard let vdata: [MKGenericData] = mol.getDataVector(.StereoData) else {
+    guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
         print("ERROR: no stereo data found in stereoRefToImplicit")
         return
     }

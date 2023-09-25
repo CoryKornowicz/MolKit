@@ -4,7 +4,6 @@ import Foundation
 import Surge
 import simd
 
-
 /** \class OBBuilder builder.h <openbabel/builder.h>
     \brief Class for 3D structure generation
     \since version 2.2
@@ -882,6 +881,7 @@ class MKBuilder {
        *     4                        4
        *  \endcode
        */
+    @discardableResult
     static func swap(_ mol: MKMol, _ idxA: Int, _ idxB: Int, _ idxC: Int, _ idxD: Int) -> Bool {
         guard let a = mol.getAtom(idxA),
               let b = mol.getAtom(idxB),
@@ -921,7 +921,7 @@ class MKBuilder {
         return true
     }
 
-          /*! Atoms a and b must be bonded and this bond cannot be part of a ring. The bond will
+      /*! Atoms a and b must be bonded and this bond cannot be part of a ring. The bond will
        *  be broken and the smiles fragment will be inserted bewteen the two remaining fragments.
        *  The fragment that contains a will not be translated or rotated. Parameters c and d are
        *  the index in the smiles to which atoms a and b will be connected respectivly.
@@ -941,18 +941,176 @@ class MKBuilder {
        *
        * \returns Success or failure
        */
+    private typealias IsThisStereoRight = Pair<Ref, Bool>
+    
     static func correctStereoAtoms(_ mol: MKMol, _ warn: Bool = true) -> Bool {
         
         var success: Bool = true // for now
         // Get TetrahedralStereos and make a vector of corresponding MKStereoUnits
+        var tetra: [MKTetrahedralStereo] = []
+        var newtetra: [MKTetrahedralStereo] = []
         
-        fatalError()
+        var sgunits: MKStereoUnitSet = MKStereoUnitSet()
+        
+        guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
+            return false // default to return false if no sterodata is found?
+        }
+        
+        var atom_id: Ref
+        
+        for data in vdata {
+            if (data as! MKStereoBase).getType() == .Tetrahedral {
+                let th = (data as! MKTetrahedralStereo)
+                if th.getConfig().specified {
+                    tetra.append(th)
+                    atom_id = th.getConfig().center
+                    sgunits.append(MKStereoUnit(.Tetrahedral, atom_id))
+                }
+            }
+        }
+        
+        // Perceive TetrahedralStereos
+        newtetra = tetrahedralFrom3D(mol, sgunits, false)
+        
+        // Identify any ring stereochemistry and whether it is right or wrong
+        // - ring stereo involves 3 ring bonds, or 4 ring bonds but the
+        //   atom must not be spiro
+        
+        var existswrongstereo: Bool = false // is there at least one wrong ring stereo
+        
+        var ringstereo: [IsThisStereoRight] = []
+        var nonringtetra: [MKTetrahedralStereo] = []
+        var nonringnewtetra: [MKTetrahedralStereo] = []
+        
+        let tetraIterator = MKIterator(tetra)
+        let newtetraIterator = MKIterator(newtetra)
+        
+        for (origth, newth) in zip(tetraIterator, newtetraIterator) {
+            guard origth != tetra.last else { break }
+            
+            let config: MKTetrahedralStereo.Config = newth.getConfig(.Clockwise, .ViewFrom)
+            
+            guard let center = mol.getAtomById(config.center) else { break }
+            var ringbonds: Int = 0
+            
+            guard let centerBonds = center.getBondIterator() else { fatalError("Bonds not found on center atom") }
+            
+            for b in centerBonds {
+                if b.isInRing() { ringbonds += 1 }
+            }
+            
+            if ringbonds == 3 || ( ringbonds == 4 && !MKBuilder.isSpiroAtom(config.center, mol) ) {
+                let rightStereo: Bool = origth.getConfig(.Clockwise, .ViewFrom) == config
+                ringstereo.append(IsThisStereoRight(config.center, rightStereo))
+                if !rightStereo {
+                    existswrongstereo = true
+                }
+            } else { // non-ring stereo center
+                nonringtetra.append(origth)
+                nonringnewtetra.append(newth)
+            }
+        }
+        
+        if existswrongstereo {
+            // fix ring stereo
+            var unfixed: Refs = Refs()
+            var inversion: Bool = fixRingStereo(ringstereo, mol, &unfixed)
+            
+            // output warning message if necessary
+            if (unfixed.count > 0 && warn) {
+                var errorMsg = "Could not correct \(unfixed.count) stereocenter(s) in this molecule (\(mol.getTitle()))\nWith Atom Ids as follows"
+                for refIter in unfixed {
+                    errorMsg += " "
+                    errorMsg.append(String(refIter.intValue ?? -1))
+                }
+                MKLogger.throwError(errorMsg: errorMsg)
+                success = false // uncorrected bond
+            }
+            
+            // Reperceive non-ring TetrahedralStereos if an inversion occurred
+            if inversion {
+                sgunits.removeAll()
+                for origth in nonringtetra {
+                    sgunits.append(MKStereoUnit(.Tetrahedral, origth.getConfig().center))
+                }
+                nonringnewtetra = tetrahedralFrom3D(mol, sgunits, false)
+            }
+        }
+        
+        // Correct the non-ring stere
+        let nonringtetraIterator = MKIterator(nonringtetra)
+        let newnonringtetraIterator = MKIterator(nonringnewtetra)
+        
+        for (origth, newth) in zip(nonringtetraIterator, newnonringtetraIterator) {
+            guard origth != nonringtetra.last else { break }
+            
+            let config: MKTetrahedralStereo.Config = newth.getConfig(.Clockwise, .ViewFrom)
+            
+            if origth.getConfig(.Clockwise, .ViewFrom) != config {
+                // wrong tetrahedral stereochemistry
+                // Try to find two non-ring bonds
+                guard let center = mol.getAtomById(config.center) else { break }
+                var idxs: [Int] = []
+                guard let bonds = center.getBondIterator() else { fatalError("Cannot get bonds on center atom") }
+                
+                for b in bonds {
+                    if !b.isInRing() {
+                        idxs.append(b.getNbrAtom(center).getIdx())
+                    }
+                }
+                
+                if idxs.count == 0 && MKBuilder.isSpiroAtom(config.center, mol) {
+                    flipSpiro(mol, center.getIdx())
+                } else if idxs.count >= 2 {
+                    swap(mol, center.getIdx(), idxs[0], center.getIdx(), idxs[1])
+                } else {
+                // It will only reach here if it can only find one non-ring bond
+                // -- this is the case if the other non-ring bond is an implicit H
+                //    or a lone pair
+                // Solution: Find where a new bond vector would be placed, and
+                //           replace the atom's coordinates with these
+                    guard let nonRingAtom = mol.getAtom(idxs[0]),
+                          let nonRingBond = mol.getBond(center, nonRingAtom) else { fatalError("Cannot get nonRing atom/bond") }
+                    let newcoords: Vector<Double> = MKBuilder.getNewBondVector(center, nonRingBond.getLength())
+                    swapWithVector(mol, center.getIdx(), idxs[0], center.getIdx(), newcoords)
+                }
+            }
+        }
+        
+        return success // did we fix all atoms, including ring stereo?
     }
     
       /*! Does this atom connect two rings which are not otherwise connected?
       */
-    static func isSpiroAtom(_ atomId: Int, _ mol: MKMol) -> Bool {
-        fatalError()
+    static func isSpiroAtom(_ atomId: Ref, _ mol: MKMol) -> Bool {
+        let workmol: MKMol = mol
+        guard let watomIdx = mol.getAtomById(atomId)?.getIdx(),
+              let watom = workmol.getAtom(watomIdx) else { return false }
+        if watom.getHeavyDegree() != 4 { // potentially need to restrict further
+            return false
+        }
+        
+        var atomsInSameRing: Int = 0
+        var atomsInDiffRings: Int = 0
+        
+        guard let nbrAtoms = watom.getNbrAtomIterator() else { return false }
+        
+        for n in nbrAtoms {
+            if !n.isInRing() {
+                return false
+            }
+            if (mol.areInSameRing(n, watom) != 0) { // returns the size of the ring the atoms are in, if any
+                atomsInSameRing += 1
+            } else { // 0 means they are not in the same ring
+                atomsInDiffRings += 1
+            }
+        }
+        
+        if atomsInSameRing == 2 && atomsInDiffRings == 2 {
+            return true
+        }
+        
+        return false
     }
       /*! Get the fragment to which this atom belongs.
        *  \param atom Atom in the fragment.
@@ -1021,6 +1179,72 @@ class MKBuilder {
     //! Rotate one of the spiro rings 180 degrees
     private static func flipSpiro(_ mol: MKMol, _ idx: Int) {
         
+        guard let p: MKAtom = mol.getAtom(idx) else { return }
+        guard let atomNbrs = p.getNbrAtomIterator() else { return }
+        
+        let nbrs = atomNbrs.map({ $0.getIdx() })
+        
+        // Which neighbour is in the same ring as nbrs[0]? The answer is 'ringnbr'.
+        var children: [Int] = [Int]()
+        mol.findChildren(idx, nbrs[0], &children)
+        
+        var ringnbr: Int = -1
+        for nbr in nbrs.suffix(from: 1) {
+            if children.first(where: { $0 == nbr }) != children.last {
+                ringnbr = nbr
+                break
+            }
+        }
+        
+        // Split into a fragment to be flipped
+        let workMol: MKMol = mol
+        
+        guard let bondOne = workMol.getBond(idx, nbrs[0]) else { fatalError("Could not discover bond") }
+        workMol.deleteBond(bondOne)
+        
+        guard let bondTwo = workMol.getBond(idx, ringnbr) else { fatalError("Could not discover bond") }
+        workMol.deleteBond(bondTwo)
+        
+        guard let nbr0Atom = workMol.getAtom(nbrs[0]) else { fatalError("Could not extract nbrs[0] atom") }
+        let fragment: MKBitVec = getFragment(nbr0Atom)
+        
+        // Translate fragment to origin
+        let posP = p.getVector()
+        for i in 1...workMol.numAtoms() {
+            if fragment.bitIsSet(i) {
+                guard let fragAtom = workMol.getAtom(i) else { fatalError("Could not get fragment atom") }
+                fragAtom.setVector(fragAtom.getVector() - posP)
+            }
+        }
+        
+        guard let ringnbrAtom = mol.getAtom(ringnbr) else { fatalError("Could not get ringnbr atom") }
+        // Rotate 180 deg around the bisector of nbrs[0]--p--ringnbr
+        var bond1 = posP - nbr0Atom.getVector()
+        var bond2 = posP - ringnbrAtom.getVector()
+        
+        bond1.normalize()
+        bond2.normalize()
+        
+        let axis = bond1 + bond2 // the bisector of bond1 and bond2
+        
+        var mat: Matrix = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
+        mat.rotAboutAxisByAngle(axis, 180)
+                
+        for i in 1...workMol.numAtoms() {
+            if fragment.bitIsSet(i) {
+                guard var tmpvec = workMol.getAtom(i)?.getVector() else { continue }
+                tmpvec = Surge.mul(tmpvec, mat)
+                workMol.getAtom(i)?.setVector(tmpvec)
+            }
+        }
+        
+        // Set the coordinates of the original molecule using those of workmol
+        for i in 1...workMol.numAtoms() {
+            if fragment.bitIsSet(i) {
+                guard let workAtom = workMol.getAtom(i) else { continue }
+                mol.getAtom(i)?.setVector(workAtom.getVector() + posP)
+            }
+        }
     }
 
     private static func fixRingStereo(_ atomIds: [Pair<Ref, Bool>], _ mol: MKMol, _ unfixedcenters: inout Refs) -> Bool {
@@ -1102,7 +1326,7 @@ class MKBuilder {
     private static func addRingNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mol: MKMol) {
         // Add the nbrs to the fragment, but don't add the neighbours of a spiro atom.
         for nbr in atom.getNbrAtomIterator()! {
-            if mol.getBond(nbr, atom)!.isInRing() && !fragment.bitIsSet(nbr.getId().rawValue) && !MKBuilder.isSpiroAtom(atom.getId().rawValue, mol) {
+            if mol.getBond(nbr, atom)!.isInRing() && !fragment.bitIsSet(nbr.getId().rawValue) && !MKBuilder.isSpiroAtom(atom.getId().ref, mol) {
                 fragment.setBitOn(UInt32(nbr.getId().rawValue))
                 addRingNbrs(&fragment, nbr, mol)
             }
@@ -1113,6 +1337,7 @@ class MKBuilder {
     // an explicit bond. This is useful for correcting stereochemistry at Tet Centers
     // where it is sometimes necessary to swap an existing bond with the location
     // of an implicit hydrogen (or lone pair), in order to correct the stereo.
+    @discardableResult
     private static func swapWithVector(_ mol: MKMol, _ idxA: Int, _ idxB: Int, _ idxC: Int, _ newlocation: Vector<Double>) -> Bool {
         guard let a = mol.getAtom(idxA), let b = mol.getAtom(idxB), let c = mol.getAtom(idxC) else {
             return false

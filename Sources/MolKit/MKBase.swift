@@ -153,7 +153,7 @@ public class MKBase: NSObject {
 
     //! \return the all matching data for a given type from OBGenericDataType
     //!    or an empty vector if nothing matches
-    func getDataVector(_ type: MKGenericDataType) -> [MKGenericData]? {
+    func getAllData(_ type: MKGenericDataType) -> [MKGenericData]? {
         var tempvdata: [MKGenericData] = []
         if let vdata = self._vdata {
             for data in vdata {
