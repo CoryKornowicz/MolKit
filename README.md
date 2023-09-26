@@ -6,12 +6,12 @@ To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Sw
 ~ 30,000 lines of code and still does not yet read molecules, but __almost__ there.
 
 ### Milestones:  
-[X]  Tests for typers is completed and passing 
-[X]  SmartsParser appears to be fully functional
-[ ]  MKBuilder Tests
-[ ]  SMILES Parser tests
-[ ]  MOL2 Parser 
-[ ]  PDB/PDBQT Parser
+[X]  Tests for typers is completed and passing   
+[X]  SmartsParser appears to be fully functional   
+[ ]  MKBuilder Tests   
+[ ]  SMILES Parser tests  
+[ ]  MOL2 Parser   
+[ ]  PDB/PDBQT Parser   
 
 ## WARNINGS AND CRITICAL HINDRANCES   
 
