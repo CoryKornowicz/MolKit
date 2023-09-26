@@ -149,7 +149,7 @@ class MKRotorRules: MKGlobalDataBase {
                         MKLogger.throwError(#function, errorMsg: err)
                     }
                     
-                    var rr: MKRotorRule = MKRotorRule(temp_buffer, refs, vals, delta)
+                    let rr: MKRotorRule = MKRotorRule(temp_buffer, refs, vals, delta)
                     if rr.isValid() {
                         _vr.append(rr)
                     }
@@ -172,15 +172,159 @@ class MKRotorRules: MKGlobalDataBase {
     //! \param refs set to be the atom indexes (in mol) of the dihedral angle
     //! \param vals set to be the list of angles to evaluate (in radians)
     //! \param delta potential dihedral angle steps (in degrees)
-    func getRotorIncrements(_ mol: MKMol, _ bond: MKBond, refs: [Refs], vals: [Double], delta: Double) {
-        fatalError()
+    func getRotorIncrements(_ mol: MKMol, _ bond: MKBond, refs: inout [Int], vals: inout [Double], delta: inout Double) {
+        if !_init {
+            initialize()
+        }
+        
+        vals.removeAll()
+        var vpr: [Pair<Int, Int>] = []
+        vpr.append(Pair<Int, Int>(0, bond.getBeginAtomIdx()))
+        vpr.append(Pair<Int, Int>(0, bond.getEndAtomIdx()))
+        
+        delta = MK_DEFAULT_DELTA
+        
+        var sp: MKSmartsPattern
+        var map: [[Int]] = []
+        
+        for i in _vr {
+            sp = i.getSmartsPattern()
+            i.getReferenceAtoms(&refs)
+            vpr[0].0 = refs[1]
+            vpr[1].0 = refs[2]
+            
+            if !sp.restrictedMatch(mol, vpr, true) {
+                // perform swap with local variables
+                var a = vpr[0].0
+                var b = vpr[1].0
+                a <-> b
+                vpr[0].0 = a
+                vpr[1].0 = b
+                if !sp.restrictedMatch(mol, vpr, true) {
+                    continue
+                }
+            }
+            
+            map = sp.getUMapList()
+            for j in 0..<4 {
+                refs[j] = map[0][refs[j]]
+            }
+            
+            vals = i.getTorsionVals()
+            delta = i.getDelta()
+            
+            guard var a1: MKAtom = mol.getAtom(refs[0]),
+                  var a4: MKAtom = mol.getAtom(refs[3]) else { fatalError("Cannot get end atoms") }
+            if a1.getAtomicNum() == MKElements.Hydrogen.atomicNum && a4.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                continue // don't allow hydrogens at both ends
+            }
+            
+            if a1.getAtomicNum() == MKElements.Hydrogen.atomicNum || a4.getAtomicNum() == MKElements.Hydrogen.atomicNum { //need a heavy atom reference - can use hydrogen
+                
+                var swapped: Bool = false
+                guard var a2 = mol.getAtom(refs[1]),
+                      var a3 = mol.getAtom(refs[2]) else { fatalError("Cannot get inside atoms") }
+                
+                if a4.getAtomicNum() == MKElements.Hydrogen.atomicNum {
+                    swap(&a1, &a4)
+                    swap(&a2, &a3)
+                    swapped = true
+                }
+                
+                var r: MKAtom? = nil
+                guard let a2Nbrs = a2.getNbrAtomIterator() else { fatalError() }
+                
+                for a2Nbr in a2Nbrs {
+                    if a2Nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum && a2Nbr != a3 {
+                        r = a2Nbr
+                        break
+                    }
+                }
+                
+                if r == nil {
+                    continue // unable to find reference heavy atom
+                }
+                
+                let t1 = mol.getTorsion(a1, a2, a3, a4)
+                let t2 = mol.getTorsion(r!, a2, a3, a4)
+                var diff = t2 - t1
+                
+                if diff > 180.0 {
+                    diff -= 360.0
+                }
+                
+                if diff < -180.0 {
+                    diff += 360.0
+                }
+                
+                diff = diff.degreesToRadians
+                
+                for var m in vals {
+                    m += diff
+                    if m < Double.pi {
+                        m += 2*Double.pi
+                    }
+                    if m > Double.pi {
+                        m -= 2*Double.pi
+                    }
+                }
+                
+                if swapped {
+                    refs[3] = r!.getIdx()
+                } else {
+                    refs[0] = r!.getIdx()
+                }
+            }
+            
+            if !_quiet {
+                let errorMsg = "".appendingFormat("%3d%3d%3d%3d %s", refs[0], refs[1], refs[2], refs[3], i.getSmartsString())
+                MKLogger.throwError(#function, errorMsg: errorMsg)
+            }
+            return
+        }
+        
+        //***didn't match any rules - assign based on hybridization***
+        let a2 = bond.getBeginAtom()
+        let a3 = bond.getEndAtom()
+        
+        guard let a2Nbrs = a2.getNbrAtomIterator(),
+              let a3Nbrs = a3.getNbrAtomIterator() else { fatalError("Cannot get nbrs for a2, a3 atoms") }
+        
+        guard let a1 = a2Nbrs.first(where: { $0.getAtomicNum() != MKElements.Hydrogen.atomicNum && $0 != a3 }) else { fatalError("cannot get a1 anchor") }
+        guard let a4 = a3Nbrs.first(where: { $0.getAtomicNum() != MKElements.Hydrogen.atomicNum && $0 != a2 }) else { fatalError("cannot get a4 anchor") }
+        
+        refs[0] = a1.getIdx()
+        refs[1] = a2.getIdx()
+        refs[2] = a3.getIdx()
+        refs[3] = a4.getIdx()
+        
+        if a2.getHyb() == 3 && a3.getHyb() == 3 { // sp3-sp3
+            vals = _sp3sp3
+            if !_quiet {
+                let errorMsg = "".appendingFormat("%3d%3d%3d%3d %s", refs[0], refs[1], refs[2], refs[3], "sp3-sp3")
+                MKLogger.throwError(#function, errorMsg: errorMsg)
+            }
+        } else {
+            if a2.getHyb() == 2 && a3.getHyb() == 2 { // sp2-sp2
+                vals = _sp2sp2
+                if !_quiet {
+                    let errorMsg = "".appendingFormat("%3d%3d%3d%3d %s", refs[0], refs[1], refs[2], refs[3], "sp2-sp2")
+                    MKLogger.throwError(#function, errorMsg: errorMsg)
+                }
+            } else { // must be sp2-sp3
+                vals = _sp3sp2
+                if !_quiet {
+                    let errorMsg = "".appendingFormat("%3d%3d%3d%3d %s", refs[0], refs[1], refs[2], refs[3], "sp3-sp2")
+                    MKLogger.throwError(#function, errorMsg: errorMsg)
+                }
+            }
+        }
     }
     
     //! Turn off debugging output from GetRotorIncrements()
     func quiet() { _quiet = true }
     
 }
-
 
 /**
  * @class OBRotor rotor.h <openbabel/rotor.h>
@@ -220,7 +364,17 @@ class MKRotor {
      * \since Version 2.4
      */
     func setRings() {
-        fatalError()
+        _rings.removeAll()
+        if _bond == nil { return } // do nothing
+                
+        guard let mol = _bond?.getParent() else { return } // nothing to do
+        
+        let rlist = mol.getSSSR()
+        for i in rlist {
+            if i.isMember(_bond!) {
+                _rings.append(i)
+            }
+        }
     }
     /**
      * Set the index for this rotor. Used by OBRotorList
@@ -234,6 +388,11 @@ class MKRotor {
      */
     func setDihedralAtoms(_ ref: [Int]) {
         _ref = ref
+        // convert the indexes (start from 0, multiplied by 3) for easy access to coordinates
+        _torsion[0] = (ref[0] - 1)*3
+        _torsion[1] = (ref[1] - 1)*3
+        _torsion[2] = (ref[2] - 1)*3
+        _torsion[3] = (ref[3] - 1)*3
     }
     /**
      * Set the atom indexes that will be displaced when this rotor
@@ -255,6 +414,11 @@ class MKRotor {
     func setFixedBonds(_ bv: MKBitVec) {
         _fixedbonds = bv
     }
+    
+    func setEvalAtoms(_ bv: MKBitVec) {
+        _evalatoms = bv
+    }
+    
     ///@}
     
     ///@name Performing rotations
@@ -264,7 +428,7 @@ class MKRotor {
      * @param coordinates The coordinates to rotate.
      * @param setang The new torsion angle in radians.
      */
-    func setToAngle(_ coordinates: [Double], _ setang: Double) {
+    func setToAngle(_ coordinates: inout [Double], _ setang: Double) {
         var sn: Double = 0.0, cs: Double = 0.0, t: Double = 0.0, ang: Double = 0.0, mag: Double = 0.0
         // compute the angle to rotate (radians)
         ang = setang - calcTorsion(coordinates)
@@ -279,7 +443,7 @@ class MKRotor {
         cs = cos(ang)
         t = 1 - cs
         // perform rotation
-        set(coordinates, sn, cs, t, 1.0 / mag)
+        set(&coordinates, sn, cs, t, 1.0 / mag)
     }
 
     /**
@@ -292,15 +456,74 @@ class MKRotor {
      * @param prev If specified, the torsion current torsion angle can be
      * looked up and does not have to be calculated again.
      */
-    func setRotor(_ coordinates: [Double], _ next: Int, _ prev: Int = -1) {
-        fatalError()
+    func setRotor(_ c: inout [Double], _ idx: Int, _ prev: Int = -1) {
+        var ang, sn, cs, t, dx, dy, dz, mag: Double
+
+        if prev == -1 {
+            ang = _torsionAngles[idx] - calcTorsion(c)
+        } else {
+            ang = _torsionAngles[idx] - _torsionAngles[prev]
+        }
+
+        sn = sin(ang)
+        cs = cos(ang)
+        t = 1 - cs
+
+        dx = c[_torsion[1]] - c[_torsion[2]]
+        dy = c[_torsion[1] + 1] - c[_torsion[2] + 1]
+        dz = c[_torsion[1] + 2] - c[_torsion[2] + 2]
+        mag = sqrt(dx * dx + dy * dy + dz * dz)
+        
+        set(&c, sn, cs, t, 1.0 / mag)
     }
     /**
      * Rotate the specified @p coordinates by using the specified rotation matrix.
      *
      */
-    func set(_ coordinates: [Double], _ sine: Double, _ cosine: Double, _ translation: Double, _ invmag: Double) {
-        fatalError()
+    func set(_ c: inout [Double], _ sn: Double, _ cs: Double, _ t: Double, _ invmag: Double) {
+        var x, y, z, tx, ty, tz: Double
+        var m: [Double] = Array(repeating: 0.0, count: 9)
+        
+        x = c[_torsion[1]] - c[_torsion[2]]
+        y = c[_torsion[1] + 1] - c[_torsion[2] + 1]
+        z = c[_torsion[1] + 2] - c[_torsion[2] + 2]
+        
+        // normalize the rotation vector
+        x *= invmag
+        y *= invmag
+        z *= invmag
+        
+        // set up the rotation matrix
+        tx = t * x
+        ty = t * y
+        tz = t * z
+        m[0] = tx * x + cs
+        m[1] = tx * y + sn * z
+        m[2] = tx * z - sn * y
+        m[3] = tx * y - sn * z
+        m[4] = ty * y + cs
+        m[5] = ty * z + sn * x
+        m[6] = tx * z + sn * y
+        m[7] = ty * z - sn * x
+        m[8] = tz * z + cs
+        
+        // now the matrix is set - time to rotate the atoms
+        tx = c[_torsion[1]]
+        ty = c[_torsion[1] + 1]
+        tz = c[_torsion[1] + 2]
+        
+        for i in _rotatoms {
+            let j = i
+            c[j] -= tx
+            c[j + 1] -= ty
+            c[j + 2] -= tz
+            x = c[j] * m[0] + c[j + 1] * m[1] + c[j + 2] * m[2]
+            y = c[j] * m[3] + c[j + 1] * m[4] + c[j + 2] * m[5]
+            z = c[j] * m[6] + c[j + 1] * m[7] + c[j + 2] * m[8]
+            c[j] = x + tx
+            c[j + 1] = y + ty
+            c[j + 2] = z + tz
+        }
     }
     /**
      * Precompute the reference angle and inverse bond length of this rotor for
@@ -351,7 +574,8 @@ class MKRotor {
      * @endcode
      */
     func precompute(_ coordinates: [Double]) {
-        fatalError()
+        _imag = 1.0 / calcBondLength(coordinates)
+        _refang = calcTorsion(coordinates)
     }
     /**
      * Rotate the @p coordinates to set the torsion angle of this rotor to the angle
@@ -360,8 +584,59 @@ class MKRotor {
      * @param coordinates The coordinates to rotate.
      * @param idx The index of the torsion angle in the GetTorsionValues() list.
      */
-    func set(_ coordinates: [Double], _ idx: Int) {
-        fatalError()
+    func set(_ coordinates: inout [Double], _ idx: Int) {
+        var ang, sn, cs, t: Double
+        // compute the rotation angle
+        ang = _torsionAngles[idx] - _refang
+        // compute some values for the rotation matrix
+        sn = sin(ang)
+        cs = cos(ang)
+        t = 1 - cs
+        
+        var x, y, z, tx, ty, tz: Double
+        var m: [Double] = Array(repeating: 0.0, count: 9)
+        
+        // compute the bond vector
+        x = coordinates[_torsion[1]] - coordinates[_torsion[2]]
+        y = coordinates[_torsion[1] + 1] - coordinates[_torsion[2] + 1]
+        z = coordinates[_torsion[1] + 2] - coordinates[_torsion[2] + 2]
+        
+        // normalize the bond vector
+        x *= _imag
+        y *= _imag
+        z *= _imag
+        
+        // set up the rotation matrix
+        tx = t * x
+        ty = t * y
+        tz = t * z
+        m[0] = tx * x + cs
+        m[1] = tx * y + sn * z
+        m[2] = tx * z - sn * y
+        m[3] = tx * y - sn * z
+        m[4] = ty * y + cs
+        m[5] = ty * z + sn * x
+        m[6] = tx * z + sn * y
+        m[7] = ty * z - sn * x
+        m[8] = tz * z + cs
+        
+        // now the matrix is set - time to rotate the atoms
+        tx = coordinates[_torsion[1]]
+        ty = coordinates[_torsion[1] + 1]
+        tz = coordinates[_torsion[1] + 2]
+        
+        for i in _rotatoms {
+            let j = i
+            coordinates[j] -= tx
+            coordinates[j + 1] -= ty
+            coordinates[j + 2] -= tz
+            x = coordinates[j] * m[0] + coordinates[j + 1] * m[1] + coordinates[j + 2] * m[2]
+            y = coordinates[j] * m[3] + coordinates[j + 1] * m[4] + coordinates[j + 2] * m[5]
+            z = coordinates[j] * m[6] + coordinates[j + 1] * m[7] + coordinates[j + 2] * m[8]
+            coordinates[j] = x + tx
+            coordinates[j + 1] = y + ty
+            coordinates[j + 2] = z + tz
+        }
     }
     /**
      * Precompute the inverse bond lengths, rotation matrices for all
@@ -369,8 +644,24 @@ class MKRotor {
      * used in combination with Set(double *coordinates, int conformer, int idx).
      * @param conformers The pointers to the conformer coordinates
      */
-    func precalc(_ conformers: [[Double]]) {
-        fatalError()
+    func precalc(_ cv: inout [[Double]]) {
+        for c in cv {
+            var cs: [Double] = []
+            var sn: [Double] = []
+            var t: [Double] = []
+            let ang = calcTorsion(c)
+            
+            for angle in _torsionAngles {
+                cs.append(cos(angle - ang))
+                sn.append(sin(angle - ang))
+                t.append(1 - cos(angle - ang))
+            }
+            
+            _cs.append(cs)
+            _sn.append(sn)
+            _t.append(t)
+            _invmag.append(1.0 / calcBondLength(c))
+        }
     }
     /**
      * Rotate the @p coordinates to set the torsion to the torsion value with the
@@ -381,8 +672,8 @@ class MKRotor {
      * @param conformer The conformer index in the conformer list given to Precalc().
      * @param idx The torsion value index in the GetTorsionValues() list.
      */
-    func set(_ coordinates: [Double], _ conformer: Int, _ idx: Int) {
-        set(coordinates, _sn[conformer][idx], _cs[conformer][idx], _t[conformer][idx], _invmag[conformer])
+    func set(_ coordinates: inout [Double], _ conformer: Int, _ idx: Int) {
+        set(&coordinates, _sn[conformer][idx], _cs[conformer][idx], _t[conformer][idx], _invmag[conformer])
     }
 
     ///@name Methods to retrieve information
@@ -445,23 +736,83 @@ class MKRotor {
      * @param coordinates The coordinates (e.g. OBMol::GetCoordinates()).
      * @return The torsion angle in radians.
      */
-    func calcTorsion(_ coordinates: [Double]) -> Double {
-        fatalError()
+    func calcTorsion(_ c: [Double]) -> Double {
+        var v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z: Double
+        var c1x, c1y, c1z, c2x, c2y, c2z, c3x, c3y, c3z: Double
+        var c1mag, c2mag, ang, costheta: Double
+
+        // calculate the torsion angle
+        v1x = c[_torsion[0]] - c[_torsion[1]]
+        v1y = c[_torsion[0] + 1] - c[_torsion[1] + 1]
+        v1z = c[_torsion[0] + 2] - c[_torsion[1] + 2]
+        v2x = c[_torsion[1]] - c[_torsion[2]]
+        v2y = c[_torsion[1] + 1] - c[_torsion[2] + 1]
+        v2z = c[_torsion[1] + 2] - c[_torsion[2] + 2]
+        v3x = c[_torsion[2]] - c[_torsion[3]]
+        v3y = c[_torsion[2] + 1] - c[_torsion[3] + 1]
+        v3z = c[_torsion[2] + 2] - c[_torsion[3] + 2]
+
+        c1x = v1y * v2z - v1z * v2y
+        c2x = v2y * v3z - v2z * v3y
+        c1y = -v1x * v2z + v1z * v2x
+        c2y = -v2x * v3z + v2z * v3x
+        c1z = v1x * v2y - v1y * v2x
+        c2z = v2x * v3y - v2y * v3x
+        c3x = c1y * c2z - c1z * c2y
+        c3y = -c1x * c2z + c1z * c2x
+        c3z = c1x * c2y - c1y * c2x
+
+        c1mag = c1x * c1x + c1y * c1y + c1z * c1z
+        c2mag = c2x * c2x + c2y * c2y + c2z * c2z
+        if c1mag * c2mag < 0.01 {
+            costheta = 1.0 // avoid div by zero error
+        } else {
+            costheta = (c1x * c2x + c1y * c2y + c1z * c2z) / (sqrt(c1mag * c2mag))
+        }
+
+        if costheta < -0.9999999 {
+            costheta = -0.9999999
+        }
+        if costheta > 0.9999999 {
+            costheta = 0.9999999
+        }
+
+        if (v2x * c3x + v2y * c3y + v2z * c3z) > 0.0 {
+            ang = -acos(costheta)
+        } else {
+            ang = acos(costheta)
+        }
+
+        return ang
     }
     /**
      * Calculate the bond length for this OBRotor using the specified coordinates.
      * @param coordinates The coordinates (e.g. OBMol::GetCoordinates()).
      */
-    func calcBondLength(_ coordinates: [Double]) -> Double {
-        fatalError()
+    func calcBondLength(_ c: [Double]) -> Double {
+        // compute the difference
+        let dx = c[_torsion[1]] - c[_torsion[2]]
+        let dy = c[_torsion[1] + 1] - c[_torsion[2] + 1]
+        let dz = c[_torsion[1] + 2] - c[_torsion[2] + 2]
+        // compute the length
+        return sqrt(dx * dx + dy * dy + dz * dz)
     }
     ///@}
     
-    func removeSymTorsionValues(_ i: Int) {
-        fatalError()
+    func removeSymTorsionValues(_ fold: Int) {
+        if _torsionAngles.count == 1 { return }
+        var tv: [Double] = []
+        for i in _torsionAngles {
+            if i >= 0.0 && i < (2*Double.pi / Double(fold)) {
+                tv.append(i)
+            }
+        }
+        if tv.isEmpty { return }
+        _torsionAngles = tv
     }
 }
 
+@discardableResult
 func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: MKBitVec) -> Bool {
     dffv.removeAll()
     dffv.reserveCapacity(mol.numAtoms())
@@ -512,8 +863,9 @@ func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: MKBitVec) -> Bool {
     return true
 }
 
-func compareRotor(_ pair: Pair<MKBond,Int>,_ pair2: Pair<MKBond,Int>) -> Bool {
-    fatalError()
+func compareRotor(_ a: Pair<MKBond,Int>,_ b: Pair<MKBond,Int>) -> Bool {
+//    return a.1 > a.1 // outside->in
+    return a.1 < b.1 // inside->out
 }
 
  /**
@@ -533,12 +885,20 @@ class MKRotorList {
     private var _vsym3: [(MKSmartsPattern, (Int, Int))] = [] // !
 
 
-    init() {}
+    init() {
+        _rotor.removeAll()
+        _quiet = true
+        _removesym = true
+        _ringRotors = false
+    }
 
     /**
      * Clear the internal list of rotors and reset.
      */
-    func clear() {}
+    func clear() {
+        _rotor.removeAll()
+        _ringRotors = false
+    }
 
     /**
      * @return the number of rotors in this list
@@ -726,15 +1086,7 @@ class MKRotorList {
         _quiet = quiet
         _rr.quiet()
     }
-
-    //! \brief Set the atoms to rotate from the dihedral atoms for each rotor
-    //! Uses OBRotor->GetDihedralAtoms() to call OBRotor->SetRotAtoms()
-    //! and standarizes the dihedral angles via OBRotor->SetDihedralAtoms()
-    //! \return True
-    func setRotAtoms(_ mol: MKMol) -> Bool {
-        fatalError()
-    }
-
+    
     /**
      * Find all potentially rotatable bonds in the molecule. This method uses
      * OBBond::IsRotor() for initial evaluation which depends on ring perception
@@ -804,7 +1156,55 @@ class MKRotorList {
     //! \return True
     @discardableResult
     func setEvalAtoms(_ mol: MKMol) -> Bool {
-        fatalError()
+        
+        var eval: MKBitVec = MKBitVec()
+        var curr: MKBitVec = MKBitVec()
+        let next: MKBitVec = MKBitVec()
+
+        for rotor in _rotor {
+            guard let bond = rotor.getBond() else { fatalError("Cannot get rotor bond") }
+            curr.clear()
+            eval.clear()
+            curr.setBitOn(bond.getBeginAtomIdx())
+            curr.setBitOn(bond.getEndAtomIdx())
+            eval |= curr
+            var j: Int
+            //follow all non-rotor bonds and add atoms to eval list
+            repeat {
+                next.clear()
+                j = curr.nextBit(0)
+                repeat {
+                    guard let a1 = mol.getAtom(j),
+                          let a1Nbrs = a1.getNbrAtomBondIterator() else { fatalError("Cannot get atom \(j)") }
+                    for (a2, k) in a1Nbrs {
+                        if !eval[a2.getIdx()] { // warning: maybe this needs to be subtracted by 1
+                            if !k.isRotor(_ringRotors) || ((hasFixedAtoms() || hasFixedBonds()) && isFixedBond(k)) {
+                                next.setBitOn(a2.getIdx())
+                                eval.setBitOn(a2.getIdx())
+                            }
+                        }
+                    }
+                    j = curr.nextBit(j)
+                } while j != curr.endBit()
+                curr = next
+            } while !curr.isEmpty()
+            
+            //add atoms alpha to eval list
+            next.clear()
+            j = eval.nextBit(0)
+            repeat {
+                guard let a1 = mol.getAtom(j),
+                      let a1Nbrs = a1.getNbrAtomIterator() else { fatalError("Cannot get atom j") }
+                for a2 in a1Nbrs {
+                    next.setBitOn(a2.getIdx())
+                }
+                j = eval.nextBit(j)
+            } while j != eval.endBit()
+            
+            eval |= next
+            rotor.setEvalAtoms(eval)
+        }
+        return true
     }
     
     /**
@@ -815,15 +1215,110 @@ class MKRotorList {
      * and the torsion indexes for the rotor are inverted if needed
      * (i.e. a-b-c-d -> d-c-b-a).
      */
-    func assignTorVals(_ mol: MKMol) {
-        fatalError()
+    @discardableResult
+    func assignTorVals(_ mol: MKMol) -> Bool {
+        for rotor in _rotor {
+            guard let bond = rotor.getBond() else { fatalError("Cannot retrieve rotor bond") }
+            // query the rotor database
+            var refs: [Int] = []
+            var angles: [Double] = []
+            var delta: Double = 0.0
+            
+            _rr.getRotorIncrements(mol, bond, refs: &refs, vals: &angles, delta: &delta)
+            rotor.setTorsionValues(angles)
+//            rotor.setDelta() deprecated
+            // Find the smallest set of atoms to rotate. There are two candidate sets,
+            // one on either side of the bond. If the first tried set size plus one is
+            // larger than half of the number of atoms, the other set is smaller and the
+            // rotor atom indexes are inverted (.i.e. a-b-c-d -> d-c-b-a).
+            var atoms: [Int] = []
+            // find all atoms for which there is a path to ref[2] without goinf through ref[1]
+            mol.findChildren(refs[1], refs[2], &atoms)
+            
+            if atoms.count + 1 > mol.numAtoms() / 2 {
+                atoms.removeAll()
+                // select the other smaller set
+                mol.findChildren(refs[2], refs[1], &atoms)
+                // invert the rotor
+                refs.swapAt(0, 3)
+                refs.swapAt(1, 2)
+            }
+            
+            // translate the rotate atom indexes to coordinate indexes (i.e. from 0, multiplied by 3)
+            for var j in atoms {
+                j = (j - 1) * 3
+            }
+            // set the rotate atoms and dihedral atom indices
+            rotor.setRotAtoms(atoms)
+            rotor.setDihedralAtoms(refs)
+        }
+        return true
+    }
+    
+    //! \brief Set the atoms to rotate from the dihedral atoms for each rotor
+    //! Uses OBRotor->GetDihedralAtoms() to call OBRotor->SetRotAtoms()
+    //! and standarizes the dihedral angles via OBRotor->SetDihedralAtoms()
+    //! \return True
+    @discardableResult
+    func setRotAtoms(_ mol: MKMol) -> Bool {
+        var refs: [Int] = []
+        var rotatoms: [Int] = []
+        for rotor in _rotor {
+            rotor.getDihedralAtoms(&refs)
+            
+            mol.findChildren(refs[1], refs[2], &rotatoms)
+            if rotatoms.count + 1 > mol.numAtoms() / 2 {
+                rotatoms.removeAll()
+                mol.findChildren(refs[2], refs[1], &rotatoms)
+                refs.swapAt(0, 3)
+                refs.swapAt(1, 2)
+            }
+            
+            for var j in rotatoms {
+                j = (j - 1) * 3
+            }
+            rotor.setRotAtoms(rotatoms)
+            rotor.setDihedralAtoms(refs)
+        }
+        return true
     }
 
     //! \brief Set the atoms to rotate from the dihedral atoms for each rotor
     //! Insures the fixed atoms are respected, but otherwise functions like
     //! SetRotAtoms()
-    func setRotAtomsFixed(_ mol: MKMol) {
-        fatalError()
+    func setRotAtomsByFix(_ mol: MKMol) {
+        
+        var refs: [Int] = []
+        var rotatoms: [Int] = []
+        
+        getDFFVector(mol, &_dffv, _fixedatoms)
+        
+        for rotor in _rotor {
+            rotatoms.removeAll()
+            rotor.getDihedralAtoms(&refs)
+            
+            if _fixedatoms[refs[1]] && _fixedatoms[refs[2]] {
+                refs.swapAt(0, 3)
+                refs.swapAt(1, 2)
+                mol.findChildren(refs[1], refs[2], &rotatoms)
+                for var j in rotatoms {
+                    j = (j - 1) * 3
+                }
+                rotor.setRotAtoms(rotatoms)
+                rotor.setDihedralAtoms(refs)
+            } else {
+                if _dffv[refs[1] - 1] > _dffv[refs[2] - 1] {
+                    refs.swapAt(0, 3)
+                    refs.swapAt(1, 2)
+                    mol.findChildren(refs[1], refs[2], &rotatoms)
+                    for var j in rotatoms {
+                        j = (j - 1) * 3
+                    }
+                    rotor.setRotAtoms(rotatoms)
+                    rotor.setDihedralAtoms(refs)
+                }
+            }
+        }
     }
 
 }

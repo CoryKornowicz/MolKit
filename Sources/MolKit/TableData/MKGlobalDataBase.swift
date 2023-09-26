@@ -8,13 +8,14 @@
 import Foundation
 
 public class MKGlobalDataBase {
-    
+    var _init: Bool = false
     var _filename: String
     var _subdir: String
     
     init(fileName: String, subDir: String) {
         self._filename = fileName
         self._subdir = subDir
+        self._init = true
         //TODO: should set locale here globally
     }
     

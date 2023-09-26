@@ -17,7 +17,7 @@ To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Sw
 
 Currently in very very early development, and is not usable in production. Once the file readers start working, then things will become interesting. Then comes the fun stuff like AutoDock Vina on iOS but in pure Swift.
 
-One problem looming on the horizon is the issue of Swift's copy-on-write paradigm, which could inflate the sizes of underlying datastructs in memory. I would like to experiment with using true pointers (UnsafeMutablePointer) as that would probably make handling coordinates more intuitive and behave more like the original OpenBabel implementation, however, the first goal is to make it work, then make it fast. 
+One problem looming on the horizon is the issue of Swift's copy-on-write paradigm, which could inflate the sizes of underlying datastructs in memory. I would like to experiment with using true pointers (UnsafeMutablePointer) as that would probably make handling coordinates more intuitive and behave more like the original OpenBabel implementation, however, the first goal is to make it work, then make it fast. Making it fast also includes injecting more Swift-esque paradigms. 
 
 This project lacks the ability to dynamically switch between Double and Float for the base precision. A global type that can switch between Float and Double needs to be created especially for devices with little RAM. 
 

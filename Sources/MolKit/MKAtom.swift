@@ -306,6 +306,11 @@ public class MKAtom: MKBase {
         return MKIterator<MKAtom>(neigh)
     }
     
+    func getNbrAtomBondIterator() -> MKIterator<(MKAtom, MKBond)>? {
+        guard let neigh = self._vbond?.map({ ($0.getNbrAtom(self), $0) }) else { return nil }
+        return MKIterator<(MKAtom, MKBond)>(neigh)
+    }
+    
     func getBondIterator() -> MKIterator<MKBond>? {
         guard let bonds = self._vbond else { return nil }
         return MKIterator<MKBond>(bonds)
