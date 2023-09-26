@@ -477,6 +477,19 @@ class MKGraphSym {
     
     private var d: MKGraphSymPrivate
     
+    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec) {
+        self.d = MKGraphSymPrivate(pmol)
+        d._pmol = pmol
+        if !frag_atoms.isEmpty() {
+            d._frag_atoms = frag_atoms
+        } else {
+            d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))
+            for atom in d._pmol.getAtomIterator() {
+                d._frag_atoms.setBitOn(UInt32(atom.getIdx()))
+            }
+        }
+    }
+    
     init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec?) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
@@ -490,7 +503,7 @@ class MKGraphSym {
         }
     }
     
-    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec) {
+    init(_ pmol: MKMol) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
         d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))

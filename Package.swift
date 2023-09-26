@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "MolKit",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v12),
         .iOS(.v16)
@@ -13,14 +14,14 @@ let package = Package(
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "MolKit",
-            targets: ["MolKit"]),
+            targets: ["MolKit"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-collections", from: "1.0.4"),
-        .package(url: "https://github.com/Jounce/Surge.git", .upToNextMajor(from: "2.3.2"))
+        .package(url: "https://github.com/Jounce/Surge.git", .upToNextMajor(from: "2.3.2"))        
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -34,7 +35,7 @@ let package = Package(
                     // If path is a directory, the rule is applied recursively.
                     // By default, a file will be copied if no rule applies.
                     // Process file in Sources/MolKit/Data/*
-                    .copy("Data"),
+                    .copy("Data/")
                   ]),
         .testTarget(
             name: "MolKitTests",
@@ -43,7 +44,7 @@ let package = Package(
                     // Copy Tests/ExampleTests/Resources directories as-is.
                     // Use to retain directory structure.
                     // Will be at top level in bundle.
-                    .copy("Data"),
+                    .copy("Data/")
                   ])
     ]
 )

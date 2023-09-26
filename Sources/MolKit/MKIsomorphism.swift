@@ -228,17 +228,17 @@ func findAutomorphisms(_ mol: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ 
 */
 func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ mask: inout MKBitVec, _ maxMemory: Int = 3000000) -> Bool {
     // set all atoms to 1 if the mask is empty
-    var queriedMask: MKBitVec? = mask
-    if queriedMask!.countBits() == 0 {
+    var queriedMask: MKBitVec = mask
+    if queriedMask.countBits() == 0 {
         for i in 0..<mol.numAtoms() {
-            queriedMask!.setBitOn(UInt32(i + 1))
+            queriedMask.setBitOn(UInt32(i + 1))
         }
     }
     // get the symmetry classes
     let gs = MKGraphSym(mol, &queriedMask)
     var symClasses = [Ref]()
     gs.getSymmetry(&symClasses)
-    return findAutomorphisms(mol, &aut, symClasses.map {UInt($0.intValue!)}, queriedMask!, maxMemory) // TODO: Check if using queriedMask here is bad. In default impl they had mask instead
+    return findAutomorphisms(mol, &aut, symClasses.map {UInt($0.intValue!)}, queriedMask, maxMemory) // TODO: Check if using queriedMask here is bad. In default impl they had mask instead
 }
 /**
 * Find the automorphisms of a molecule by using an OBIsomorphismMapper. This

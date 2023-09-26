@@ -2779,10 +2779,10 @@ class MKMol: MKBase, Copying {
     * for terminal H atoms tend to be larger than for non-H terminal atoms.
     * In the example above, the GTD values for the H atoms are all 4.
     */
-    func getGTDVector( _ gtd: inout [Double]) {
+    func getGTDVector( _ gtd: inout [Int]) {
         //calculates the graph theoretical distance for every atom
         //and puts it into gtd
-        gtd = [Double](repeating: 0.0, count: self.numAtoms())
+        gtd = [Int](repeating: 0, count: self.numAtoms())
 
         var gtdcount: Int = 0
 
@@ -2815,7 +2815,7 @@ class MKMol: MKBase, Copying {
                 curr = next
                 gtdcount += 1
             }
-            gtd[atom.getIdx() - 1] = Double(gtdcount)
+            gtd[atom.getIdx() - 1] = gtdcount
         }
     }
 
@@ -2830,7 +2830,7 @@ class MKMol: MKBase, Copying {
         
         vid = [UInt](repeating: 0, count: self.numAtoms() + 1)
 
-        var v: [Double] = []
+        var v: [Int] = []
         self.getGTDVector(&v)
 
         var i: Int = 0

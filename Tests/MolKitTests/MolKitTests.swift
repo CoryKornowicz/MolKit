@@ -69,6 +69,12 @@ final class MolKitTests: XCTestCase {
         XCTAssert(atomTyper.getSize() > 0)
     }
     
+    func testMKRotorRules() throws {
+        let rotorRules = MKRotorRules()
+        print(rotorRules.getSize())
+        XCTAssert(rotorRules.getSize() > 0)
+    }
+    
     func testMKPhModel() throws {
         let pHmodel = MolKit._PhModel
         print(pHmodel.getSize())
