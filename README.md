@@ -34,16 +34,27 @@ If chains parsing is being difficult, rethink how to implement typeunion for Byt
 Huge up and coming debt bill on the the RefValue object. It needs to be refactored into a single protocol + wrapper class to supply either a UInt or RefValue 
 
 ## Installation
-🤷‍♂️ spm?
-
 ### Swift Package Manager
-Not production ready yet.
+To use [Swift Package Manager](https://swift.org/package-manager/) add MolKit to your Package.swift file: 
+```swift
+let package = Package(
+    name: "your-project",
+    dependencies: [
+        .package(url: "https://github.com/CoryKornowicz/MolKit.git", .branchItem("main")),
+    ],
+    targets: [
+        .target(
+            name: "your-project",
+            dependencies: ["MolKit"]),
+    ]
+)
+```
 
 
 Thank you OpenBabel, tremendously, this project would have never been possible without your commitment to 
 being open source. 
 
-### Final Projects ### 
+## Final Projects ## 
 - [ ] Minimize a ligand molecule in a binding pocket.
 
 ### Final Project Details ### 
