@@ -15,7 +15,7 @@ To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Sw
 
 ## WARNINGS AND CRITICAL HINDRANCES   
 
-Currently in very very early development, and is not usable in productino. Once the file readers start working, then things will become interesting. Then comes the fun stuff like AutoDock Vina on iOS (but in Swift).
+Currently in very very early development, and is not usable in production. Once the file readers start working, then things will become interesting. Then comes the fun stuff like AutoDock Vina on iOS but in pure Swift.
 
 One problem looming on the horizon is the issue of Swift's copy-on-write paradigm, which could inflate the sizes of underlying datastructs in memory. I would like to experiment with using true pointers (UnsafeMutablePointer) as that would probably make handling coordinates more intuitive and behave more like the original OpenBabel implementation, however, the first goal is to make it work, then make it fast. 
 
@@ -40,7 +40,54 @@ Huge up and coming debt bill on the the RefValue object. It needs to be refactor
 Not production ready yet.
 
 
-
-
 Thank you OpenBabel, tremendously, this project would have never been possible without your commitment to 
 being open source. 
+
+### Final Projects ### 
+- [ ] Minimize a ligand molecule in a binding pocket.
+
+### Final Project Details ### 
+#### Protein Ligand Minimization ####
+Essentially, it will look something like this is Swift (adopted from openbabel/src/forcefield.cpp): 
+```swift
+var mol: MKMol = MKMol()
+//
+// Read the pocket + ligand (initial guess for position) into mol...
+//
+var pocket: MKBitVec // set the bits with atoms indexes for the pocket to 1...
+var ligand: MKBitVec // set the bits with atoms indexes for the ligand to 1...
+
+guard let pFF: MKForceField = MKForceField.findForceField("MMFF94") else { 
+    // handle error...
+}
+
+// set logging 
+pFF.setLogFile(...)
+pFF.setLogLevel(.low)
+
+// Fix the binding pocket atoms
+var constraints: MKConstraints = MKConstraints()
+for a in mol.getAtomIterator() { 
+    if pocket.bitIsSet(a.getIdx()) { 
+        constraints.addAtomConstraint(a.getIdx())
+    }
+}
+
+// Specify the interacting groups. The pocket atoms are fixed, so there
+// is no need to calculate intra- and inter-molecular interactions for
+// the binding pocket.
+
+pFF.addIntraGroup(ligand) // bonded interactions in the ligand
+pFF.addInterGroup(ligand) // non-bonded between ligand-ligand atoms
+pFF.addIntrGroups(ligand, pocket) // non-bonded between ligand and pocket atoms
+
+// We pass the constraints as argument for Setup()
+do {
+    try pFF.setup(mol, constraints)
+    // Perform the actual minimization, maximum 1000 steps
+    pFF.conjugateGradients(1000)
+} catch { 
+    // handle error
+}
+
+```
