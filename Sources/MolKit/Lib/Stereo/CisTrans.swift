@@ -64,7 +64,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
      * Only @p begin and @p end are specific for OBCisTransStereo::Config. The other
      * data members occur in all OBTetraPlanarStereo derived classes.
      */
-    class Config: ConfigPlanar {
+    class Config: ConfigPlanar, Equatable {
         var begin: Ref
         var end: Ref
         var shape: MKStereo.Shape

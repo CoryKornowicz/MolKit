@@ -1128,7 +1128,7 @@ Conversion options
       /// The optional "trimWhitespace" parameter allows trailing whitespace to be removed
       /// (e.g., in a SMILES string or InChI, etc.)
     func writeString<T: MKBase>(_ pOb: T, _ trimWhitespace: Bool = true) -> String { 
-        var newStream: OutputStringStream = OutputStringStream()
+        let newStream: OutputStringStream = OutputStringStream()
         var temp: String = "" 
         if pOutFormat != nil {
             var savedOut = StreamState()
@@ -1137,11 +1137,11 @@ Conversion options
             // do it manually here.
             // Set/reset the Index to 0 so that any initialization
             // code in the formatters will be executed.
-            var oldIndex = Index
+            let oldIndex = Index
             Index = 0
             // We'll only send one object, so save those properties too.
-            var oldOneObjectOnly = OneObjectOnly
-            var oldm_IsLast = m_IsLast
+            let oldOneObjectOnly = OneObjectOnly
+            let oldm_IsLast = m_IsLast
             setOneObjectOnly(true)
             setOutStream(newStream, false)
             write(pOb)

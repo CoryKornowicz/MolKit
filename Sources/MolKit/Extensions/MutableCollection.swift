@@ -36,6 +36,20 @@ extension Sequence where Iterator.Element: Hashable {
     }
 }
 
+extension Sequence where Iterator.Element: Equatable {
+    func countOccurances(_ value: Iterator.Element) -> Int {
+        var count: Int = 0
+        self.forEach({ elem in
+            if elem == value {
+                count += 1
+            }
+        })
+        return count
+    }
+}
+
+
+
 extension Collection where Element: Equatable, Index: SignedInteger, Index.Stride: SignedInteger {
     public mutating func replace(_ element: Element, with new: Element) {
         self = self.map { $0 == element ? new : $0 } as! Self

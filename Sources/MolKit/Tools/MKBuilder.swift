@@ -933,7 +933,75 @@ class MKBuilder {
        * \returns Success or failure
        */
     static func correctStereoBonds(_ mol: MKMol) -> Bool {
-        fatalError()
+        
+        // Get CistransStereos and make a vector of correspondng MKStereoUnits
+        var cistrans: [MKCisTransStereo] = []
+        var newcistrans: [MKCisTransStereo] = []
+        
+        var sgunits: MKStereoUnitSet = MKStereoUnitSet()
+        
+        guard let vdata: [MKGenericData] = mol.getAllData(.StereoData) else {
+            return false // default to return false if no sterodata is found?
+        }
+        
+        var bond_id: Ref
+        
+        for data in vdata {
+            if (data as! MKStereoBase).getType() == .CisTrans {
+                let ct = (data as! MKCisTransStereo)
+                if ct.getConfig().specified {
+                    cistrans.append(ct)
+                    guard let begin = mol.getAtomById(ct.getConfig().begin),
+                          let end = mol.getAtomById(ct.getConfig().end) else { fatalError("Cannot get begin/end atoms of bond") }
+                    guard let bond = mol.getBond(begin, end) else { fatalError("Cannot get bond") }
+                    bond_id = bond.getId()
+                    sgunits.append(MKStereoUnit(.CisTrans, bond_id))
+                }
+            }
+        }
+        
+        // Perceive CisTransStereos
+        newcistrans = cisTransFrom3D(mol, sgunits, false)
+        
+        //compare and correct if necessary
+        var newangle: Double
+        var angle: Double
+        
+        let cistransIterator = MKIterator(cistrans)
+        let newcistransIterator = MKIterator(newcistrans)
+        
+        for (origct, newct) in zip(cistransIterator, newcistransIterator) {
+            guard origct != cistrans.last else { break }
+            
+            let config: MKCisTransStereo.Config = newct.getConfig(.ShapeU)
+            
+            if origct.getConfig(.ShapeU) != config { // Wrong cis/trans stereochemistry
+                // refs[0]            refs[3]
+                //        \          /
+                //         begin==end
+                //        /          \
+                // refs[1]            refs[2]
+                
+                guard let a = mol.getAtomById(config.refs[0]),
+                      let b = mol.getAtomById(config.begin),
+                      let c = mol.getAtomById(config.end) else { fatalError("Cannot get a/b/c atom from stereo-config") }
+                var d: MKAtom
+                if config.refs[3] != Ref.ImplicitRef {
+                    guard let dAtom = mol.getAtomById(config.refs[3]) else { fatalError("Cannot get atom d of stereo-config") }
+                    d = dAtom
+                } else {
+                    guard let dAtom = mol.getAtomById(config.refs[2]) else { fatalError("Cannot get atom d of stereo-config") }
+                    d = dAtom
+                }
+                      
+                angle = mol.getTorsion(a, b, c, d) // In degrees
+                newangle = angle.degreesToRadians + Double.pi // flip the bond by 180 deg (PI radians)
+                // if it's a ring, break a ring bond before rotating
+                mol.setTorsion(a, b, c, d, newangle) // in radians
+            }
+        }
+        
+        return true // was all the ring bond stereochemistry corrected?
     }
     
       /*! Correct stereochemistry at tetrahedral atoms with at least two non-ring
@@ -1014,7 +1082,7 @@ class MKBuilder {
         if existswrongstereo {
             // fix ring stereo
             var unfixed: Refs = Refs()
-            var inversion: Bool = fixRingStereo(ringstereo, mol, &unfixed)
+            let inversion: Bool = fixRingStereo(ringstereo, mol, &unfixed)
             
             // output warning message if necessary
             if (unfixed.count > 0 && warn) {
@@ -1140,7 +1208,7 @@ class MKBuilder {
        *         changed in this mol.
        *  \param stereoWarnings Warn if the stereochemistry is incorrect (default is true)
        */
-    func build(_ mol: MKMol, _ stereWarnings: Bool = true) -> Bool {
+    func build(_ mol: inout MKMol, _ stereoWarnings: Bool = true) -> Bool {
         var vdone: MKBitVec = MKBitVec() // Atoms that are done, need no further manipulation.
         var vfrag: MKBitVec = MKBitVec() // Atoms that are part of a fragment found in the database.
                                          // These atoms have coordinates, but the fragment still has
@@ -1164,16 +1232,458 @@ class MKBuilder {
 
         // Delete all bonds in the working molecule
         // (we will add them back at the end)
-
+        while workMol.numBonds() > 0 {
+            if let bond = workMol.getBond(0) {
+                workMol.deleteBond(bond)
+            } else { break }
+        }
         
-        return false
+        // Deleting the bonds unsets HybridizationPerceived. To prevent our
+        // perceived values being reperceived (incorrectly), we must set
+        // this flag again.
+        workMol.setHybridizationPerceived()
+
+        // I think just deleting rotable bond and separate is enough,
+        // but it did not work.
+
+        // Get fragments using CopySubstructure
+        // Copy all atoms
+        let atomsToCopy: MKBitVec = MKBitVec()
+        for atom in mol.getAtomIterator() {
+            atomsToCopy.setBitOn(atom.getIdx())
+        }
+        // Exclude rotatable bonds
+        let bondsToExclude: MKBitVec = MKBitVec()
+        for bond in mol.getBondIterator() {
+            if bond.isRotor() {
+                bondsToExclude.setBitOn(bond.getIdx())
+            }
+        }
+        // Generate fragments by copy
+        let mol_copy: MKMol = MKMol()
+        var atomOrder: [Int]? = nil
+        var bondOrder: [Int]? = nil
+        mol.copySubstructure(mol_copy, atomsToCopy, &atomOrder, &bondOrder, bondsToExclude)
+        
+        // Separate each disconnected fragments as different molecules
+        let fragments: [MKMol] = mol_copy.separate()
+        
+        // datafile is read only on first use of Build()
+        if MKBuilder._rigid_fragments.isEmpty {
+            loadFragments()
+        }
+        
+        for f in fragments {
+            var fragment_smiles = conv.writeString(f, true)
+            
+            var isMatchRigid: Bool = false
+            // if rigid fragment is in database
+            if MKBuilder._rigid_fragments_index.keys.countOccurances(fragment_smiles) > 0 {
+                var sp: MKSmartsPattern = MKSmartsPattern()
+                if (!sp.initialize(fragment_smiles)) {
+                    MKLogger.throwError(#function, errorMsg: "Could not parse SMARTS from fragment")
+                } else if sp.match(mol) {
+                    isMatchRigid = true
+                    let mlist = sp.getUMapList()
+                    for j in mlist {
+                        // Have any atoms of this match already been added?
+                        var alreadydone: Bool = false
+                        for k in j {
+                            if vfrag.bitIsSet(k) {
+                                alreadydone = true
+                                break
+                            }
+                        }
+                        if alreadydone { continue }
+                        
+                        for k in j {
+                            vfrag.setBitOn(k) // set vfrag for all atoms of fragment
+                        }
+                        
+                        var counter: Int = 0
+                        var coords: [Vector<Double>] = getFragmentCoord(fragment_smiles)
+                        for k in j { // for all atoms of the fragment
+                            guard let atom = workMol.getAtom(k) else { fatalError("Could not get atom at index \(k) in mol: \(workMol.getTitle())") }
+                            // set coordinates for atoms
+                            atom.setVector(coords[counter])
+                            counter += 1
+                        }
+                        
+                        // add the bonds for the fragment
+                        for k in j {
+                            guard let atom1 = mol.getAtom(k) else { fatalError("Could not get atom1 from mol") }
+                            for k2 in j {
+                                guard let atom2 = mol.getAtom(k2) else { fatalError("Could not get atom1 from mol") }
+                                if let bond = atom1.getBond(atom2) {
+                                    workMol.addBond(bond)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if !isMatchRigid { // if rigid fragment is not in database
+                // count the number of ring atoms
+                var ratoms: UInt = 0
+                for a in mol.getAtomIterator() {
+                    if a.isInRing() {
+                        ratoms += 1
+                    }
+                }
+                
+                if ratoms < 3 { continue } // Smallest ring fragment has 3 atoms
+                
+                // Skip all fragments that are too big to match
+                // Note: It would be faster to compare to the size of the largest
+                //       isolated ring system instead of comparing to ratoms
+                for i in MKBuilder._ring_fragments {
+                    if i.0.numAtoms() > ratoms { continue }
+                    
+                    // Loop through the remaining fragments and assign the coordinates from
+                    // the first (most complex) fragment.
+                    // Stop if there are no unassigned ring atoms (ratoms).
+                    if i.0.match(f) { // if match to fragment
+                        i.0.match(mol) // match over mol
+                        mlist = i.0.getUMapList()
+                        for j in mlist { // for all matches
+                            // Have any atoms of this match already been added?
+                            var alreadydone: Bool = false
+                            for k in j { // for all atoms of the fragment
+                                if vfrag.bitIsSet(k) {
+                                    alreadydone = true
+                                    break
+                                }
+                            }
+                            if alreadydone { continue }
+                            
+                            for k in j {
+                                vfrag.setBitOn(k) // set vfrag for all atoms of fragment
+                            }
+                            
+                            var counter: Int = 0
+                            for k in j { // for all atoms of the fragment
+                                // set coordinates for atoms
+                                guard let atom = workMol.getAtom(k) else { fatalError("Could not get atom at index \(k) in mol: \(workMol.getTitle())") }
+                                // set coordinates for atoms
+                                atom.setVector(i.1[counter])
+                                counter += 1
+                            }
+                            // add the bonds for the fragment
+                            for k in j {
+                                guard let atom1 = mol.getAtom(k) else { fatalError("Could not get atom1 from mol") }
+                                for k2 in j {
+                                    guard let atom2 = mol.getAtom(k2) else { fatalError("Could not get atom1 from mol") }
+                                    if let bond = atom1.getBond(atom2) {
+                                        workMol.addBond(bond)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } // for all fragments
+        
+        // iterate over all atoms to place them in 3D space
+        // DFS
+        var dfsIter = MKAtomDFSIterator(mol)
+        while let a = dfsIter.current() {
+            // continue if the atom is already added
+            if vdone.bitIsSet(a.getIdx()) {
+                dfsIter++
+                continue
+            }
+            // find an atom connected to the current atom that is already added
+            var prev: MKAtom? = nil
+            guard let nbrs = a.getNbrAtomIterator() else { fatalError("Cannot get nbrs for atom") }
+            for nbr in nbrs {
+                if vdone.bitIsSet(nbr.getIdx()) {
+                    prev = nbr
+                }
+            }
+            
+            if vfrag.bitIsSet(a.getIdx()) { // Is this atom part of a fragment?
+                if prev != nil { // if we have a previous atom, translate/rotate the fragment and connect it
+                    guard let prevAtomBond = mol.getBond(prev!, a) else { fatalError() }
+                    MKBuilder.connect(workMol, prev!.getIdx(), a.getIdx(), Int(prevAtomBond.getBondOrder()))
+                    // set the correct bond order
+                    guard let prevIdxBond = mol.getBond(prev!.getIdx(), a.getIdx()) else { fatalError() }
+                    let bondOrder = prevIdxBond.getBondOrder()
+                    
+                    guard let workMolBond = workMol.getBond(prev!.getIdx(), a.getIdx()) else { fatalError() }
+                    workMolBond.setBondOrder(bondOrder)
+                }
+                
+                guard let workAtom = workMol.getAtom(a.getIdx()) else { fatalError() }
+                let fragment = MKBuilder.getFragment(workAtom)
+                
+                vdone |= fragment
+                
+                dfsIter++
+                continue
+            }
+            
+            //
+            // below is the code to add non-fragment atoms
+            //
+            
+            // get the position for the new atom, this is done with GetNewBondVector
+            if prev != nil {
+                guard let aBondPrev = a.getBond(prev!) else { fatalError() }
+
+                var bondType: Int = Int(aBondPrev.getBondOrder())
+                if aBondPrev.isAromatic() {
+                    bondType = -1
+                }
+                
+                guard let workMolPrevAtom = workMol.getAtom(prev!.getIdx()),
+                      let workMolaAtom = workMol.getAtom(a.getIdx()) else { fatalError() }
+                
+                molvec = MKBuilder.getCorrectedBondVector(workMolPrevAtom,
+                                                          workMolaAtom,
+                                                          bondType)
+                moldir = molvec - workMolPrevAtom.getVector()
+            } else {
+                // We don't want to plant all base atoms at exactly the same spot.
+                // (or in exactly the same direction)
+                // So we'll add a slight tweak -- fixes problem reported by Kasper Thofte
+                var randomOffset: Vector<Double> = Vector.random(count: 3, in: 0...1)
+                randomOffset.randomUnitVector()
+                molvec = VX + 0.1 * randomOffset
+                moldir = VX + 0.01 * randomOffset
+            }
+            
+            vdone.setBitOn(a.getIdx())
+            
+            //place the atom
+            guard let workMolaAtom = workMol.getAtom(a.getIdx()) else { fatalError() }
+            workMolaAtom.setVector(molvec)
+            
+            // add bond between previous part and added atom
+            if prev != nil {
+                guard let bond = a.getBond(prev!) else { fatalError() } // from mol
+                workMol.addBond(bond)
+            }
+            
+            dfsIter++
+        }
+        
+        // Make sure we keep the bond indexes the same
+        // so we'll delete the bonds again and copy them
+        // Fixes PR#3448379 (and likely other topology issues)
+        while workMol.numBonds() > 0 {
+            if let bond = workMol.getBond(0) {
+                workMol.deleteBond(bond)
+            } else { break }
+        }
+        
+        var beginIdx: Int, endIdx: Int
+        for b in mol.getBondIterator() {
+            beginIdx = b.getBeginAtomIdx()
+            endIdx = b.getEndAtomIdx()
+            workMol.addBond(beginIdx, endIdx, Int(b.getBondOrder()), Int(b.getFlags()))
+        }
+        
+        /*
+            FOR_BONDS_OF_MOL(bond, mol) {
+              if(bond->IsRotor()) {
+                OBBitVec atomsToCopy;
+                OBAtom *atom = bond->GetBeginAtom();
+                FOR_NBORS_OF_ATOM(a, &*atom) {
+                  atomsToCopy.SetBitOn(a->GetIdx());
+                }
+                atom = bond->GetEndAtom();
+                FOR_NBORS_OF_ATOM(a, &*atom) {
+                  atomsToCopy.SetBitOn(a->GetIdx());
+                }
+                OBMol mol_copy;
+                mol.CopySubstructure(mol_copy, &atomsToCopy);
+                string smiles = conv.WriteString(&mol_copy, true);
+
+                if(_torsion.count(smiles) > 0) {
+                  OBAtom* b = bond->GetBeginAtom();
+                  OBAtom* c = bond->GetEndAtom();
+                  OBAtom* a = nullptr;
+                  FOR_NBORS_OF_ATOM(t, &*b) {
+                    a = &*t;
+                    if(a != c)
+                      break;
+                  }
+                  OBAtom* d = nullptr;
+                  FOR_NBORS_OF_ATOM(t, &*c) {
+                    d = &*t;
+                    if(d != b)
+                      break;
+                  }
+                  double angle = _torsion[smiles] * DEG_TO_RAD;
+                  mol.SetTorsion(a, b, c, d, angle);
+                } else {
+                  ; // Do something
+                }
+              }
+            }
+            */
+        
+        // We may have to change these success check
+        // correct the chirality
+        var success: Bool = MKBuilder.correctStereoBonds(workMol)
+        // we only succeed if we corrected all stereochemistry
+        success = success && MKBuilder.correctStereoAtoms(workMol, stereoWarnings)
+        
+        /*
+        // if the stereo failed, we should use distance geometry instead
+        OBDistanceGeometry dg;
+        dg.Setup(workMol);
+        dg.GetGeometry(workMol); // ensured to have correct stereo
+        */
+        
+        mol = workMol
+        mol.setChiralityPerceived()
+        mol.setDimension(3)
+        
+        var isNanExist: Bool = false
+        for a in mol.getAtomIterator() {
+            let v = a.getVector()
+            if v.x.isNaN || v.y.isNaN || v.z.isNaN {
+                isNanExist = true
+                break
+            }
+        }
+        
+        if isNanExist {
+            MKLogger.throwError(#function, errorMsg: "There exists NaN in calculated coordinates.")
+        }
+        
+        return success
     }
     
-    // Private Methods
-    //! Connect a ring fragment to an already matched fragment. Currently only
+    // MARK: Private Methods
+    //  Connect a ring fragment to an already matched fragment. Currently only
     //  supports the case where the fragments overlap at a spiro atom only.
     private static func connectFrags(_ mol: MKMol, _ workmol: MKMol, _ match: [Int], _ coords: [Vector<Double>], _ pivot: [Int]) {
+        if (pivot.count != 1) { return } // only handle spiro at the moment
         
+        guard let p = workmol.getAtom(pivot[0]) else { fatalError("Cannot get pivot atom") }
+        let posp = p.getVector()
+        
+        // Coords of new fragment to place the pivot at the origin
+        var posp_new: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
+        var counter: Int = 0
+        
+        for match_it in match {
+            if match_it == pivot[0] {
+                posp_new = coords[counter]
+                break
+            }
+            counter += 1
+        }
+        
+        counter = 0
+        for match_it in match {
+            workmol.getAtom(match_it)?.setVector( coords[counter] - posp_new )
+            counter += 1
+        }
+        
+        // Find vector that bisects existing angles at the pivot in each fragment
+        // and align them
+        //                                        \   /
+        //  \        \   /    bisect  \             P    align   \                /
+        //   P  and    P       --->    P--v1  and   |    --->     P--v1  and v2--P
+        //  /                         /             v2           /                \  //
+
+        // Get v1 (from the existing fragment)
+        var bond1: Vector<Double> = VZero, bond2: Vector<Double> = VZero, bond3: Vector<Double> = VZero, bond4: Vector<Double> = VZero, v1: Vector<Double> = VZero
+        
+        var atom1: MKAtom = MKAtom()
+        var atom2: MKAtom = MKAtom()
+        
+        guard let p_nbrs = p.getNbrAtomIterator() else { fatalError("Cannot get neighbors") }
+        
+        for nbr in p_nbrs {
+            if bond1 == VZero {
+                atom1 = nbr
+                bond1 = posp - atom1.getVector()
+            } else {
+                atom2 = nbr
+                bond2 = posp - atom2.getVector()
+            }
+        }
+        
+        bond1.normalize()
+        bond2.normalize()
+        
+        v1 = bond1 + bond2
+        v1.normalize()
+        
+        // Get v2 (from the new fragment)
+        var v2: Vector<Double>
+        var nbrs: [Int] = []
+        var nbr_pos: [Vector<Double>] = []
+        
+        guard let pivotAtom = mol.getAtom(pivot[0]),
+              let pivotNbrs = pivotAtom.getNbrAtomIterator() else { fatalError("Mol does not contain pivot atom") }
+        
+        for nbr in pivotNbrs {
+            if nbr.getIdx() != atom1.getIdx() && nbr.getIdx() != atom2.getIdx() {
+                nbrs.append(nbr.getIdx())
+                guard let workAtom = workmol.getAtom(nbr.getIdx()) else { fatalError("Cannot get nbr atom") }
+                nbr_pos.append(workAtom.getVector())
+            }
+        }
+        
+        bond3 = nbr_pos[0] - VZero // The pivot is at the origin, hence VZero
+        bond4 = nbr_pos[1] - VZero
+        
+        bond3.normalize()
+        bond4.normalize()
+        
+        v2 = bond3 + bond4
+        v2.normalize()
+        
+        // Set up matrix to rotate around v1 x v2 by the angle between them
+        var ang = vector_angle(v1, v2)
+        var cp = cross3x3(v1, v2)
+        var mat: Matrix<Double> = Matrix(rows: 3, columns: 3, repeatedValue: 0.0)
+        mat.rotAboutAxisByAngle(cp, ang)
+        
+        // Apply rotation
+        var tmpvec: Vector<Double>
+        for match_it in match {
+            guard let workAtom = workmol.getAtom(match_it) else { fatalError("Cannot get work atom") }
+            tmpvec = workAtom.getVector()
+            tmpvec = Surge.mul(tmpvec, mat)
+            workAtom.setVector(tmpvec)
+        }
+        
+        // Rotate the new fragment 90 degrees to make a tetrahedron
+        tmpvec = cross3x3(bond1, bond2) // The normal to the ring
+        v1 = cross3x3(tmpvec, v1) // In the plane of the ring, orthogonal to tmpvec and the original v1
+        v2 = cross3x3(bond3, bond4) // The normal to ring2 - we want to align v2 to v1
+        ang = vector_angle(v1, v2) // Should be 90
+        cp = cross3x3(v1, v2)
+        mat.rotAboutAxisByAngle(cp, ang)
+        
+        for match_it in match {
+            guard let workAtom = workmol.getAtom(match_it) else { fatalError("Cannot get work atom") }
+            tmpvec = workAtom.getVector()
+            tmpvec = Surge.mul(tmpvec, mat)
+            workAtom.setVector(tmpvec)
+        }
+        
+        // Translate to exisiting pivot location
+        for match_it in match {
+            guard let workAtom = workmol.getAtom(match_it) else { fatalError("Cannot get work atom") }
+            workAtom.setVector(workAtom.getVector() + posp)
+        }
+        
+        // Create the bonds between the two fragments
+        for nbr_id in nbrs {
+            guard let bondFlags = mol.getBond(p.getIdx(), nbr_id) else { fatalError("Cannot get bond betweeen nbrs") }
+            workmol.addBond(p.getIdx(), nbr_id, 1, Int(bondFlags.getFlags()))
+        }
+        
+        return
     }
 
     //! Rotate one of the spiro rings 180 degrees

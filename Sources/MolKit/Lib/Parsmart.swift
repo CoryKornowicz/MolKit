@@ -311,6 +311,7 @@ class MKSmartsPattern {
     //! \param mol The molecule to use for matching
     //! \param single Whether only a single match is required (faster). Default is false.
     //! \return Whether matches occurred
+    @discardableResult
     func match(_ mol: MKMol, _ single: Bool = false) -> Bool {
         let matcher = MKSmartsMatcher()
         guard var _pat = _pat else { return false }

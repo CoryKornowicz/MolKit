@@ -124,31 +124,6 @@ public class MKAtomDFSIterator: IteratorProtocol {
 
     @discardableResult
     public func next() -> MKAtom? {
-//        defer {
-//            if !_stack.isEmpty() {
-//                _ptr = _stack.pop()
-//            } else { // are there any disconnected subgraphs?
-//                let next = _notVisited.firstBit()
-//                if next != _notVisited.endBit() {
-//                    _ptr = _parent.getAtom(next + 1)
-//                    _notVisited.setBitOff(next)
-//                } else {
-//                    _ptr = nil
-//                }
-//            }
-//            if _ptr != nil {
-//                if let nbrs = _ptr?.getNbrAtomIterator() {
-//                    for a in nbrs {
-//                        if _notVisited[a.getIdx() - 1] {
-//                            _stack.push(a)
-//                            _notVisited.setBitOff(a.getIdx() - 1)
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//
-//        return self._ptr
         if self._stack.isEmpty() {
             return nil
         } else {

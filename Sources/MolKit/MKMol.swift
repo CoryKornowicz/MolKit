@@ -2640,7 +2640,6 @@ class MKMol: MKBase, Copying {
             v4 = box.unwrapCartesianNear(v4, v3)
             return calculateTorsionAngle(v1, v2, v3, v4)
         }
-        
     }
 
 //    Angle needs to be in radians
@@ -3329,7 +3328,7 @@ class MKMol: MKBase, Copying {
     
     
     // TODO: ensure that this works?
-    func separate(_ startIndex: Int) -> [MKMol] {
+    func separate(_ startIndex: Int = 1) -> [MKMol] {
         var result: [MKMol] = []
         if numAtoms() == 0 {
             return result // nothing to do, but let's prevent a crash
@@ -3420,6 +3419,7 @@ class MKMol: MKBase, Copying {
       \param bondorder Record the Idxs of the original bonds. See \p atomorder above.
 
       **/
+    @discardableResult
     func copySubstructure(_ newmol: MKMol, _ atoms: MKBitVec, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?, _ excludedBonds: MKBitVec? = nil, _ correctValence: Int = 1) -> Bool {
         
         let record_atomorder: Bool = atomOrder != nil

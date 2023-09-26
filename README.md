@@ -1,6 +1,6 @@
 # MolKit
 
-A Swift-version of a cheminformatics library, __shamelessly__ based off of OpenBabel to make adoption feel intuitive. 
+A Swift-version of a cheminformatics library, __shamelessly__ based off of OpenBabel to make adoption feel intuitive (got to start somewhere, right?).
 To use openbabel from Swift, it would have needed C++ __<->__ Obj-C++ __<->__ Swift wrappers, so might as well write it in pure Swift then.  
 
 ~ 30,000 lines of code and still does not yet read molecules, but __almost__ there.
@@ -42,5 +42,5 @@ Not production ready yet.
 
 
 
-Thank you OpenBabel, this project would have never been possible without your commitment to 
+Thank you OpenBabel, tremendously, this project would have never been possible without your commitment to 
 being open source. 
