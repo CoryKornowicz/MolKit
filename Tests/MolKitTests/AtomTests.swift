@@ -6,20 +6,48 @@
 //
 
 import XCTest
+import MolKit
 
 final class AtomTests: XCTestCase {
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+    func testSetIdx() throws {
+        // OBAtom isolation tests (no connection to residue, bond, molecule...)
+        // Beat up on SetIdx
+        let testAtom1 = MKAtom()
+        
+        testAtom1.setIdx(0)
+        print(testAtom1.getIdx())
+        XCTAssert(testAtom1.getIdx() == 0)
+        testAtom1.setIdx(-1)
+        print(testAtom1.getIdx())
+        XCTAssert(testAtom1.getIdx() == -1)
+        testAtom1.setIdx(1)
+        print(testAtom1.getIdx())
+        XCTAssert(testAtom1.getIdx() == 1)
     }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    func testExample() throws {
-
-
+    
+    func testSetAtomicNum() throws {
+        // OBAtom isolation tests (no connection to residue, bond, molecule...)
+        // Beat up on SetIdx
+        let testAtom1 = MKAtom()
+        
+        testAtom1.setAtomicNum(0)
+        print(testAtom1.getAtomicNum())
+        XCTAssert(testAtom1.getAtomicNum() == 0)
+        testAtom1.setAtomicNum(-1)
+        print(testAtom1.getAtomicNum())
+        XCTAssert(testAtom1.getAtomicNum() == -1)
+        testAtom1.setAtomicNum(200)
+        print(testAtom1.getAtomicNum())
+        XCTAssert(testAtom1.getAtomicNum() == 200)
+        testAtom1.setAtomicNum(300)
+        print(testAtom1.getAtomicNum())
+        XCTAssert(testAtom1.getAtomicNum() == 300)
+        testAtom1.setAtomicNum(1)
+        print(testAtom1.getAtomicNum())
+        XCTAssert(testAtom1.getAtomicNum() == 1)
+        
+        testAtom1.getCoordinate()
     }
 
 //    func testPerformanceExample() throws {

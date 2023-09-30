@@ -57,7 +57,7 @@ private let BLOCKS: [Int] = [0,1,2,1,1,2,2,2,2,2,2,1,1,2,2,2,2,2,2,1,1,3,3,3,3,3
                              4,4,4,4,4,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3]
 
 
-class MKMol: MKBase, Copying {
+public class MKMol: MKBase, Copying {
     
     private var _autoPartialCharge: Bool = false
     private var _autoFormalCharge: Bool = false
@@ -77,7 +77,6 @@ class MKMol: MKBase, Copying {
     private var _internals: [MKInternalCoord]? = []
     private var _mod: UInt16 = 0
     
-    
     private var _natoms: Int {
         return _vatom.count
     }
@@ -88,6 +87,15 @@ class MKMol: MKBase, Copying {
 
     private var _nresidues: Int {
         return _residue.count
+    }
+    
+    var coordinates: [Double] {
+        get {
+            _c
+        }
+        set { 
+            _c = newValue
+        }
     }
     
     private func incrementMod() { self._mod += 1 }
@@ -134,11 +142,11 @@ class MKMol: MKBase, Copying {
         }
     }
     
-    override func getTitle() -> String {
+    public override func getTitle() -> String {
         return self._title
     }
     
-    override func setTitle(_ title: String) {
+    public override func setTitle(_ title: String) {
         self._title = title
     }
     
@@ -170,7 +178,7 @@ class MKMol: MKBase, Copying {
         return self._vatom
     }
     
-    func getAtomIterator() -> MKIterator<MKAtom> {
+    public func getAtomIterator() -> MKIterator<MKAtom> {
         return MKIterator<MKAtom>(self._vatom)
     }
     
@@ -210,13 +218,21 @@ class MKMol: MKBase, Copying {
     
     func getBond(_ bgn: Int, _ end: Int) -> MKBond? {
         if bgn == end { return nil }
-        guard let bgnAtom = self.getAtom(bgn) else { return nil }
-        guard let endAtom = self.getAtom(end) else { return nil }
+        guard let bgnAtom = self.getAtom(bgn),
+              let endAtom = self.getAtom(end) else { return nil }
         return self.getBond(bgnAtom, endAtom)
     }
     
     func getConformer(_ i: Int) -> [Double] {
         return self._vconf[i]
+    }
+    
+    func getConformers() -> [[Double]] {
+        return self._vconf
+    }
+    
+    func getCoordinates() -> [Double] {
+        return _c
     }
     
     func numHeavyAtoms() -> Int {
@@ -622,15 +638,15 @@ class MKMol: MKBase, Copying {
         return true
     }
 
-    func numAtoms() -> Int {
+    public func numAtoms() -> Int {
         return self._vatom.count
     }
     
-    func numBonds() -> Int {
+    public func numBonds() -> Int {
         return self._vbond.count
     }
 
-    func numResidues() -> Int {
+    public func numResidues() -> Int {
         return self._residue.count
     }
 
@@ -700,7 +716,8 @@ class MKMol: MKBase, Copying {
         self.deleteData(.TorsionData)
     }
 
-    func newAtom() -> MKAtom {
+    @discardableResult
+    public func newAtom() -> MKAtom {
         return self.newAtom(UInt(self._vatomIds.count))
     }
 
@@ -721,7 +738,7 @@ class MKMol: MKBase, Copying {
         atom.setIdx(self._natoms+1)
         atom.setParent(self)
 
-        self._vatomIds[Int(id)] = atom
+        self._vatomIds.insert(atom, at: Int(id))
         atom.setId(Int(id))
         
         self._vatom.append(atom)
@@ -747,21 +764,23 @@ class MKMol: MKBase, Copying {
         return atom 
     }
 
-    func newResidue() -> MKResidue {
+    @discardableResult
+    public func newResidue() -> MKResidue {
         let newRes = MKResidue()
         newRes.setIdx(self._residue.count)
         self._residue.append(newRes)
         return newRes
     }
 
-    func newBond() -> MKBond {
+    @discardableResult
+    public func newBond() -> MKBond {
         return self.newBond(UInt(self._vbondIds.count))
     }
 
-  //! \since version 2.1
-  //! \brief Instantiate a New Bond and add it to the molecule
-  //!
-  //! Sets the proper Bond index and insures this molecule is set as the parent.
+    //! \since version 2.1
+    //! \brief Instantiate a New Bond and add it to the molecule
+    //!
+    //! Sets the proper Bond index and insures this molecule is set as the parent.
     func newBond(_ id: UInt) -> MKBond {
         // Begin Modify is commented out here in original code, taken as should be called beforehand 
 

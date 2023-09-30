@@ -2241,7 +2241,6 @@ class LexicalParser: IteratorProtocol, Equatable {
         self._index < self._lexCharacters.count ? self._lexCharacters[self._index] : "\0"
     }
     
-    
     public func prev() -> Character {
         if self._index > 0 {
             return self._lexCharacters[self._index - 1]

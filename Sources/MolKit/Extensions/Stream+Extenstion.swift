@@ -43,6 +43,7 @@ public protocol OutputFileHandlerProtocol {
 public protocol FileHandlerProtocol {
     var streamStatus: Stream.Status { get }
     var isEOF: Bool { get }
+    func open(_ url: String, mode: String) throws
     func tellg() throws -> Int
     func seekg(to position: Int) throws
 }
@@ -74,8 +75,17 @@ public class FileHandler : FileHandlerProtocol {
         self.filepath = path
     }
     
-    public let handle: UnsafeMutablePointer<FILE>
-    public let closer: Closer
+    public var handle: UnsafeMutablePointer<FILE>
+    public var closer: Closer
+    
+    public func open(_ url: String, mode: String) throws {
+        guard let handle = Darwin.fopen(url, mode) else {
+            throw PosixError.current
+        }
+        self.handle = handle
+        self.closer = .close
+        self.filepath = URL(string: url)!
+    }
     
     deinit {
         switch closer {
@@ -131,11 +141,11 @@ public class FileHandler : FileHandlerProtocol {
     
 }
 
-class InputFileHandler: FileHandler {}
+public class InputFileHandler: FileHandler {}
 
 extension InputFileHandler: InputFileHandlerProtocol {
     
-    func getLine(_ s: inout String) -> Bool {
+    public func getLine(_ s: inout String) -> Bool {
         //  Read bytes until a newline is found
         self.streamStatus = .reading
         var data = Data()
@@ -221,10 +231,10 @@ extension InputFileHandler: InputFileHandlerProtocol {
 }
 
 
-class OutputFileHandler: FileHandler{}
+public class OutputFileHandler: FileHandler{}
 
 extension OutputFileHandler: OutputFileHandlerProtocol {
-    func writeNewLine() throws {
+    public func writeNewLine() throws {
         self.streamStatus = .writing
         guard let data = "\n".data(using: .utf8) else { return }
         let writtenSize = data.withUnsafeBytes { (bytes) in
@@ -281,21 +291,33 @@ class StringStream: FileHandlerProtocol {
     init(_wrappedBuffer: String) {
         self._wrappedBuffer = _wrappedBuffer
     }
+    
+    func open(_ url: String, mode: String) throws {
+        self._wrappedBuffer = url
+    }
+    
 }
 
 class InputStringStream: StringStream, InputFileHandlerProtocol {
     
     func getLine(_ s: inout String) -> Bool {
-        self.streamStatus = .writing
-        if let newLinePos = self._wrappedBuffer.firstIndex(of: Character("\n")) {
-            self._offset = newLinePos.utf16Offset(in: self._wrappedBuffer)
-            s = self._wrappedBuffer.substring(toIndex: newLinePos)
-            self.streamStatus = .open
-            return true
-        }
-//        Does no longer contain a new line
-        self.streamStatus = .atEnd
-        return false
+        if self.streamStatus != .atEnd {
+            self.streamStatus = .writing
+            
+            if let newLinePos = self._wrappedBuffer.firstIndex(of: Character("\n")) {
+                self._offset = newLinePos.utf16Offset(in: self._wrappedBuffer)
+                s = self._wrappedBuffer.substring(toIndex: newLinePos)
+                self.streamStatus = .open
+                return true
+            } else if !self._wrappedBuffer.isEmpty {
+                s = self._wrappedBuffer
+                self.streamStatus = .atEnd
+                return true
+            }
+    //        Does no longer contain a new line
+            self.streamStatus = .atEnd
+            return false
+        } else { return false } // at end
     }
     
     

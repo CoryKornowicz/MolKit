@@ -90,7 +90,7 @@ class MKOp: MKPlugin, MKPluginProtocol {
     }
     
     override func makeInstance(_ v: [String]) -> MKOp? {
-        return nil
+        fatalError()
     }
     
     func getMap() -> PluginMapType<MKOp> {

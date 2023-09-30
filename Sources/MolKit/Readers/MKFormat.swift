@@ -11,7 +11,7 @@ public let READXML         = 0x80
 public let DEPICTION2D     = 0x100
 public let DEFAULTFORMAT   = 0x4000
 
-class MKFormat: MKPlugin, MKPluginProtocol {
+public class MKFormat: MKPlugin, MKPluginProtocol {
     
     var pMime: String = ""
     
@@ -19,24 +19,26 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     static var map: PluginMapType<MKFormat> = PluginMapType<MKFormat>()
     static var formatsMIMEMap: PluginMapType = PluginMapType<MKFormat>()
     
-//    override init() {
-////        if isDefault || MKFormat.map.isEmpty {
-////            MKFormat.Default = self
-////        }
-////        if MKFormat.map.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
-////            MKFormat.map[_id] = self
-////            MKPlugin.pluginMap[typeID()] = self
-////        }
-//
-//    }
-    
     override init() {
         super.init()
+        if MKFormat.map.isEmpty {
+            MKFormat.Default = self
+        }
+        if MKFormat.map.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
+            MKFormat.map[_id] = self
+            MKPlugin.pluginMap[typeID()] = self
+        }
     }
-    
+        
     required init(_ id: String, _ isDefault: Bool) {
         super.init()
-//        _id = "formats"
+        if isDefault || MKFormat.map.isEmpty {
+            MKFormat.Default = self
+        }
+        if MKFormat.map.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
+            MKFormat.map[_id] = self
+            MKPlugin.pluginMap[typeID()] = self
+        }
     }
     
     override func typeID() -> String {
@@ -48,8 +50,7 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     }
     
     func registerFormat(_ ID: String, _ MIME: String? = nil) -> Int {
-        var mp = getMap()
-        mp.updateValue(self, forKey: ID)
+        MKFormat.map.updateValue(self, forKey: ID)
         if MIME != nil {
             MKFormat.formatsMIMEMap[MIME!] = self
         }
@@ -135,7 +136,7 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     
     
     override func makeInstance(_ v: [String]) -> MKFormat? {
-        return nil
+        fatalError()
     }
     
     override func display(_ txt: inout String, _ param: inout String?, _ ID: String?) -> Bool {
@@ -158,6 +159,7 @@ class MKFormat: MKPlugin, MKPluginProtocol {
     /// @brief Skip past first n objects in input stream (or current one with n=0)
     /// \return 1 on success, -1 on error and 0 if not implemented
     func skipObjects(_ n: Int, _ pConv: MKConversion) -> Int { return 0 }
+    func skipObjects(_ n: inout Int, _ pConv: MKConversion) -> Int { return 0 }
     
     static func formatFromMIME(_ MIME: String) -> MKFormat? {
         return MKFormat.formatsMIMEMap[MIME]

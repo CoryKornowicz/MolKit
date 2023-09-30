@@ -76,13 +76,14 @@ class Kekulizer {
         
         // Create lookup of degrees
         var degrees: [Int] = []
-        degrees.reserveCapacity(atomArraySize)
+        degrees.append(contentsOf: Array<Int>(repeating: 0, count: atomArraySize))
+
         var degreeOneAtoms: [MKAtom] = []
         
         for atom in m_mol.getAtomIterator() {
             let atom_idx = atom.getIdx()
             if !needs_dbl_bond!.bitIsSet(atom_idx) {
-                degrees[atom_idx] = 0
+                degrees[atom_idx - 1] = 0
                 continue
             }
             var mdeg = 0
@@ -94,7 +95,7 @@ class Kekulizer {
                     mdeg += 1
                 }
             }
-            degrees[atom_idx] = mdeg
+            degrees[atom_idx - 1] = mdeg
             if mdeg == 1 {
                 degreeOneAtoms.append(atom)
             }
@@ -126,8 +127,8 @@ class Kekulizer {
                         let nbrnbr = nbrbond.getNbrAtom(nbr)
                         let nbrnbrIdx = nbrnbr.getIdx()
                         if !needs_dbl_bond!.bitIsSet(nbrnbrIdx) { continue }
-                        degrees[nbrnbrIdx] -= 1
-                        if degrees[nbrnbrIdx] == 1 {
+                        degrees[nbrnbrIdx - 1] -= 1
+                        if degrees[nbrnbrIdx - 1] == 1 {
                             degreeOneAtoms.append(nbrnbr)
                         }
                     }
@@ -173,8 +174,8 @@ class Kekulizer {
                             let nbrnbr = nbrbond.getNbrAtom(ref)
                             let nbrnbrIdx = nbrnbr.getIdx()
                             if !needs_dbl_bond!.bitIsSet(nbrnbrIdx) { continue }
-                            degrees[nbrnbrIdx] -= 1
-                            if degrees[nbrnbrIdx] == 1 {
+                            degrees[nbrnbrIdx - 1] -= 1
+                            if degrees[nbrnbrIdx - 1] == 1 {
                                 degreeOneAtoms.append(nbrnbr)
                                 change = true
                             }

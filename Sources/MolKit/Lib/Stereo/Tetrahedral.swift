@@ -3,11 +3,11 @@
 
 import Foundation 
 
-class MKTetrahedralStereo: MKTetraNonPlanarStereo {
+public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
     
     private var m_cfg: Config?
 
-    struct Config: ConfigNonPlanar, Equatable {
+    public struct Config: ConfigNonPlanar, Equatable {
         
         var center: Ref
         var from_or_towrds: from_or_towrds
@@ -16,7 +16,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
         var specified: Bool
         var refs: Refs
         
-        init() {
+        public init() {
             center = .NoRef
             from_or_towrds = .from(.NoRef)
             winding = .Clockwise
@@ -25,7 +25,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             refs = []
         }
         
-        init(center: Ref, from_or_towrds: from_or_towrds, winding: MKStereo.Winding, view: MKStereo.View, specified: Bool, refs: Refs) {
+        public init(center: Ref, from_or_towrds: from_or_towrds, winding: MKStereo.Winding, view: MKStereo.View, specified: Bool, refs: Refs) {
             self.center = center
             self.from_or_towrds = from_or_towrds
             self.winding = winding
@@ -34,7 +34,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             self.refs = refs
         }
         
-        static func == (lhs: MKTetrahedralStereo.Config, rhs: MKTetrahedralStereo.Config) -> Bool {
+        public static func == (lhs: MKTetrahedralStereo.Config, rhs: MKTetrahedralStereo.Config) -> Bool {
             
             if lhs.center != rhs.center { return false }
             if lhs.refs.count != 3 || rhs.refs.count != 3 { return false }
@@ -114,7 +114,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
         }
     }
 
-    override func getType() -> MKStereo.TType {
+    public override func getType() -> MKStereo.TType {
         return .Tetrahedral
     }
 
@@ -166,16 +166,18 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             m_cfg = Config()
             return
         }
+        
+        m_cfg = cfg
     }
     
     /**
      * Get the configuration as Config struct.
      */
-    func getConfig(_ winding: MKStereo.Winding = .Clockwise, _ view: MKStereo.View = .ViewFrom) -> Config {
+    public func getConfig(_ winding: MKStereo.Winding = .Clockwise, _ view: MKStereo.View = .ViewFrom) -> Config {
         if !isValid() {
             return Config()
         }
-        if m_cfg!.winding == .UnknownWinding {
+        if m_cfg!.winding != .UnknownWinding {
             return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds, winding, view)
         } else {
             return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds, .UnknownWinding, view)
@@ -189,7 +191,7 @@ class MKTetrahedralStereo: MKTetraNonPlanarStereo {
         if !isValid() {
             return Config()
         }
-        if m_cfg!.winding == .UnknownWinding {
+        if m_cfg!.winding != .UnknownWinding {
             return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, winding, view)
         } else {
             return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, .UnknownWinding, view)

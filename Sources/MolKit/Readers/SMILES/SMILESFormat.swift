@@ -31,7 +31,7 @@ func canHaveLonePair(_ elem: Int) -> Bool {
 }
 
 //Base class for SMIFormat and CANSIFormat with most of the functionality
-class SMIBaseFormat: MKMoleculeFormat {
+public class SMIBaseFormat: MKMoleculeFormat {
     
     ////////////////////////////////////////////////////
     /// The "API" interface functions
@@ -45,7 +45,7 @@ class SMIBaseFormat: MKMoleculeFormat {
      (babel commandline). With the OBConversion functions Read, ReadString
      and ReadFile all SMILES reactions give an error when read with this format.
      */
-    override func readMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
+    override public func readMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
         let pmol = pOb.castAndClear(true) as! MKMol
         let ifs = pConv.getInStream()
         var ln: String = ""
@@ -79,7 +79,7 @@ class SMIBaseFormat: MKMoleculeFormat {
         return sp.smiToMol(pmol, smiles) //normal return
     }
     
-    override func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
+    override public func writeMolecule(_ pOb: MKBase, _ pConv: MKConversion) -> Bool {
         var pmol: MKMol = pOb as! MKMol
         // Define some references so we can use the old parameter names
         let ofs = pConv.getOutStream()
@@ -245,9 +245,9 @@ class SMIBaseFormat: MKMoleculeFormat {
     
 }
 
-class SMIFormat: SMIBaseFormat {
+public class SMIFormat: SMIBaseFormat {
     
-    override init() {
+    override public init() {
         super.init()
         MKConversion.registerFormat("smi", self, "chemical/x-daylight-smiles")
         MKConversion.registerFormat("smiles", self, "chemical/x-daylight-smiles")
@@ -466,7 +466,6 @@ class MKSmilesParser {
             mol.clear()
             return false
         }
-        // TODO: Is the following a memory leak? - there are return statements above
         _tetrahedralMap.removeAll()        
         _squarePlanarMap.removeAll()
         mol.setAutomaticFormalCharge(false)
@@ -474,14 +473,14 @@ class MKSmilesParser {
     }
     
     func parseSmiles(_ mol: MKMol, _ smiles: String) -> Bool {
-    //        mol.SetAromaticPerceived(); // Turn off perception until the end of this function
         mol.setAromaticPerceived() // Turn off perception until the end of this function
-    //        mol.BeginModify();
         mol.beginModify()
-        let _ptr = Iterator<Character>([Character](smiles))
-
-        while !_ptr.isEmpty() {
-            switch _ptr.curr()! {
+        
+        _ptr = LexicalParser()
+        _ptr.setLex(smiles)
+        
+        while !_ptr.empty() {
+            switch _ptr.cur() {
             case "\r":
                 if _ptr[1] == nil {
                     break
@@ -578,7 +577,7 @@ class MKSmilesParser {
                     return false
                 }
             } // end switch
-            _ptr.ignore() // advance to next character
+            _ptr.inc() // advance to next character
         } // end ofr _ptr
         // place dummy atoms for each unfilled external bond
         if !_extbond.isEmpty {
@@ -633,7 +632,7 @@ class MKSmilesParser {
             }
         }
         // TODO: Only Kekulize if the molecule has a lower case atom
-        var ok = MKKekulize(mol)
+        let ok = MKKekulize(mol)
         if !ok {
             print("Failed to kekulize aromatic SMILES")
             print("Title is \(mol.getTitle())")
@@ -869,45 +868,64 @@ class MKSmilesParser {
     
     
     func insertTetrahedralRef(_ mol: MKMol, id: Ref) {
-        guard var ChiralSearch = _tetrahedralMap.first(where: { $0.key == mol.getAtom(_prev)}) else {
+        print(id)
+        guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev)}) else {
             return
         }
-        let insertpos = numConnections(ChiralSearch.key, id == .ImplicitRef) - 2 // -1 indicates "from"
-        if insertpos > 2 {
-            return
-        }
-        if insertpos < 0 {
-            if ChiralSearch.value.from_or_towrds.from != .NoRef {
-                print("Warning: Overwriting previous from reference id.")
+        
+        let ChiralSearchKey = _tetrahedralMap.keys[ChiralSearchIndex]
+        
+        if _tetrahedralMap[ChiralSearchKey] != nil {
+            let insertpos = numConnections(ChiralSearchKey, id == .ImplicitRef) - 2 // -1 indicates "from"
+            if insertpos > 2 {
+                return
             }
-            ChiralSearch.value.from_or_towrds.from = id
-        } else {
-            if ChiralSearch.value.refs[insertpos] != .NoRef {
-                print("Warning: Overwriting previously set reference id.")
+            if insertpos < 0 {
+                if _tetrahedralMap[ChiralSearchKey]!.from_or_towrds.from != .NoRef {
+                    MKLogger.throwError(errorMsg:
+                                            "Warning: Overwriting previous from reference id \(_tetrahedralMap[ChiralSearchKey]!.from_or_towrds.from) with \(id)"
+                    )
+                }
+                _tetrahedralMap[ChiralSearchKey]!.from_or_towrds.from = id
+            } else {
+                if _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] != .NoRef {
+                    MKLogger.throwError(errorMsg:
+                                            "Warning: Overwriting previously set reference id \(_tetrahedralMap[ChiralSearchKey]?.refs[insertpos]) with \(id)."
+                    )
+                }
+                _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] = id
             }
-            ChiralSearch.value.refs[insertpos] = id
         }
     }
     
     func insertSquarePlanarRef(_ mol: MKMol, id: Ref) {
-        guard var ChiralSearch = _squarePlanarMap.first(where: { $0.key == mol.getAtom(_prev)}) else {
+        
+        guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev)}) else {
             return
         }
-        let insertpos = numConnections(ChiralSearch.key, id == .ImplicitRef) - 1
-        switch insertpos {
-        case -1:
-            if ChiralSearch.value.refs[0] != .NoRef {
-                print("Warning: Overwriting previous from reference id.")
+        
+        let ChiralSearchKey = _tetrahedralMap.keys[ChiralSearchIndex]
+        
+        if _tetrahedralMap[ChiralSearchKey] != nil {
+            
+            let insertpos = numConnections(ChiralSearchKey, id == .ImplicitRef) - 1
+            switch insertpos {
+            case -1:
+                if _tetrahedralMap[ChiralSearchKey]!.refs[0] != .NoRef {
+                    MKLogger.throwError(errorMsg: "Warning: Overwriting previous from reference id \(String(describing: _tetrahedralMap[ChiralSearchKey]?.refs[0])) with \(id)")
+                }
+                _tetrahedralMap[ChiralSearchKey]!.refs[0] = id
+            case 0, 1, 2, 3:
+                if _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] != .NoRef {
+                    MKLogger.throwError(errorMsg: "Warning: Overwriting previously set reference id \(String(describing: _tetrahedralMap[ChiralSearchKey]?.refs[insertpos])) with \(id)")
+                }
+                _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] = id
+            default:
+                MKLogger.throwError(errorMsg: "Warning: Square planar stereo specified for atom with more than 4 connections.")
             }
-            ChiralSearch.value.refs[0] = id
-        case 0, 1, 2, 3:
-            if ChiralSearch.value.refs[insertpos] != .NoRef {
-                print("Warning: Overwriting previously set reference id.")
-            }
-            ChiralSearch.value.refs[insertpos] = id
-        default:
-            print("Warning: Square planar stereo specified for atom with more than 4 connections.")
         }
+        
+        
     }
     
     // NumConnections finds the number of connections already made to
@@ -919,7 +937,9 @@ class MKSmilesParser {
         if isImplicitRef {
             return val + 1
         }
+        
         let idx = atom.getIdx()
+        
         if idx - 1 < _hcount.count && _hcount[idx - 1] > 0 {
             val += _hcount[idx - 1]
         }
@@ -1058,6 +1078,7 @@ class MKSmilesParser {
         switch _ptr.cur() {
         case "*":
             element = 0
+            break
         case "C":
             _ptr.inc()
             switch _ptr.cur() {
@@ -1492,12 +1513,8 @@ class MKSmilesParser {
         var charge = 0
         var rad: Int = 0
         var clval: Int = 0
-        var _: String = ""
-        
-        var _: String = ""
-        
+        _ptr.inc()
         repeat {
-            _ptr.inc()
             switch _ptr.cur() {
             case "@":
                 _ptr.inc()
@@ -1528,7 +1545,7 @@ class MKSmilesParser {
                     if _tetrahedralMap[atom] == nil {
                         _tetrahedralMap[atom] = MKTetrahedralStereo.Config()
                     }
-                    _tetrahedralMap[atom]!.refs = [.NoRef, .NoRef, .NoRef, .NoRef]
+                    _tetrahedralMap[atom]!.refs = [.NoRef, .NoRef, .NoRef]
                     _tetrahedralMap[atom]!.center = atom.getId().ref
                     if _ptr.cur() == "@" {
                         _tetrahedralMap[atom]!.winding = .Clockwise
@@ -1615,6 +1632,7 @@ class MKSmilesParser {
             default:
                 return false
             }
+            _ptr.inc()
         } while !_ptr.empty() && _ptr.cur() != "]"
         
         if _ptr.empty() || _ptr.cur() != "]" {
@@ -1867,22 +1885,23 @@ class MKSmilesParser {
                 insertTetrahedralRef(mol, id: .Ref(_prev - 1))
                 insertSquarePlanarRef(mol, id: .Ref(_prev - 1))
                 // FIXME: needed for squareplanar too??
-                var ChiralSearch = _tetrahedralMap.first(where: { $0.key == mol.getAtom(bond.prev) })
-                if ChiralSearch != nil {
-                    let insertpos = bond.numConnections - 1
-                    switch insertpos {
-                    case -1:
-                        if ChiralSearch!.value.from_or_towrds.from != .NoRef {
-                            print("Warning: Overwriting previous from reference id.")
+                if let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(bond.prev) }) {
+                    if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]] != nil {
+                        let insertpos = bond.numConnections - 1
+                        switch insertpos {
+                        case -1:
+                            if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from != .NoRef {
+                                print("Warning: Overwriting previous from reference id.")
+                            }
+                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
+                        case 0, 1, 2:
+                            if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] != .NoRef {
+                                print("Warning: Overwriting previously set reference id.")
+                            }
+                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] = mol.getAtom(_prev)!.getId().ref
+                        default:
+                            print("Warning: Tetrahedral stereo specified for atom with more than 4 connections.")
                         }
-                        ChiralSearch!.value.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
-                    case 0, 1, 2:
-                        if ChiralSearch!.value.refs[insertpos] != .NoRef {
-                            print("Warning: Overwriting previously set reference id.")
-                        }
-                        ChiralSearch!.value.refs[insertpos] = mol.getAtom(_prev)!.getId().ref
-                    default:
-                        print("Warning: Tetrahedral stereo specified for atom with more than 4 connections.")
                     }
                 }
                 //CM ensure neither atoms in ring closure is a radical center

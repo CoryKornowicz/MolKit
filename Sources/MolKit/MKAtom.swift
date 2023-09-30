@@ -42,20 +42,19 @@ public class MKAtom: MKBase {
     private var _parent: MKBase? = nil
     private var _residue: MKResidue? = nil                         //!< parent residue (if applicable)
     
-    private var _id: MKBaseID = ._id(generateUUID())                              //!< unique id
+    private var _id: MKBaseID = ._id(generateUUID())               //!< unique id
     private var _idx: Int = 0                                      //!< unique node index (GetIdx(), SetIdx())
     
     private var _ele: Int = 0                                      //!< atomic number (type unsigned char to minimize space -- allows for 0..255 elements)
-    private var _imph: UInt = 0                                     //!< number of implicit hydrogens
+    private var _imph: UInt = 0                                    //!< number of implicit hydrogens
     
     private var _type: String = ""                                 //!< atomic type
     
     // TODO: private var _v: [Vector<Double>] a true vector of 3 coordinates while _c could __technically__ handle more than 3 dimensions
-    private var _c: Array<Double> = []     //!< coordinate array in double*
+    private var _c: Array<Double> = []                             //!< coordinate array in double*
     private var _v: Vector<Double> = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)     //!< coordinate array in double*
-    private var _cidx: UInt = 0                                  //!< coordinate index 
-    // MARK: Moved to MKBase class // private var _flags: UInt = 0                                   //!< bitwise flags (e.g. aromaticity)
-    private var _hyb: Int = 0                                     //!< hybridization
+    private var _cidx: UInt = 0                                    //!< coordinate index
+    private var _hyb: Int = 0                                      //!< hybridization
     
     private var _isotope: UInt = 0                                 //!< isotope (0 = most abundant)
     private var _spinmultiplicity: Int = 0                         //!< atomic spin, e.g., 2 for radical  1 or 3 for carbene
@@ -96,28 +95,28 @@ public class MKAtom: MKBase {
         
     }
 
-    func setIdx(_ idx: Int) {
+    public func setIdx(_ idx: Int) {
         self._idx = idx
-        self._cidx = UInt((idx - 1) * 3)
+        self._cidx = UInt(max((idx - 1), 0) * 3)
     }
     
-    func getIdx() -> Int {
+    public func getIdx() -> Int {
         return self._idx
     }
     
-    func setId(_ id: Int) {
+    public func setId(_ id: Int) {
         self._id = ._id(id)
     }
     
-    func getId() -> MKBaseID {
+    public func getId() -> MKBaseID {
         return self._id
     }
     
-    func getIndex() -> Int {
+    public func getIndex() -> Int {
         return self._idx - 1
     }
     
-    func getAtomicMass() -> Double {
+    public func getAtomicMass() -> Double {
         if self._isotope == 0 {
             return MKElements.getMass(self._ele)
         } else {
@@ -125,18 +124,18 @@ public class MKAtom: MKBase {
         }
     }
     
-    func getExactMass() -> Double {
+    public func getExactMass() -> Double {
         return MKElements.getExactMass(self._ele, self._isotope)
     }
     
-    func setType(_ type: String) {
+    public func setType(_ type: String) {
         self._type = type
         if self._ele == 1 && type == "D" {
             self._isotope = 2
         }
     }
     
-    func getType() -> String {
+    public func getType() -> String {
         guard let mol: MKMol = (self._parent as? MKMol) else { return self._type }
         if !mol.hasAtomTypesPerceived() {
             MolKit._AtomTyper.assignTypes(mol)
@@ -144,11 +143,11 @@ public class MKAtom: MKBase {
         return self._type
     }
     
-    func setHyb(_ hyb: Int) {
+    public func setHyb(_ hyb: Int) {
         self._hyb = hyb
     }
     
-    func getHyb() -> Int {
+    public func getHyb() -> Int {
         //hybridization is assigned when atoms are typed
         guard let mol: MKMol = (self._parent as? MKMol) else { return _hyb }
         if !mol.hasHybridizationPerceived() {
@@ -158,11 +157,11 @@ public class MKAtom: MKBase {
         return _hyb
     }
     
-    func setAtomicNum(_ atomicNum: Int) {
+    public func setAtomicNum(_ atomicNum: Int) {
         self._ele = atomicNum
     }
     
-    func getAtomicNum() -> Int {
+    public func getAtomicNum() -> Int {
         return self._ele
     }
     
@@ -289,7 +288,7 @@ public class MKAtom: MKBase {
         return Vector.init(dimensions: 3) { dim in self._c[Int(self._cidx) + dim] }
     }
 
-    func getCoordinate() -> Double? {
+    public func getCoordinate() -> Double? {
         if !self._c.isEmpty { return self._c[Int(self._cidx)] }
         return nil
     }
@@ -1310,7 +1309,6 @@ public class MKAtom: MKBase {
     
     // //! \return Whether this atom matches the first atom in a given SMARTS pattern
     // bool MatchesSMARTS(const char *);
-    
     
     static func == (lhs: MKAtom, rhs: MKAtom) -> Bool {
         return lhs._idx == rhs._idx

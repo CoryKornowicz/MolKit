@@ -1,6 +1,11 @@
 import Foundation
 
+// quick swap
 infix operator <->: AssignmentPrecedence
+
+func <-> <A>(lhs: inout A, rhs: inout A) {
+  (lhs, rhs) = (rhs, lhs)
+}
 
 
 func sizeof <T> (_ : T.Type) -> Int
@@ -28,6 +33,3 @@ class StandardError: TextOutputStream {
   }
 }
 
-func <-> <A>(lhs: inout A, rhs: inout A) {
-  (lhs, rhs) = (rhs, lhs)
-}

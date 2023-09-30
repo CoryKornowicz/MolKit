@@ -23,7 +23,7 @@ enum Option_Type {
 //*************************************************
 /// @brief Class to convert from one format to another.
 
-class MKConversion {
+public class MKConversion {
 
     fileprivate typealias MKAMapType = OrderedDictionary<String, Int>
     
@@ -172,13 +172,13 @@ class MKConversion {
 
     }
     
-    init(_ inStream: InputFileHandler? = nil, _ outStream: OutputFileHandler? = nil) {
+    public init(_ inStream: InputFileHandler? = nil, _ outStream: OutputFileHandler? = nil) {
         defaultInit()
         setInStream(inStream)
         setOutStream(outStream)
     }
     
-    init(_ inFilename: String, _ outFilename: String) {
+    public init(_ inFilename: String, _ outFilename: String) {
         defaultInit()
         openInAndOutFiles(inFilename, outFilename)
     }
@@ -258,15 +258,15 @@ Conversion options
     /// These return a filtered stream for reading/writing (possible filters include compression, decompression, and newline transformation)
     /// @name Parameter get and set
     //@{
-    func getInStream() -> (any InputFileHandlerProtocol)? { return pInput ?? nil }
-    func getOutStream() -> (any OutputFileHandlerProtocol)? { return pOutput ?? nil }
+    public func getInStream() -> (any InputFileHandlerProtocol)? { return pInput ?? nil }
+    public func getOutStream() -> (any OutputFileHandlerProtocol)? { return pOutput ?? nil }
     
     /// @brief Set input stream.  If takeOwnership is true, will deallocate when done.
     /// If isGzipped is true, will treat as a gzipped stream regardless of option settings,
     //  if false, then will be treated as gzipped stream only if z/zin is set.
     /// Set input stream, removing/deallocating previous stream if necessary.
     /// If takeOwnership is true, takes responsibility for freeing pIn
-    func setInStream(_ pIn: InputFileHandlerProtocol?, _ takeOwnership: Bool = false) {
+    public func setInStream(_ pIn: InputFileHandlerProtocol?, _ takeOwnership: Bool = false) {
         // clear and deallocate any existing streams
         ownedInStreams.removeAll()
         pInput = nil
@@ -295,7 +295,7 @@ Conversion options
     /// Be aware that if the output stream is gzipped format, then this outstream
     /// either needs to be replaced (e.g., SetOutStream(NULL)) or the OBConversion
     /// destroyed before the underlying OutputFileHandler is deallocated.
-    func setOutStream(_ pOut: (any OutputFileHandlerProtocol)?, _ takeOwnership: Bool = false) {
+    public func setOutStream(_ pOut: (any OutputFileHandlerProtocol)?, _ takeOwnership: Bool = false) {
         ownedOutStreams.removeAll()
         pOutput = nil
         if pOut != nil {
@@ -312,50 +312,50 @@ Conversion options
     /// If inID is NULL, the input format is left unchanged. Similarly for outID
     /// Returns true if both formats have been successfully set at sometime
     @discardableResult
-    func setInAndOutFormats(_ inID: String, _ outID: String, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
+    public func setInAndOutFormats(_ inID: String, _ outID: String, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
         return setInFormat(inID, isgzip: ingzip) && setOutFormat(outID, isgzip: outgzip)
     }
     
     @discardableResult
-    func setInAndOutFormats(_ pIn: MKFormat, _ pOut: MKFormat, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
+    public func setInAndOutFormats(_ pIn: MKFormat, _ pOut: MKFormat, _ ingzip: Bool = false, _ outgzip: Bool = false) -> Bool {
         return setInFormat(pIn, isgzip: ingzip) && setOutFormat(pOut, isgzip: outgzip)
     }
     
     /// Sets the input format from an id e.g. CML
     @discardableResult
-    func setInFormat(_ inID: String, isgzip: Bool = false) -> Bool {
+    public func setInFormat(_ inID: String, isgzip: Bool = false) -> Bool {
         inFormatGzip = isgzip
         if let format = MKConversion.findFormat(inID) {
             pInFormat = format
-            return ((pInFormat!.flags() & NOTREADABLE) != 0)
+            return ((pInFormat!.flags() & NOTREADABLE) == 0)
         } else {
             return false
         }
     }
     
     @discardableResult
-    func setInFormat(_ pIn: MKFormat, isgzip: Bool = false) -> Bool {
+    public func setInFormat(_ pIn: MKFormat, isgzip: Bool = false) -> Bool {
         inFormatGzip = isgzip
         pInFormat = pIn
-        return ((pInFormat!.flags() & NOTREADABLE) != 0)
+        return ((pInFormat!.flags() & NOTREADABLE) == 0)
     }
 
     /// Sets the output format from an id e.g. CML
     @discardableResult
-    func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {
+    public func setOutFormat(_ outID: String, isgzip: Bool = false) -> Bool {
         outFormatGzip = isgzip
         if let format = MKConversion.findFormat(outID) {
             pOutFormat = format
-            return ((pOutFormat!.flags() & NOTREADABLE) != 0)
+            return ((pInFormat!.flags() & NOTREADABLE) == 0)
         } else {
             return false
         }
     }
     
-    func setOutFormat(_ pOut: MKFormat, isgzip: Bool = false) -> Bool {
+    public func setOutFormat(_ pOut: MKFormat, isgzip: Bool = false) -> Bool {
         outFormatGzip = isgzip
         pOutFormat = pOut
-        return ((pOutFormat!.flags() & NOTREADABLE) != 0)
+        return ((pOutFormat!.flags() & NOTREADABLE) == 0)
     }
 
     func getInFormat() -> MKFormat? { return pInFormat }
@@ -533,14 +533,14 @@ Conversion options
     /// @name Supported file format
     //@{
     // @brief Set and return the list of supported input format
-    func getSupportedInputFormat() -> [String] {
+    public func getSupportedInputFormat() -> [String] {
         var vlist: [String] = []
         var param: String? = "in"
         MKPlugin.ListAsVector("formats", &param, &vlist)
         return vlist
     }
     // @brief Set and return the list of supported output format
-    func getSupportedOutputFormat() -> [String] {
+    public func getSupportedOutputFormat() -> [String] {
         var vlist: [String] = []
         var param: String? = "out"
         MKPlugin.ListAsVector("formats", &param, &vlist)
@@ -739,223 +739,15 @@ Conversion options
         setFirstInput()
         var commonInFormat: Bool = pInFormat != nil ? true : false // whether set in calling routine
         
+        // TODO: Fill in once the file handler protocols are in place
+        
         //OUTPUT
-//         if(OutputFileName.empty())
-//           pOs = nullptr; //use existing stream
-//         else
-//           {
-//             if(OutputFileName.find_first_of('*')!=string::npos) HasMultipleOutputFiles = true;
-//             if(!HasMultipleOutputFiles)
-//               {
-//                 //If the output file is the same as any of the input
-//                 //files, send the output to a temporary stringstream
-//                 vector<string>::iterator itr;
-//                 for(itr=FileList.begin();itr!=FileList.end();++itr)
-//                   {
-//                     if(*itr==OutputFileName)
-//                       {
 
-//                         pOs = &ssOut;
-//                         break;
-//                       }
-//                   }
-//                 if(itr==FileList.end())
-//                   {
-//                     os.open(OutputFileName.c_str(),omode);
-//                     if(!os)
-//                       {
-//                         obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
-//                         return 0;
-//                       }
-//                     pOs=&os;
-//                   }
-//                 OutputFileList.push_back(OutputFileName);
-//               }
-//           }
         if outputFileName.isEmpty {
             
         }
 
-//         if(IsOption("t",GENOPTIONS))
-//           {
-//             //Concatenate input file option (multiple files, single molecule)
-//             if(HasMultipleOutputFiles)
-//               {
-//                 obErrorLog.ThrowError(__FUNCTION__,
-//                                       "Cannot have multiple output files and also concatenate input files (-t option)",obError);
-//                 return 0;
-//               }
-
-//             stringstream allinput;
-//             vector<string>::iterator itr;
-//             for(itr=FileList.begin();itr!=FileList.end();++itr)
-//               {
-//                 ifstream ifs((*itr).c_str());
-//                 if(!ifs)
-//                   {
-//                     obErrorLog.ThrowError(__FUNCTION__,"Cannot open " + *itr, obError);
-//                     continue;
-//                   }
-//                 allinput << ifs.rdbuf(); //Copy all file contents
-//                 ifs.close();
-//               }
-//             Count = Convert(&allinput,pOs);
-//             return Count;
-//           }
-
-//         //INPUT
-//         if(FileList.empty())
-//           {
-//             pIs = nullptr;
-//             if(HasMultipleOutputFiles)
-//               {
-//                 obErrorLog.ThrowError(__FUNCTION__,"Cannot use multiple output files without an input file", obError);
-//                 return 0;
-//               }
-//           }
-//         else
-//           {
-//             if(FileList.size()>1 || OutputFileName.substr(0,2)=="*.")
-//               {
-//                 //multiple input files
-//                 vector<string>::iterator itr, tempitr;
-//                 tempitr = FileList.end();
-//                 --tempitr;
-//                 for(itr=FileList.begin();itr!=FileList.end();++itr)
-//                   {
-//                     InFilename = *itr;
-//                     ifstream ifs;
-//                     if(!OpenAndSetFormat(CommonInFormat, &ifs, &ssIn))
-//                       continue;
-//                     if(ifs)
-//                       pIs = &ifs;
-//                     else
-//                       pIs = &ssIn;
-
-//                     //pIs = ifs ? &ifs : &ssIn;
-
-
-//                     if(HasMultipleOutputFiles)
-//                       {
-//                         //Batch conversion
-//                         string batchfile = BatchFileName(OutputFileName,*itr);
-
-//                         //With inputs like babel test.xxx -oyyy -m
-//                         //the user may have wanted to do a splitting operation
-//                         //Issue a message and abort if xxx==yyy which would overwrite input file
-//                         if(FileList.size()==1 && !CheckForUnintendedBatch(batchfile, InFilename))
-//                           return Count;
-
-//                         if(ofs.is_open()) ofs.close();
-//                         ofs.open(batchfile.c_str(), omode);
-//                         if(!ofs)
-//                           {
-//                             obErrorLog.ThrowError(__FUNCTION__,"Cannot open " + batchfile, obError);
-//                             return Count;
-//                           }
-//                         OutputFileList.push_back(batchfile);
-//                         SetOutputIndex(0); //reset for new file
-//                         Count += Convert(pIs,&ofs);
-//                       }
-//                     else
-//                       {
-//                         //Aggregation
-//                         if(itr!=tempitr) SetMoreFilesToCome();
-//                         Count = Convert(pIs,pOs);
-//                       }
-//                   }
-
-//                 if(!os.is_open() && !OutputFileName.empty() && !HasMultipleOutputFiles)
-//                   {
-//                     //Output was written to temporary string stream. Output it to the file
-//                     os.open(OutputFileName.c_str(),omode);
-//                     if(!os)
-//                       {
-//                         obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
-//                         return Count;
-//                       }
-//                     os << ssOut.rdbuf();
-//                   }
-//                 return Count;
-//               }
-//             else
-//               {
-//                 //Single input file
-//                 InFilename = FileList[0];
-//                 if(!OpenAndSetFormat(CommonInFormat, &is, &ssIn))
-//                   return 0;
-//                 if(is)
-//                   pIs =&is;
-//                 else
-//                   pIs = &ssIn;
-
-//                 if(HasMultipleOutputFiles)
-//                   {
-//                     //Splitting
-//                     //Output is put in a temporary stream and written to a file
-//                     //with an augmenting name only when it contains a valid object.
-//                     int Indx=1;
-// #ifdef HAVE_LIBZ
-//                     if(pInFormat && zlib_stream::isGZip(*pIs))
-//                     {
-//                       //for backwards compat, attempt to autodetect gzip
-//                       inFormatGzip = true;
-//                     }
-// #endif
-//                     SetInStream(pIs, false);
-
-
-//                     for(;;)
-//                       {
-//                         stringstream ss;
-//                         SetOutStream(&ss);
-//                         SetOutputIndex(0); //reset for new file
-//                         SetOneObjectOnly();
-
-//                         int ThisFileCount = Convert();
-//                         if(ThisFileCount==0) break;
-//                         Count+=ThisFileCount;
-
-//                         if(ofs.is_open()) ofs.close();
-//                         string incrfile = IncrementedFileName(OutputFileName,Indx++);
-//                         ofs.open(incrfile.c_str(), omode);
-//                         if(!ofs)
-//                           {
-//                             obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + incrfile, obError);
-//                             return Count;
-//                           }
-
-//                         OutputFileList.push_back(incrfile);
-//                         SetOutStream(&ofs, false); //pickup possible gzip
-//                         *pOutput << ss.rdbuf();
-//                         SetOutStream(nullptr);
-//                         ofs.close();
-//                         ss.clear();
-//                       }
-//                     return Count;
-//                   }
-//               }
-//           }
-
-//         //Single input and output files
-//         Count = Convert(pIs,pOs);
-
-//         if(os && !os.is_open() && !OutputFileName.empty())
-//           {
-//             //Output was written to temporary string stream. Output it to the file
-//             os.open(OutputFileName.c_str(),omode);
-//             if(!os)
-//               {
-//                 obErrorLog.ThrowError(__FUNCTION__,"Cannot write to " + OutputFileName, obError);
-//                 return Count;
-//               }
-//             SetOutStream(&os, false);
-//             *pOutput << ssOut.rdbuf();
-//             SetOutStream(nullptr);
-//           }
-
         return Count
-
     }
     //@}
 
@@ -1251,11 +1043,12 @@ Conversion options
         
         // If we failed to read, plus the stream is over, then check if this is a stream from ReadFile
         if (!success && !(pInput!.streamStatus == .error) && ownedInStreams.count > 0) {
-            let inFstream = ownedInStreams[0] as! InputFileHandler
-            do {
-                try inFstream.close()
-            } catch {
-                print("unable to close inFstream")
+            if let inFstream = ownedInStreams[0] as? InputFileHandler {
+                do {
+                    try inFstream.close()
+                } catch {
+                    print("unable to close inFstream")
+                }
             }
             // We will free the stream later, but close the file now
         }
@@ -1471,9 +1264,7 @@ Conversion options
         if inFile == outFile { return false }
         return true
     }
-    
-    func clearInStreams() {}
-    
+        
     func setStartAndEnd() -> Bool {
         var TempStartNumber = 0
         var p: String? = isOption("f", .GENOPTIONS)
@@ -1521,7 +1312,33 @@ Conversion options
     }
     
     func openAndSetFormat(_ setFormat: Bool, _ iss: InputFileHandler, _ ss: InputFileHandler? = nil) -> Bool {
-        fatalError()
+        // opens file using inFilename and sets pInFormat if requested
+        if ss != nil && inFilename[0] == "-" {
+            // inFilename is actually -:SMILES
+            inFilename = inFilename.substring(fromIndex: 2) // cut out "-:"
+            if setFormat || setInFormat("smi") {
+                return true
+            }
+        } else if !setFormat {
+            pInFormat = MKConversion.formatFromExt(inFilename, &inFormatGzip)
+            if pInFormat == nil {
+                if let punctuationPoint = inFilename.lastIndex(of: ".") {
+                    let ext = inFilename.substring(fromIndex: punctuationPoint)
+                    var errorMsg = "Could not parse input format \(ext) for file \(inFilename)"
+                    MKLogger.throwError(#function, errorMsg: errorMsg)
+                }
+                return false
+            }
+        }
+        
+        do {
+            try iss.open(inFilename, mode: "r")
+        } catch {
+            print(error)
+            return false
+        }
+        
+        return true
     }
     
 }

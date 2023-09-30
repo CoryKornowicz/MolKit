@@ -99,15 +99,15 @@ extension RefValue: ExpressibleByIntegerLiteral {
     
 }
 
-typealias Ref = RefValue
-typealias Refs = [Ref]
+public typealias Ref = RefValue
+public typealias Refs = [Ref]
 
 public struct MKStereo {
     
     /**
      * The various types of stereochemistry
      */
-    enum TType: Int {
+    public enum TType: Int {
         case CisTrans = 0                //!< cis/trans double bond
         case ExtendedCisTrans = 2        //!< allene, biphenyl, ...
         case SquarePlanar = 4            //!< Square-planar stereochemistry
@@ -121,7 +121,7 @@ public struct MKStereo {
      * Bond directions used by StereoFrom0D() to translate to
      * internal CisTransStereo representation.
      */
-    enum BondDirection: Int { // Values taken from MDL format
+    public enum BondDirection: Int { // Values taken from MDL format
         case NotStereo =   0
         case UpBond =      1
         case DownBond =    6
@@ -135,7 +135,7 @@ public struct MKStereo {
      * @image html SPshapes.png
      * @sa MKTetraPlanarStereo
      */
-    enum Shape: Int {
+    public enum Shape: Int {
         case ShapeU = 1
         case ShapeZ = 2
         case Shape4 = 3
@@ -146,7 +146,7 @@ public struct MKStereo {
      * setting/getting reference ids.
      * @sa MKTetraNonPlanarStereo
      */
-    enum View: Int
+    public enum View: Int
     {
         case ViewFrom = 1 //!< view from the atom (id parameter) towards the center atom
         case ViewTowards = 2 //!< view from center atom towards the atom (id parameter)
@@ -157,18 +157,18 @@ public struct MKStereo {
      * setting/getting reference ids.
      * @sa MKTetraNonPlanar
      */
-    enum Winding: Int {
+    public enum Winding: Int {
         case Clockwise = 1      //!< Clockwise winding
         case AntiClockwise = 2  //!< AntiClockwise winding (or CounterClockwise)
         case UnknownWinding = 3 //!< The configuration is specified as unknown (squiggly line in depiction)
     }
     
     
-    static func makeRefs(_ ref1: RefValue, _ ref2: RefValue, _ ref3: RefValue, _ ref4: RefValue = .NoRef) -> Refs {
-        if ref4 == .NoRef {
-            return [ref1, ref2, ref3].map { $0 }
+    public static func makeRefs(_ ref1: RefValue, _ ref2: RefValue, _ ref3: RefValue, _ ref4: RefValue? = .NoRef) -> Refs {
+        if ref4 == .NoRef || ref4 == nil {
+            return [ref1, ref2, ref3]
         } else {
-            return [ref1, ref2, ref3, ref4].map { $0 }
+            return [ref1, ref2, ref3, ref4!]
         }
     }
     
@@ -312,7 +312,7 @@ typealias MKStereoUnitSet = [MKStereoUnit]
  */
 typealias MKStereoUnitSets = [MKStereoUnitSet]
 
-class MKStereoBase: MKGenericData {
+public class MKStereoBase: MKGenericData {
 
     var m_mol: MKMol 
     var m_specified: Bool
@@ -335,7 +335,7 @@ class MKStereoBase: MKGenericData {
         return self.m_specified
     }
 
-    func getType() -> MKStereo.TType {
+    public func getType() -> MKStereo.TType {
         fatalError("not implemented in base class")
     }
 }

@@ -2,7 +2,7 @@
 
 import Foundation 
 
-enum from_or_towrds: Equatable {
+public enum from_or_towrds: Equatable {
     case from(_ value: Ref)
     case towards(_ value: Ref)
     
@@ -75,7 +75,7 @@ enum from_or_towrds: Equatable {
         }
     }
     
-    static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {
+    public static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {
         return lhs.value == rhs.value
     }
     

@@ -19,8 +19,9 @@ class MKLogger {
     
     
     static func throwError(_ method: String = #function, errorMsg: String) {
-        let msg = MKLogger.decorateWithFunctionName(method) + errorMsg
+        let msg = MKLogger.decorateWithFunctionName(method) + errorMsg + "\n"
         //write to stderror
+        _ = try? FileHandle.standardError.seekToEnd()
         msg.data(using: .utf8).map(FileHandle.standardError.write)
     }
     
@@ -29,7 +30,7 @@ class MKLogger {
 extension MKLogger {
     
     private static func decorateWithFunctionName(_ funcName: String) -> String {
-        return "### originating function: \(funcName) ###"
+        return "### originating function: \(funcName) ### \n"
     }
     
 }

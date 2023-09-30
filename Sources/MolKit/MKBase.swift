@@ -66,25 +66,25 @@ public class MKBase: NSObject {
         self._flags = 0
     }
     
-    func getTitle() -> String {
+    public func getTitle() -> String {
         return ""
     }
     
-    func setTitle(_ title: String) { return }
+    public func setTitle(_ title: String) { return }
 
-    func getFlags() -> UInt {
+    public func getFlags() -> UInt {
         return self._flags
     }
     
-    func setFlag(_ flag: UInt) {
+    public func setFlag(_ flag: UInt) {
         self._flags |= flag
     }
     
-    func unsetFlag(_ flag: UInt) {
+    public func unsetFlag(_ flag: UInt) {
         self._flags &= ~flag
     }
     
-    func set_or_unsetFlag(_ flag: UInt, _ value: Bool) {
+    public func set_or_unsetFlag(_ flag: UInt, _ value: Bool) {
         if value {
             self.setFlag(flag)
         } else {
@@ -92,12 +92,12 @@ public class MKBase: NSObject {
         }
     }
     
-    func hasFlag(_ flag: UInt) -> Bool {
+    public func hasFlag(_ flag: UInt) -> Bool {
         return (self._flags & flag) != 0
     }
 
     //! \return whether the generic attribute/value pair exists
-    func hasData(_ attr: String) -> Bool {
+    public func hasData(_ attr: String) -> Bool {
         if let vdata = self._vdata {
             for data in vdata {
                 if data.attr == attr {
@@ -108,7 +108,7 @@ public class MKBase: NSObject {
         return false
     }
     //! \return whether the generic attribute/value pair exists, for a given MKGenericDataType
-    func hasData(_ type: MKGenericDataType) -> Bool {
+    public func hasData(_ type: MKGenericDataType) -> Bool {
         if let vdata = self._vdata {
             for data in vdata {
                 if data.type == type {
@@ -128,7 +128,7 @@ public class MKBase: NSObject {
 
     //! \return the first matching data for a given type from OBGenericDataType
     //!    or NULL if nothing matches
-    func getData(_ type: MKGenericDataType) -> MKGenericData? {
+    public func getData(_ type: MKGenericDataType) -> MKGenericData? {
         if let vdata = self._vdata {
             for data in vdata {
                 if data.type == type {
@@ -140,7 +140,7 @@ public class MKBase: NSObject {
     }
 
     //! \return any data matching the given attribute name or NULL if nothing matches
-    func getData(_ attr: String) -> MKGenericData? {
+    public func getData(_ attr: String) -> MKGenericData? {
         if let vdata = self._vdata {
             for data in vdata {
                 if data.attr == attr {
@@ -153,7 +153,7 @@ public class MKBase: NSObject {
 
     //! \return the all matching data for a given type from OBGenericDataType
     //!    or an empty vector if nothing matches
-    func getAllData(_ type: MKGenericDataType) -> [MKGenericData]? {
+    public func getAllData(_ type: MKGenericDataType) -> [MKGenericData]? {
         var tempvdata: [MKGenericData] = []
         if let vdata = self._vdata {
             for data in vdata {
@@ -166,12 +166,12 @@ public class MKBase: NSObject {
     }
 
     //! \return all data, suitable for iterating
-    func getDataVector() -> [MKGenericData]? {
+    public func getDataVector() -> [MKGenericData]? {
         return self._vdata
     }
 
     //! \return all data with a specific origin, suitable for iterating
-    func getDataVector(_ origin: DataOrigin) -> [MKGenericData]? {
+    public func getDataVector(_ origin: DataOrigin) -> [MKGenericData]? {
         var tempvdata: [MKGenericData] = []
         if let vdata = self._vdata {
             for data in vdata {
@@ -191,7 +191,7 @@ public class MKBase: NSObject {
     //     { return(_vdata.end());          }
 
     //! Adds a data object; does nothing if d==NULL
-    func setData(_ d: MKGenericData) {
+    public func setData(_ d: MKGenericData) {
         if self._vdata == nil {
             self._vdata = [MKGenericData]()
         }

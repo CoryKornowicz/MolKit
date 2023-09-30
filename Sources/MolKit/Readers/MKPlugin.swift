@@ -12,8 +12,7 @@ import Collections
 //Maps of thistype are used to store
 // (a)a list of the plugin types in OBPlugin, and
 // (b)a list of the sub-types in each type class derived from OBPlugin.
-typealias PluginMapType<T: MKPlugin> = OrderedDictionary<String, T>
-
+public typealias PluginMapType<T: MKPlugin> = OrderedDictionary<String, T>
 
 protocol MKPluginProtocol {
         
@@ -53,11 +52,12 @@ protocol MKPluginProtocol {
     /// Is a function rather than a static member variable to avoid initialization problems.
 }
 
-class MKPlugin: Equatable {
+public class MKPlugin: Equatable {
         
     var _id: String = ""
-    static var allPluginsLoaded: Int = 0
-    static var pluginMap: PluginMapType<MKPlugin> = PluginMapType<MKPlugin>()
+    
+    static public var allPluginsLoaded: Int = 0
+    static public var pluginMap: PluginMapType<MKPlugin> = PluginMapType<MKPlugin>()
             
     func getID() -> String { return _id }
     
@@ -87,8 +87,19 @@ class MKPlugin: Equatable {
     }
     
     func makeInstance(_ v: [String]) -> MKPlugin? {
-        return nil
+        fatalError("not implemented in base class")
     }
+    
+//    init(_ id: String, _ isDefault: Bool) {
+//        self._id = id
+//        if isDefault || MKPlugin.map.isEmpty {
+//            MKPlugin.Default = self
+//        }
+//        if MKPlugin.pluginMap.map({ $0.0 == _id ? 1 : 0}).reduce(0, +) == 0 {
+//            T.map[_id] = self
+//            MKPlugin.pluginMap[typeID()] = self
+//        }
+//    }
     
     static func getPlugin(_ Type: String?, _ ID: String) -> MKPlugin? {
         if Type != nil || Type != "" {
@@ -110,7 +121,7 @@ class MKPlugin: Equatable {
         return nil
     }
     
-    func getMap<T: MKPlugin>() -> PluginMapType<T>? { return nil }
+    func getMap<T: MKPlugin>() -> PluginMapType<T>? { return MKPlugin.pluginMap as! PluginMapType<T>? }
 
     ///Load all plugins (formats, fingerprints, forcefields etc.)
     static func loadAllPlugins() {
@@ -231,7 +242,7 @@ class MKPlugin: Equatable {
     }
     
     
-    static func == (_ lhs: MKPlugin, _ rhs: MKPlugin) -> Bool {
+    public static func == (_ lhs: MKPlugin, _ rhs: MKPlugin) -> Bool {
         return lhs.typeID() == rhs.typeID() && lhs._id == rhs._id
     }
     

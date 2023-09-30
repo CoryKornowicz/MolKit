@@ -247,7 +247,7 @@ public func is_surface(_ x: Int) -> Bool {
                  AA_HIS)) != 0
 }
 
-class MKResidue: MKBase {
+public class MKResidue: MKBase {
 
     private let Residue =  [
     /*===============*/

@@ -24,7 +24,7 @@ public let OB_RING_BOND: UInt = 1<<4
 public let OB_CLOSURE_BOND: UInt = 1<<10
 public let OB_WEDGE_OR_HASH_BOND: UInt = 1<<11
 
-class MKBond: MKBase {
+public class MKBond: MKBase {
 
     private var _idx: UInt = 0
     private var _parent: MKMol? = nil

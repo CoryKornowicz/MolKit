@@ -120,7 +120,7 @@ public enum MKGenericDataType: UInt {
     case CustomData15 = 16399
 }
 
-enum DataOrigin {
+public enum DataOrigin {
     case any                 //!< Undefined or unspecified (default)
     case fileformatInput     //!< Read from an input file
     case userInput           //!< Added by the user

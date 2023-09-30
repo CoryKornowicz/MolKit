@@ -28,7 +28,7 @@ public class MolKit {
     static let theGastegierCharges: GasteigerCharges = GasteigerCharges("gasteiger", false)
     static let theFIXFormat: FIXFormat = FIXFormat()
     
-    init() {
+    public init() {
         
     }
     

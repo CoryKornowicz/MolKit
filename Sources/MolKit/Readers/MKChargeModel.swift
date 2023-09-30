@@ -68,8 +68,7 @@ class MKChargeModel: MKPlugin, MKPluginProtocol {
     
     var m_partialCharges: [Double] = []
     var m_formalCharges: [Double] = [] 
-    
-    
+        
     static func findType(_ ID: String?) -> MKChargeModel? {
         if ID == nil {
             return MKChargeModel.Default

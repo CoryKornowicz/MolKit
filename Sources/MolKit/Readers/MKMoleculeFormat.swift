@@ -4,7 +4,7 @@
 import Foundation
 import Collections
 
-class MKMoleculeFormat: MKFormat {
+public class MKMoleculeFormat: MKFormat {
     
     typealias NameIndexType = Dictionary<String, Int>
     
@@ -65,7 +65,7 @@ class MKMoleculeFormat: MKFormat {
         fatalError()
     }
     
-    override func readChemObject(_ pConv: MKConversion) -> Bool {
+    public override func readChemObject(_ pConv: MKConversion) -> Bool {
         return MKMoleculeFormat.readChemObjectImpl(pConv, self)
     }
     
