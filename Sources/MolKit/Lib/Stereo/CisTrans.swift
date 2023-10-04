@@ -374,7 +374,7 @@ class MKCisTransStereo: MKTetraPlanarStereo {
                     }
                     print("MKCisTransStereo.isOnSameAtom: Atoms with id1 & id2 don't exist, must be a (deleted) hydrogens.")
                     
-                    return isOnSameAtom(c!.getId().ref, d!.getId().ref)
+                    return isOnSameAtom(c!.getId(), d!.getId())
             }
         }
         

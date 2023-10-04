@@ -482,9 +482,6 @@ class MKSmilesParser {
         while !_ptr.empty() {
             switch _ptr.cur() {
             case "\r":
-                if _ptr[1] == nil {
-                    break
-                }
                 return false
             case "0"..."9", "%":
                 if _prev == 0 {
@@ -638,8 +635,8 @@ class MKSmilesParser {
             print("Title is \(mol.getTitle())")
             return false // Should we return false for a kekulization failure?
         }
-        // Add the data stored inside the _tetrahedralMap to the atoms now after end
-        // modify so they don't get lost.
+        // Add the data stored inside the _tetrahedralMap to the atoms now after
+        // endModify so they don't get lost.
         if !_tetrahedralMap.isEmpty {
             for ChiralSearch in _tetrahedralMap {
                 let atom = ChiralSearch.key
@@ -848,17 +845,17 @@ class MKSmilesParser {
                 continue
             }
             // other_bond will contain NULLs if there are bonds to implicit hydrogens
-            let second: Ref = (other_bond[0] == nil) ? .ImplicitRef : other_bond[0]!.getNbrAtom(a1).getId().ref
-            let fourth: Ref = (other_bond[1] == nil) ? .ImplicitRef : other_bond[1]!.getNbrAtom(a2).getId().ref
+            let second: Ref = (other_bond[0] == nil) ? .ImplicitRef : other_bond[0]!.getNbrAtom(a1).getId()
+            let fourth: Ref = (other_bond[1] == nil) ? .ImplicitRef : other_bond[1]!.getNbrAtom(a2).getId()
             let ct = MKCisTransStereo(mol)
             let cfg = MKCisTransStereo.Config()
-            cfg.begin = a1.getId().ref
-            cfg.end = a2.getId().ref
+            cfg.begin = a1.getId()
+            cfg.end = a2.getId()
             // If bond_stereo[0]==bond_stereo[1], this means cis for stereo_bond[0] and stereo_bond[1].
             if bond_stereo[0] == bond_stereo[1] {
-                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId().ref, second, fourth, stereo_bond[1]!.getNbrAtom(a2).getId().ref)
+                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId(), second, fourth, stereo_bond[1]!.getNbrAtom(a2).getId())
             } else {
-                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId().ref, second, stereo_bond[1]!.getNbrAtom(a2).getId().ref, fourth)
+                cfg.refs = MKStereo.makeRefs(stereo_bond[0]!.getNbrAtom(a1).getId(), second, stereo_bond[1]!.getNbrAtom(a2).getId(), fourth)
             }
             ct.setConfig(cfg)
             // add the data to the atom
@@ -868,8 +865,10 @@ class MKSmilesParser {
     
     
     func insertTetrahedralRef(_ mol: MKMol, id: Ref) {
+        
         print(id)
-        guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev)}) else {
+        
+        guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev) }) else {
             return
         }
         
@@ -900,32 +899,30 @@ class MKSmilesParser {
     
     func insertSquarePlanarRef(_ mol: MKMol, id: Ref) {
         
-        guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev)}) else {
+        guard let ChiralSearchIndex = _squarePlanarMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev)}) else {
             return
         }
         
-        let ChiralSearchKey = _tetrahedralMap.keys[ChiralSearchIndex]
+        let ChiralSearchKey = _squarePlanarMap.keys[ChiralSearchIndex]
         
-        if _tetrahedralMap[ChiralSearchKey] != nil {
+        if _squarePlanarMap[ChiralSearchKey] != nil {
             
             let insertpos = numConnections(ChiralSearchKey, id == .ImplicitRef) - 1
             switch insertpos {
             case -1:
-                if _tetrahedralMap[ChiralSearchKey]!.refs[0] != .NoRef {
-                    MKLogger.throwError(errorMsg: "Warning: Overwriting previous from reference id \(String(describing: _tetrahedralMap[ChiralSearchKey]?.refs[0])) with \(id)")
+                if _squarePlanarMap[ChiralSearchKey]!.refs[0] != .NoRef {
+                    MKLogger.throwError(errorMsg: "Warning: Overwriting previous from reference id \(String(describing: _squarePlanarMap[ChiralSearchKey]?.refs[0])) with \(id)")
                 }
-                _tetrahedralMap[ChiralSearchKey]!.refs[0] = id
+                _squarePlanarMap[ChiralSearchKey]!.refs[0] = id
             case 0, 1, 2, 3:
-                if _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] != .NoRef {
-                    MKLogger.throwError(errorMsg: "Warning: Overwriting previously set reference id \(String(describing: _tetrahedralMap[ChiralSearchKey]?.refs[insertpos])) with \(id)")
+                if _squarePlanarMap[ChiralSearchKey]!.refs[insertpos] != .NoRef {
+                    MKLogger.throwError(errorMsg: "Warning: Overwriting previously set reference id \(String(describing: _squarePlanarMap[ChiralSearchKey]?.refs[insertpos])) with \(id)")
                 }
-                _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] = id
+                _squarePlanarMap[ChiralSearchKey]!.refs[insertpos] = id
             default:
                 MKLogger.throwError(errorMsg: "Warning: Square planar stereo specified for atom with more than 4 connections.")
             }
         }
-        
-        
     }
     
     // NumConnections finds the number of connections already made to
@@ -943,6 +940,7 @@ class MKSmilesParser {
         if idx - 1 < _hcount.count && _hcount[idx - 1] > 0 {
             val += _hcount[idx - 1]
         }
+        
         for bond in _rclose {
             if bond.prev == idx {
                 val += 1
@@ -1027,10 +1025,8 @@ class MKSmilesParser {
             atom.setAromatic()
         }
         
-        if _prev != 0 { // need to add bond
-            let prevatom = mol.getAtom(_prev)
-            assert(prevatom != nil)
-            if arom && prevatom!.isAromatic() && _order == 0 {
+        if _prev != 0, let prevatom = mol.getAtom(_prev) { // need to add bond
+            if arom && prevatom.isAromatic() && _order == 0 {
                 mol.addBond(_prev, mol.numAtoms(), 1, Int(OB_AROMATIC_BOND)) // this will be kekulized later
             } else {
                 mol.addBond(_prev, mol.numAtoms(), _order == 0 ? 1 : _order)
@@ -1039,8 +1035,8 @@ class MKSmilesParser {
             if _updown == BondUpChar || _updown == BondDownChar {
                 _upDownMap[mol.getBond(_prev, mol.numAtoms())!] = _updown
             }
-            insertTetrahedralRef(mol, id: .Ref(mol.numAtoms() - 1))
-            insertSquarePlanarRef(mol, id: .Ref(mol.numAtoms() - 1))
+            insertTetrahedralRef(mol, id: mol.getLastAtom()!.getId()) // .Ref(mol.numAtoms() - 1)
+            insertSquarePlanarRef(mol, id: mol.getLastAtom()!.getId()) // .Ref(mol.numAtoms() - 1)
         }
         
         // set values
@@ -1070,6 +1066,7 @@ class MKSmilesParser {
             _ptr.inc()
             size += 1
         }
+        
         if size == 5 {
             return false
         }
@@ -1525,7 +1522,7 @@ class MKSmilesParser {
                         _squarePlanarMap[atom] = MKSquarePlanarStereo.Config()
                     }
                     _squarePlanarMap[atom]!.refs = [.NoRef, .NoRef, .NoRef, .NoRef]
-                    _squarePlanarMap[atom]!.center = atom.getId().ref
+                    _squarePlanarMap[atom]!.center = atom.getId()
                     _ptr += 2
                     switch _ptr.cur() {
                     case "1":
@@ -1546,7 +1543,7 @@ class MKSmilesParser {
                         _tetrahedralMap[atom] = MKTetrahedralStereo.Config()
                     }
                     _tetrahedralMap[atom]!.refs = [.NoRef, .NoRef, .NoRef]
-                    _tetrahedralMap[atom]!.center = atom.getId().ref
+                    _tetrahedralMap[atom]!.center = atom.getId()
                     if _ptr.cur() == "@" {
                         _tetrahedralMap[atom]!.winding = .Clockwise
                     } else if _ptr.cur() == "?" {
@@ -1644,16 +1641,17 @@ class MKSmilesParser {
         if charge != 0 {
             atom.setFormalCharge(charge)
             if abs(charge) > 10 || (element != 0 && charge > element) { // if the charge is +/- 10 or more than the number of electrons
-                let err = "Atom \(atom.getId().rawValue) had an unrealistic charge of \(charge)"
+                let err = "Atom \(atom.getId().intValue) had an unrealistic charge of \(charge)"
                 print(err)
             }
         }
         
         if rad != 0 {
             atom.setSpinMultiplicity(rad)
-            atom.setAtomicNum(element)
-            atom.setIsotope(UInt(isotope))
         }
+        
+        atom.setAtomicNum(element)
+        atom.setIsotope(UInt(isotope))
         
         if arom {
             atom.setAromatic()
@@ -1665,7 +1663,7 @@ class MKSmilesParser {
             pi.setValue(_rxnrole)
             atom.setData(pi)
         }
-        
+                
         if _prev != 0 { // need to add bond
             guard let prevatom = mol.getAtom(_prev) else { return false }
             if arom && prevatom.isAromatic() && _order == 0 {
@@ -1678,16 +1676,16 @@ class MKSmilesParser {
                 _upDownMap[mol.getBond(_prev, mol.numAtoms())!] = _updown
             }
             if chiralWatch { // if tetrahedral atom, set previous as from atom
-                _tetrahedralMap[atom]!.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
+                _tetrahedralMap[atom]!.from_or_towrds.from = mol.getAtom(_prev)!.getId()
                 if canHaveLonePair(element) { // Handle chiral lone pair as in X[S@@](Y)Z
                     _chiralLonePair[UInt(mol.numAtoms())] = "1" // First of the refs
                 }
             }
             if squarePlanarWatch { // if squareplanar atom, set previous atom as first ref
-                _squarePlanarMap[atom]!.refs[0] = mol.getAtom(_prev)!.getId().ref
+                _squarePlanarMap[atom]!.refs[0] = mol.getAtom(_prev)!.getId()
             }
-            insertTetrahedralRef(mol, id: atom.getId().ref)
-            insertSquarePlanarRef(mol, id: atom.getId().ref)
+            insertTetrahedralRef(mol, id: atom.getId())
+            insertSquarePlanarRef(mol, id: atom.getId())
         } else { // Handle chiral lone pair as in [S@@](X)(Y)Z
             if chiralWatch && canHaveLonePair(element) { // Handle chiral lone pair (only S at the moment)
                 _chiralLonePair[UInt(mol.numAtoms())] = "0" // 'from' atom
@@ -1707,6 +1705,7 @@ class MKSmilesParser {
                 insertSquarePlanarRef(mol, id: .ImplicitRef)
             }
         }
+        
         _hcount.append(hcount)
         chiralWatch = false
         squarePlanarWatch = false
@@ -1893,12 +1892,12 @@ class MKSmilesParser {
                             if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from != .NoRef {
                                 print("Warning: Overwriting previous from reference id.")
                             }
-                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from = mol.getAtom(_prev)!.getId().ref
+                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from = mol.getAtom(_prev)!.getId()
                         case 0, 1, 2:
                             if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] != .NoRef {
                                 print("Warning: Overwriting previously set reference id.")
                             }
-                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] = mol.getAtom(_prev)!.getId().ref
+                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] = mol.getAtom(_prev)!.getId()
                         default:
                             print("Warning: Tetrahedral stereo specified for atom with more than 4 connections.")
                         }
@@ -1920,7 +1919,8 @@ class MKSmilesParser {
         //since no closures save another rclose bond
         
         guard let atom = mol.getAtom(_prev) else { return false }
-        let ringClosure: RingClosureBond = RingClosureBond(digit: digit, prev: _prev, order: _order, updown: _updown, numConnections: numConnections(atom, atom.getId().ref == .ImplicitRef)) //store position to insert closure bond
+        let ringClosure: RingClosureBond = RingClosureBond(digit: digit, prev: _prev, order: _order, updown: _updown, numConnections: numConnections(atom, atom.getId() == .ImplicitRef))
+        //store position to insert closure bond
         _rclose.append(ringClosure)
         _order = 0
         _updown = " "
@@ -2098,7 +2098,7 @@ class MKMol2Cansmi {
                 // then this CisTransStereo takes precedence over any other
                 for ChiralSearch in _cistrans {
                     let cfg = ChiralSearch.getConfig()
-                    if atom.getId().ref == cfg.begin || atom.getId().ref == cfg.end {
+                    if atom.getId() == cfg.begin || atom.getId() == cfg.end {
                         // **I don't think I need to check whether it has a bond with nbr_atom**
                         dbl_bond_first = true
                         break
@@ -2121,8 +2121,8 @@ class MKMol2Cansmi {
                         }
                     }
                 }
-                endatom = nbr_atom.getId().ref
-                centeratom = atom.getId().ref
+                endatom = nbr_atom.getId()
+                centeratom = atom.getId()
             } else {
                 if nbr_atom.isAromatic() {
                     for bond in nbr_atom.getBondIterator()! {
@@ -2131,8 +2131,8 @@ class MKMol2Cansmi {
                         }
                     }
                 }
-                endatom = atom.getId().ref
-                centeratom = nbr_atom.getId().ref
+                endatom = atom.getId()
+                centeratom = nbr_atom.getId()
             }
             
             
@@ -2226,7 +2226,7 @@ class MKMol2Cansmi {
      *       of the neighbors, not the hash/wedge bonds.
      ***************************************************************************/
     func atomIsChiral(_ atom: MKAtom) -> Bool {
-        let atomid = atom.getId().rawValue
+        let atomid = atom.getId().intValue
         return _stereoFacade.hasTetrahedralStereo(atomid) || _stereoFacade.hasSquarePlanarStereo(atomid)
     }
     
@@ -2257,12 +2257,12 @@ class MKMol2Cansmi {
             let idx = atom.getIdx()
             if _uatoms[idx] || !frag_atoms.bitIsSet(idx) { continue }
             guard let nbr_bond = atom.getBond(nbr) else { fatalError("ERROR: Could not find bond") }
-            let nbr_bond_order = nbr_bond.getBondOrder()
+            _ = nbr_bond.getBondOrder()
             let new_needs_bsymbol = needsBondSymbol(nbr_bond)
             
             for (i, ai) in sort_nbrs.enumerated() {
-                guard var bond = atom.getBond(ai) else { break }
-                let bond_order = bond.getBondOrder()
+                guard let bond = atom.getBond(ai) else { break }
+                _ = bond.getBondOrder()
                 let sorted_needs_bsymbol = needsBondSymbol(bond)
                 if favor_multiple && new_needs_bsymbol && !sorted_needs_bsymbol {
                     sort_nbrs.insert(nbr, at: i)
@@ -2414,8 +2414,8 @@ class MKMol2Cansmi {
                     maxSeconds = 5
                 }
             }
-            var symclasses = symmetry_classes.map { UInt($0.intValue!) }
-            var canorder = canonical_order.map { UInt($0.intValue!) }
+            var symclasses = symmetry_classes.map { UInt($0.intValue) }
+            var canorder = canonical_order.map { UInt($0.intValue) }
             canonicalLabels(mol, &symclasses, &canorder, frag_atoms, maxSeconds)
         } else {
             if _pconv.isOption("C") { // "C" == "anti-canonical form"
@@ -2481,9 +2481,9 @@ class MKMol2Cansmi {
                         && frag_atoms.bitIsSet(idx)// skip atoms not in this fragment
                         && (!isrxn || rxn.getRole(atom: atom).rawValue == rxnrole) // skip atoms not in this rxn role
                         //&& !atom->IsChiral()    // don't use chiral atoms as root node
-                        && canonical_order[idx-1].intValue! < lowest_canorder) {
+                        && canonical_order[idx-1].intValue < lowest_canorder) {
                         root_atom = atom
-                        lowest_canorder = canonical_order[idx-1].intValue!
+                        lowest_canorder = canonical_order[idx-1].intValue
                     }
                 }
                 // For Inchified or Universal SMILES, if the start atom is an [O-] attached to atom X, choose any =O attached to X instead.
@@ -2529,8 +2529,8 @@ class MKMol2Cansmi {
             }
             // root = new OBCanSmiNode (root_atom);
             let root = MKCanSmiNode(atom: root_atom!)
-            let symclasses = symmetry_classes.map { $0.intValue! }
-            let canorder = canonical_order.map { $0.intValue! }
+            let symclasses = symmetry_classes.map { $0.intValue }
+            let canorder = canonical_order.map { $0.intValue }
             buildCanonTree(mol, &frag_atoms, canorder, root)
             toCansmilesString(root, &buffer, &frag_atoms, symclasses, canorder)
 
@@ -2549,7 +2549,7 @@ class MKMol2Cansmi {
         if chiral_neighbors.count < 4 { return "" }
         // If atom is not a tetrahedral center, we're done
         let atom = node.getAtom()
-        let atomid = atom.getId().rawValue
+        let atomid = atom.getId().intValue
         guard let ts = _stereoFacade.getTetrahedralStereo(atomid) else { return "" }
         // get the Config struct defining the stereochemistry
         let atomConfig = ts.getConfig()
@@ -2559,14 +2559,14 @@ class MKMol2Cansmi {
         var canonRefs: Refs = []
         for atomit in chiral_neighbors.suffix(from: 1) {
             if atomit != nil {
-                canonRefs.append(atomit!.getId().ref)
+                canonRefs.append(atomit!.getId())
             } else {
                 canonRefs.append(.ImplicitRef)
             }
         }
         var canConfig: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config()
         if chiral_neighbors[0] != nil {
-            canConfig.from_or_towrds.from = atom.getId().ref
+            canConfig.from_or_towrds.from = atom.getId()
         } else { // Handle a chiral lone pair, represented by a NULL OBAtom* in chiral_neighbors
             canConfig.from_or_towrds.from = .ImplicitRef
         }
@@ -2586,7 +2586,7 @@ class MKMol2Cansmi {
         let atom = node.getAtom()
         
         // If atom is not a square-planar center, we're done
-        guard let sp = _stereoFacade.getSquarePlanarStereo(atom.getId().rawValue) else {
+        guard let sp = _stereoFacade.getSquarePlanarStereo(atom.getId().intValue) else {
             return ""
         }
         
@@ -2596,9 +2596,9 @@ class MKMol2Cansmi {
             return ""
         }
         // create a Config struct with the chiral_neighbors in canonical output order
-        let canonRefs: Refs = MKStereo.makeRefs(chiral_neighbors[0]!.getId().ref, chiral_neighbors[1]!.getId().ref, chiral_neighbors[2]!.getId().ref, chiral_neighbors[3]!.getId().ref)
+        let canonRefs: Refs = MKStereo.makeRefs(chiral_neighbors[0]!.getId(), chiral_neighbors[1]!.getId(), chiral_neighbors[2]!.getId(), chiral_neighbors[3]!.getId())
         var canConfig: MKSquarePlanarStereo.Config = MKSquarePlanarStereo.Config()
-        canConfig.center = atom.getId().ref
+        canConfig.center = atom.getId()
         canConfig.refs = canonRefs
         
         // canConfig is U shape
@@ -3031,7 +3031,7 @@ class MKMol2Cansmi {
         // two places: First, for figuring out chirality, then later for writing
         // the actual ring-closure digits to the string.
 
-        var vclose_bonds = getCanonClosureDigits(atom, &frag_atoms, canonical_order)
+        let vclose_bonds = getCanonClosureDigits(atom, &frag_atoms, canonical_order)
 
         // First thing: Figure out chirality.  We start by creating a vector of the neighbors
         // in the order in which they'll appear in the canonical SMILES string.  This is more
@@ -3041,7 +3041,7 @@ class MKMol2Cansmi {
         // Otherwise, we end up with C[C@@H](Br)(Cl), where the C has 4 neighbours already
         // and we cannot concatenate another SMILES string without creating a 5-valent C.
 
-        var is_chiral: Bool = atomIsChiral(atom)
+        let is_chiral: Bool = atomIsChiral(atom)
         if is_chiral && atom != _endatom && atom != _startatom {
             // If there's a parent node, it's the first atom in the ordered neighbor-vector
             // used for chirality.
@@ -3226,7 +3226,7 @@ class MKMol2Cansmi {
                 // then the ring opening already had the symbol.
                 for ct in _cistrans {
                     let cfg = ct.getConfig()
-                    if nbr_atom.getId().ref == cfg.begin || nbr_atom.getId().ref == cfg.end {
+                    if nbr_atom.getId() == cfg.begin || nbr_atom.getId() == cfg.end {
                         // I don't think I need to check whether it has a bond with atom
                         stereo_dbl = false
                         break
@@ -3294,10 +3294,10 @@ class MKMol2Cansmi {
 
     // Returns canonical label order
     func parseInChI(_ mol: MKMol, _ atom_order: inout [Int]) -> Bool {
-        var MolConv = MKConversion()
+        let MolConv = MKConversion()
         MolConv.setOutFormat("InChI")
         MolConv.setAuxConv(nil) //temporary until a proper OBConversion copy constructor written
-        var newstream = OutputStringStream()
+        let newstream = OutputStringStream()
         MolConv.setOutStream(newstream)
         // I'm sure there's a better way of preventing InChI warning output
         MolConv.addOption("w", .OUTOPTIONS)
@@ -3306,7 +3306,7 @@ class MKMol2Cansmi {
         MolConv.write(mol)
 
 
-        var splitlines = newstream.string.components(separatedBy: .whitespacesAndNewlines)
+        let splitlines = newstream.string.components(separatedBy: .whitespacesAndNewlines)
 
         var split: [String]
         var split_aux: [String]

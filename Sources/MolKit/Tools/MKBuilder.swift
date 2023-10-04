@@ -250,7 +250,7 @@ class MKBuilder {
                 // check to see if atom is a square planar in disguise
                 if atom.getHyb() == 3 {
                     let stereoFacade: MKStereoFacade = MKStereoFacade(atom.getParent()!, m_perceive: false) // don't perceive stereo
-                    if stereoFacade.hasSquarePlanarStereo(atom.getId().rawValue) {
+                    if stereoFacade.hasSquarePlanarStereo(atom.getId().intValue) {
                         atom.setHyb(4) // force sq. planar geometry for sq. planar stereo 
                     }
                 }
@@ -545,7 +545,7 @@ class MKBuilder {
             //                          //
             if atom.getExplicitDegree() == 3 {
                 let stereoFacade = MKStereoFacade(atom.getParent()!)
-                if stereoFacade.hasTetrahedralStereo(atom.getId().rawValue) {
+                if stereoFacade.hasTetrahedralStereo(atom.getId().intValue) {
                     var hash: MKBond? 
                     var wedge: MKBond? 
                     var plane: [MKBond] = []
@@ -1836,8 +1836,8 @@ class MKBuilder {
     private static func addRingNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mol: MKMol) {
         // Add the nbrs to the fragment, but don't add the neighbours of a spiro atom.
         for nbr in atom.getNbrAtomIterator()! {
-            if mol.getBond(nbr, atom)!.isInRing() && !fragment.bitIsSet(nbr.getId().rawValue) && !MKBuilder.isSpiroAtom(atom.getId().ref, mol) {
-                fragment.setBitOn(UInt32(nbr.getId().rawValue))
+            if mol.getBond(nbr, atom)!.isInRing() && !fragment.bitIsSet(nbr.getId().intValue) && !MKBuilder.isSpiroAtom(atom.getId(), mol) {
+                fragment.setBitOn(UInt32(nbr.getId().intValue))
                 addRingNbrs(&fragment, nbr, mol)
             }
         }

@@ -67,7 +67,7 @@ func hasExocyclicDblBondToHet(_ atom: MKAtom) -> Bool {
     return false
 }
 
-func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int) -> Bool {
+func assignMKAromaticityModel(_ atm: MKAtom) -> (Int, Int, Bool) {
     // The Open Babel aromaticity model
     //
     // Return minimum and maximum pi-electrons contributed to an aromatic system
@@ -77,12 +77,12 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
     // prioirity (i.e. later matches overrode earlier ones). These SMARTS patterns
     // are now implemented in the code below, but are included in the comments
     // for reference (Case 1->22).
-
+    var min: Int, max: Int
     if !atm.isInRing() {
         min = 0
         max = 0
-        return false
-    }    
+        return (min, max, false)
+    }
 
     let elem = atm.getAtomicNum()
     let chg = atm.getFormalCharge()
@@ -97,11 +97,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 if hasExocyclicDblBondToHet(atm) {
                     min = 0
                     max = 0
-                    return true
+                    return (min, max, true)
                 } else {
                     min = 1 
                     max = 1
-                    return true
+                    return (min, max, true)
                 }
             }
         case 1: 
@@ -110,11 +110,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 case 3: 
                     min = 0
                     max = 0
-                    return true
+                    return (min, max, true)
                 case 2:
                     min = 1
                     max = 1
-                    return true
+                    return (min, max, true)
                 default: break
                 }
             }
@@ -124,11 +124,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 case 3: 
                     min = 2
                     max = 2
-                    return true
+                    return (min, max, true)
                 case 2:
                     min = 1
                     max = 1
-                    return true
+                    return (min, max, true)
                 default: break
                 }
             }
@@ -144,11 +144,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                     case 3:
                         min = 2
                         max = 2
-                        return true
+                        return (min, max, true)
                     case 2:
                         min = 1
                         max = 1
-                        return true
+                        return (min, max, true)
                     default: break
                 }
             case 5:
@@ -158,11 +158,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                         case .EXO_OXYGEN:
                             min = 1
                             max = 1
-                            return true
+                            return (min, max, true)
                         case .EXO_NONOXYGEN:
                             min = 2
                             max = 2
-                            return true
+                            return (min, max, true)
                         default: break
                     }
                 }
@@ -172,13 +172,13 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
             if val == 4 && deg == 3 {
                 min = 1
                 max = 1
-                return true
+                return (min, max, true)
             }
         case -1:
             if val == 2 && deg == 2 {
                 min = 2
                 max = 2
-                return true
+                return (min, max, true)
             }
         default: break
         }
@@ -189,14 +189,14 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
             if val == 2 && deg == 2 {
                 min = 2
                 max = 2
-                return true
+                return (min, max, true)
             }
         case 1:
             if val == 3 && deg == 2 {
                 min = 1
                 max = 1
-                return true
-            } 
+                return (min, max, true)
+            }
         default: break
         }
     case MKElements.getAtomicNum("S"): // sulfur
@@ -207,13 +207,13 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 if deg == 2 {
                     min = 2
                     max = 2
-                    return true
+                    return (min, max, true)
                 }
             case 4: 
                 if deg == 3 && hasExocyclicDblBondToOxygen(atm) {
                     min = 2
                     max = 2
-                    return true
+                    return (min, max, true)
                 }
             default: break 
             }
@@ -223,12 +223,12 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 case 2: 
                     min = 1
                     max = 1
-                    return true
-                case 3: 
+                    return (min, max, true)
+                case 3:
                     if hasExocyclicBondToOxygenMinus(atm) {
                         min = 2
                         max = 2
-                        return true
+                        return (min, max, true)
                     }
                 default: break
                 }
@@ -241,11 +241,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
             case 3: 
                 min = 0
                 max = 0
-                return true
+                return (min, max, true)
             case 2:
                 min = 1
                 max = 1
-                return true
+                return (min, max, true)
             default: break
             }
         }
@@ -257,11 +257,11 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                 case 3: 
                     min = 2
                     max = 2
-                    return true
+                    return (min, max, true)
                 case 2:
                     min = 1
                     max = 1
-                    return true
+                    return (min, max, true)
                 default: break
                 }
             }
@@ -269,7 +269,7 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
             if val == 4 && deg == 3 {
                 min = 1
                 max = 1
-                return true
+                return (min, max, true)
             }
         default: break
         }
@@ -281,7 +281,7 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                     case 2, 3: 
                         min = 0
                         max = 2
-                        return true
+                        return (min, max, true)
                     default: break
                     }
                 case 3: 
@@ -289,7 +289,7 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
                     case 2, 3: 
                         min = 0
                         max = 1
-                        return true
+                        return (min, max, true)
                     default: break
                     }
             default: break
@@ -299,7 +299,7 @@ func assignMKAromaticityModel(_ atm: MKAtom, _ min: inout Int, _ max: inout Int)
     }
     min = 0 
     max = 0
-    return false // nothing matched
+    return (min, max, false) // nothing matched
 }
 
 
@@ -332,7 +332,10 @@ class MKAromaticTyperMolState {
         // New code using lookups instead of SMARTS patterns
         for atom in mol.getAtomIterator() {
             let idx = atom.getIdx()
-            _vpa[idx] = assignMKAromaticityModel(atom, &_velec[idx].0, &_velec[idx].1)
+            let (minArom, maxArom, retArom) = assignMKAromaticityModel(atom)
+            _velec[idx].0 = minArom
+            _velec[idx].1 = maxArom
+            _vpa[idx] = retArom
         }
 
         //propagate potentially aromatic atoms

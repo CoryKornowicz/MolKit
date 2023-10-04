@@ -20,6 +20,7 @@ final class SmilesTest: XCTestCase {
     }
     
     func testTetrahedralStereo() throws {
+        
         var mol: MKMol = MKMol()
         let conv: MKConversion = MKConversion()
         XCTAssert(conv.setInFormat("smi"))
@@ -51,13 +52,7 @@ final class SmilesTest: XCTestCase {
         print(cfg)
         // compare stereochemistry
         XCTAssert(ts.getConfig() == cfg)
-        
-        for atom in mol.getAtomIterator() {
-            print( atom.getType(), atom.getIdx(), atom.getId())
-        }
-        
     }
-    
     
 
 }

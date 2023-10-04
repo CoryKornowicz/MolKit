@@ -64,7 +64,7 @@ func addNbrs(_ fragment: MKBitVec, _ atom: MKAtom, _ mask: MKBitVec, _ metalloce
 * fragment bitvecs are indexed by atom idx (i.e. OBAtom::GetIdx()).
  */
 func getFragment(_ atom: MKAtom, _ mask: MKBitVec, _ metalloceneBonds: [MKBond] = [MKBond]()) -> MKBitVec {
-    var fragment: MKBitVec = MKBitVec()
+    let fragment: MKBitVec = MKBitVec()
     fragment.setBitOn(UInt32(atom.getIdx()))
     // start the recursion
     addNbrs(fragment, atom, mask, metalloceneBonds)
@@ -96,7 +96,7 @@ struct getFragmentImpl {
 }
 
 func getFragment(_ atom: MKAtom, _ skip: MKAtom, _ mask: MKBitVec) -> MKBitVec {
-    var fragment: MKBitVec = MKBitVec()
+    let fragment: MKBitVec = MKBitVec()
     fragment.setBitOn(UInt32(atom.getIdx()))
     // start the recursion
     getFragmentImpl.addNbrs(fragment, atom, skip, mask)
@@ -296,7 +296,7 @@ struct CanonicalLabelsImpl {
         
         static func < (lhs: PartialCode, rhs: FullCode) -> Bool {
             
-            var numFrom = min(lhs.from.count, rhs.code.count)
+            let numFrom = min(lhs.from.count, rhs.code.count)
             for i in 0..<numFrom {
                 if lhs.from[i] > rhs.code[i] {
                     return false
@@ -594,7 +594,7 @@ struct CanonicalLabelsImpl {
         var hasIsotope = false
       // Charges are only considered if there is a formal charge.
         var hasCharge = false
-        let facade = MKStereoFacade(mol)
+        _ = MKStereoFacade(mol)
         for i in 0..<code.atoms.count {
             let atom = code.atoms[i]
             if atom.getIsotope() != 0 {
@@ -1134,7 +1134,7 @@ struct CanonicalLabelsImpl {
                     }
 
                     // Copy the current labelings for the neighbor atoms.
-                    var allOrderedNbrsCopy = allOrderedNbrs
+                    let allOrderedNbrsCopy = allOrderedNbrs
 
 
                     // Add the first permutation for the neighbor atoms.
@@ -1286,10 +1286,10 @@ struct CanonicalLabelsImpl {
                     } else {
                         fatalError("stereoCenters is empty")
                     }
-                    if !stereoFacade!.hasTetrahedralStereo(unit.id.intValue!) {
+                    if !stereoFacade!.hasTetrahedralStereo(unit.id.intValue) {
                         continue
                     }
-                    guard let config: MKTetrahedralStereo.Config = stereoFacade!.getTetrahedralStereo(unit.id.intValue!)?.getConfig() else {
+                    guard let config: MKTetrahedralStereo.Config = stereoFacade!.getTetrahedralStereo(unit.id.intValue)?.getConfig() else {
                         fatalError("config is nil")
                     }
                     if !config.specified {
@@ -1337,10 +1337,10 @@ struct CanonicalLabelsImpl {
                         fatalError("stereoCenters is empty")
                     }
 
-                    if !stereoFacade!.hasCisTransStereo(unit.id.intValue!) {
+                    if !stereoFacade!.hasCisTransStereo(unit.id.intValue) {
                         continue
                     }
-                    guard let config: MKCisTransStereo.Config = stereoFacade!.getCisTransStereo(unit.id.intValue!)?.getConfig() else {
+                    guard let config: MKCisTransStereo.Config = stereoFacade!.getCisTransStereo(unit.id.intValue)?.getConfig() else {
                         fatalError("config is nil")
                     }
                     if !config.specified {
@@ -1448,8 +1448,8 @@ func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical
                 if metalloceneBonds.contains(bond) {
                     continue
                 }
-                if sf.hasTetrahedralStereo(atom.getId().rawValue) {
-                    if sf.getTetrahedralStereo(atom.getId().rawValue)?.getConfig().specified ?? false {
+                if sf.hasTetrahedralStereo(atom.getId().intValue) {
+                    if sf.getTetrahedralStereo(atom.getId().intValue)?.getConfig().specified ?? false {
                         hasAtLeastOneDefined = true
                         break
                     }
@@ -1458,8 +1458,8 @@ func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical
         }
         
         for bonds in mol.getBondIterator() {
-            if sf.hasCisTransStereo(bonds.getId().intValue!) {
-                if sf.getCisTransStereo(bonds.getId().intValue!)?.getConfig().specified ?? false {
+            if sf.hasCisTransStereo(bonds.getId().intValue) {
+                if sf.getCisTransStereo(bonds.getId().intValue)?.getConfig().specified ?? false {
                     hasAtLeastOneDefined = true
                     break
                 }

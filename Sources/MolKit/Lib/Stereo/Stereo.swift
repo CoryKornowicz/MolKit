@@ -9,38 +9,56 @@ fileprivate let DELTA_ANGLE_FOR_OVERLAPPING_BONDS = 4.0
 /**
  * Special case Ref values.
  */
-public enum RefValue: Equatable, Hashable {
+public enum RefValue: Equatable, Hashable {    
     case NoRef            //!< No Ref set (invalid Ref)
     case ImplicitRef      //!< Implicit Ref (i.e. hydrogen, N lone pair, ...).
     case Ref(_ value: Int)
     
-    init?(rawValue: Int) {
+    init(rawValue: Int) {
         self = .Ref(rawValue)
     }
     
-    var intValue: Int? {
-        switch self {
-        case .NoRef:
-            return nil
-        case .ImplicitRef:
-            return -9999 // SMARTS ImplicitRef number
-        case .Ref(let value):
-            return value
+    var intValue: Int {
+        get {
+            switch self {
+            case .NoRef:
+                return .max
+            case .ImplicitRef:
+                return -9999 // SMARTS ImplicitRef number
+            case .Ref(let value):
+                return value
+            }
+        }
+        set {
+            switch self {
+            case .NoRef, .ImplicitRef:
+                return
+            case .Ref(var value):
+                value = newValue
+            }
         }
     }
     
     public static func == (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
         switch lhs {
         case .NoRef:
-            return false
+            if case .NoRef = rhs {
+                return true
+            } else {
+                return false
+            }
         case .ImplicitRef:
-            return false
+            if case .ImplicitRef = rhs {
+                return true
+            } else {
+                return false
+            }
         case .Ref(let value):
             switch rhs {
             case .NoRef:
-                return false
+                return false // FALSE, NoRef != Any
             case .ImplicitRef:
-                return false
+                return false // False, because lhs is not implicit
             case .Ref(let rvalue):
                 return value == rvalue
             }
@@ -69,10 +87,9 @@ public enum RefValue: Equatable, Hashable {
         return lhs.intValue == rhs.value
     }
     
-    static func -= (_ lhs: RefValue, _ rhs: Int) {
-        if var refVal = lhs.intValue {
-            refVal -= rhs
-        }
+    static func -= (_ lhs: RefValue, _ rhs: Int) -> Int {
+        var lhsInt = lhs.intValue
+        return lhsInt - rhs
     }
     
     static func - (_ lhs: RefValue, _ rhs: Int) -> RefValue {
@@ -86,7 +103,7 @@ public enum RefValue: Equatable, Hashable {
     }
     
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(self.intValue ?? 0)
+        hasher.combine(self.intValue)
     }
 }
 
@@ -234,7 +251,7 @@ public struct MKStereo {
     
     static func numInversions(_ refs: [UInt]) -> Int {
 //        convert refs to Refs value and call original
-        let refsIn = refs.map { Ref(rawValue: Int($0))! }
+        let refsIn = refs.map { Ref(rawValue: Int($0)) }
         return MKStereo.numInversions(refsIn)
     }
     
@@ -392,7 +409,7 @@ class MKStereoFacade {
                 if (config.center == .NoRef) {
                     continue
                 }
-                m_tetrahedralMap[config.center.intValue!] = ts
+                m_tetrahedralMap[config.center.intValue] = ts
             } else {
                 if (type == .SquarePlanar) {
                     let sp: MKSquarePlanarStereo = (data as! MKSquarePlanarStereo)
@@ -400,7 +417,7 @@ class MKStereoFacade {
                     if (config.center == .NoRef) {
                         continue
                     }
-                    m_squarePlanarMap[config.center.intValue!] = sp
+                    m_squarePlanarMap[config.center.intValue] = sp
                 } else {
                     if (type == .CisTrans) {
                         let ct: MKCisTransStereo = (data as! MKCisTransStereo)
@@ -416,8 +433,8 @@ class MKStereoFacade {
                             continue
                         }
                         for bond in bonds {
-                            let beginId: Ref = bond.getBeginAtom().getId().ref
-                            let endId: Ref = bond.getEndAtom().getId().ref
+                            let beginId: Ref = bond.getBeginAtom().getId()
+                            let endId: Ref = bond.getEndAtom().getId()
                             if ((beginId == config.begin && endId == config.end) ||
                                 (beginId == config.end && endId == config.begin)) {
                                 id = bond.getId()
@@ -427,7 +444,7 @@ class MKStereoFacade {
                         if (id == .NoRef) {
                             continue
                         }
-                        m_cistransMap[id.intValue!] = ct
+                        m_cistransMap[id.intValue] = ct
                     }
                 }
             }
@@ -651,7 +668,7 @@ func stereoFrom3D(_ mol: inout MKMol,_ force: Bool = false) {
     if mol.hasChiralityPerceived() && !force {
         return
     }
-    var symmetryClasses = findSymmetry(mol).map { UInt($0.intValue!) }
+    var symmetryClasses = findSymmetry(mol).map { UInt($0.intValue) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetryClasses)
     mol.deleteData(.StereoData)
     tetrahedralFrom3D(mol, stereogenicUnits)
@@ -739,9 +756,9 @@ func tetrahedralFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
         config.center = i
         for nbr in center.getNbrAtomIterator()! {
             if config.from_or_towrds.refValue == .NoRef {
-                config.from_or_towrds = .from(nbr.getId().ref)
+                config.from_or_towrds = .from(nbr.getId())
             } else {
-                config.refs.append(nbr.getId().ref)
+                config.refs.append(nbr.getId())
             }
         }
         let useCentralAtom = false
@@ -861,12 +878,12 @@ func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
         var bondVecs: [Vector<Double>] = []
         let config: MKCisTransStereo.Config = MKCisTransStereo.Config()
         //begin 
-        config.begin = begin.getId().ref
+        config.begin = begin.getId()
         for nbr in begin.getNbrAtomIterator()! {
             if nbr.getId() == end.getId() {
                 continue
             }
-            config.refs.append(nbr.getId().ref)
+            config.refs.append(nbr.getId())
             if let uc = uc {
                 bondVecs.append(uc.minimumImageCartesian(nbr.getVector() - begin.getVector()))
             } else {
@@ -885,7 +902,7 @@ func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
             }
         }
         //end 
-        config.end = end.getId().ref
+        config.end = end.getId()
         var end_vec = end.getVector()
         if let uc = uc {
             end_vec = uc.unwrapCartesianNear(end_vec, begin.getVector())
@@ -894,7 +911,7 @@ func cisTransFrom3D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
             if nbr.getId() == begin.getId() {
                 continue
             }
-            config.refs.append(nbr.getId().ref)
+            config.refs.append(nbr.getId())
             if let uc = uc {
                 bondVecs.append(uc.minimumImageCartesian(nbr.getVector() - end_vec))
             } else {
@@ -1033,7 +1050,7 @@ func stereoFrom2D(_ mol: MKMol, _ updown: [MKBond: MKStereo.BondDirection]? = ni
         return
     }
     // TODO: Log here 
-    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue!) }
+    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetry_classes)
     mol.deleteData(.StereoData)
     tetrahedralFrom2D(mol, stereogenicUnits)
@@ -1205,9 +1222,9 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
             // unspecified or specified as unknown 
             for nbr in center.getNbrAtomIterator()! {
                 if config.from_or_towrds == .NoRef {
-                    config.from_or_towrds = .from(nbr.getId().ref)
+                    config.from_or_towrds = .from(nbr.getId())
                 } else {
-                    config.refs.append(nbr.getId().ref)
+                    config.refs.append(nbr.getId())
                 }
             }
             while config.refs.count < 3 {
@@ -1245,7 +1262,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                 order.append(wedge ? wedgeAtoms[0] : hashAtoms[0])
                 var nbrs: [MKAtom] = []
                 for nbr in center.getNbrAtomIterator()! {
-                    if nbr.getId().ref != order[0].getId().ref {
+                    if nbr.getId() != order[0].getId() {
                         nbrs.append(nbr)
                     }
                 }
@@ -1288,10 +1305,10 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                     }
                 }
 
-                config.from_or_towrds = .from(order[0].getId().ref)
+                config.from_or_towrds = .from(order[0].getId())
                 config.refs.reserveCapacity(3) // make sure this actually adds elements into the array 
                 for i in 0..<3 {
-                    config.refs[i] = order[i+1].getId().ref
+                    config.refs[i] = order[i+1].getId()
                 }
                 if wedge {
                     config.winding = .AntiClockwise
@@ -1344,7 +1361,7 @@ func tetrahedralFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                 config.refs.reserveCapacity(3) // make sure this actually adds elements into the array
                 for i in 0..<3 {
                     // interestingly they only used the first 3 elements not the last three
-                    config.refs[i] = order[i].getId().ref
+                    config.refs[i] = order[i].getId()
                 }
                 if !wedge {
                     config.winding = .AntiClockwise
@@ -1422,12 +1439,12 @@ func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKB
         config.specified = true
 
         // begin 
-        config.begin = begin.getId().ref
+        config.begin = begin.getId()
         for nbr in begin.getNbrAtomIterator()! {
             if nbr.getId() == end.getId() {
                 continue
             }
-            config.refs.append(nbr.getId().ref)
+            config.refs.append(nbr.getId())
             bondVecs.append(nbr.getVector())
 
             // Check whether a single bond with unknown dir starts at the dbl bond (tip-only convention)
@@ -1447,12 +1464,12 @@ func cisTransFrom2D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ updown: [MKB
             bondVecs.append(pos)
         }
         // end
-        config.end = end.getId().ref
+        config.end = end.getId()
         for nbr in end.getNbrAtomIterator()! {
             if nbr.getId() == begin.getId() {
                 continue
             }
-            config.refs.append(nbr.getId().ref)
+            config.refs.append(nbr.getId())
             bondVecs.append(nbr.getVector())
 
             // Check whether a single bond with unknown dir starts at the dbl bond (tip-only convention)
@@ -1563,7 +1580,7 @@ func stereoFrom0D(_ mol: MKMol) {
     if mol.hasChiralityPerceived() {
         return
     }
-    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue!) }
+    var symmetry_classes = findSymmetry(mol).map { UInt($0.intValue) }
     let stereogenicUnits = findStereogenicUnits(mol, symClasses: &symmetry_classes)
     tetrahedralFrom0D(mol, stereogenicUnits)
     cisTransFrom0D(mol, stereogenicUnits)
@@ -1611,7 +1628,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                 }
             }
             if isStereogenic {
-                existingMap[center.intValue!] = ts
+                existingMap[center.intValue] = ts
                 configs.append(ts)
             } else {
                 // According to OpenBabel, this is not a tetrahedral stereo
@@ -1624,7 +1641,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
         if u.type != .Tetrahedral {
             continue
         }
-        if existingMap[u.id.intValue!] != nil {
+        if existingMap[u.id.intValue] != nil {
             continue
         }
         let center = mol.getAtomById(u.id)
@@ -1633,9 +1650,9 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
         config.center = u.id
         for nbr in center!.getNbrAtomIterator()! {
             if config.from_or_towrds.refValue == .NoRef {
-                config.from_or_towrds = .from(nbr.getId().ref)
+                config.from_or_towrds = .from(nbr.getId())
             } else {
-                config.refs.append(nbr.getId().ref)
+                config.refs.append(nbr.getId())
             }
         }
         if config.refs.count == 2 {
@@ -1693,8 +1710,8 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
                 continue 
             }
             for bond in a!.getBondIterator()! {
-                let beginID = bond.getBeginAtom().getId().ref
-                let endID = bond.getEndAtom().getId().ref
+                let beginID = bond.getBeginAtom().getId()
+                let endID = bond.getEndAtom().getId()
                 if beginID == config.begin && endID == config.end ||
                     beginID == config.end && endID == config.begin {
                     id = bond.getId()
@@ -1707,7 +1724,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
                 print("Removed spurious CisTransStereo object")
                 mol.deleteData(ct)
             } else {
-                existingMap[id.intValue!] = ct
+                existingMap[id.intValue] = ct
                 configs.append(ct)
             }
         }
@@ -1717,7 +1734,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
         // If there already exists a OBCisTransStereo object for this
         // bond, leave it alone unless it's in a ring of small size
         let alreadyExists = existingMap.contains { (key: Int, value: MKCisTransStereo) in
-            key == i.intValue!
+            key == i.intValue
         }
         guard let bond = mol.getBondById(i) else {
             continue
@@ -1725,28 +1742,28 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
         var ct: MKCisTransStereo
         var config: MKCisTransStereo.Config = MKCisTransStereo.Config()
         if alreadyExists {
-            ct = existingMap[i.intValue!]!
+            ct = existingMap[i.intValue]!
             config = ct.getConfig()
         } else {
             let begin = bond.getBeginAtom()
             let end = bond.getEndAtom()
             config.specified = false
-            config.begin = begin.getId().ref
+            config.begin = begin.getId()
             for nbr in begin.getNbrAtomIterator()! {
                 if nbr.getId() == end.getId() {
                     continue
                 }
-                config.refs.append(nbr.getId().ref)
+                config.refs.append(nbr.getId())
             }
             if config.refs.count == 1 {
                 config.refs.append(.ImplicitRef)
             }
-            config.end = end.getId().ref
+            config.end = end.getId()
             for nbr in end.getNbrAtomIterator()! {
                 if nbr.getId() == begin.getId() {
                     continue
                 }
-                config.refs.append(nbr.getId().ref)
+                config.refs.append(nbr.getId())
             }
             if config.refs.count == 3 {
                 config.refs.append(.ImplicitRef)
@@ -1857,7 +1874,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
                             score += 2 // non-ring bond to ring atom is bad
                         }
                     }
-                    if !tetcenters.contains(nbr.getId().ref) {
+                    if !tetcenters.contains(nbr.getId()) {
                         score += 4
                     }
                     if nbr_bonds == 1 { // terminal atom...
@@ -1906,7 +1923,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
                     var useup: Bool = false
                     if implicit {
                         // Put the ref for the stereo bond second
-                        while test_cfg.refs[1] != chosen?.getNbrAtom(center).getId().ref {
+                        while test_cfg.refs[1] != chosen?.getNbrAtom(center).getId() {
                             test_cfg.refs.rotate(toStartAt: 2)
                         }
                         if uc != nil {
@@ -1932,7 +1949,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
                             useup = !anticlockwise_order
                         }
                     } else {
-                        test_cfg = MKTetrahedralStereo.toConfig(test_cfg, .from(chosen!.getNbrAtom(center).getId().ref))
+                        test_cfg = MKTetrahedralStereo.toConfig(test_cfg, .from(chosen!.getNbrAtom(center).getId()))
                         if uc != nil {
                             anticlockwise_order = angleOrder(
                                 uc!.unwrapCartesianNear(mol.getAtomById(test_cfg.refs[0])!.getVector(), center_coord),

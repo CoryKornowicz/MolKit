@@ -42,7 +42,7 @@ public class MKAtom: MKBase {
     private var _parent: MKBase? = nil
     private var _residue: MKResidue? = nil                         //!< parent residue (if applicable)
     
-    private var _id: MKBaseID = ._id(generateUUID())               //!< unique id
+    private var _id: Ref = .Ref(generateUUID())               //!< unique id
     private var _idx: Int = 0                                      //!< unique node index (GetIdx(), SetIdx())
     
     private var _ele: Int = 0                                      //!< atomic number (type unsigned char to minimize space -- allows for 0..255 elements)
@@ -105,10 +105,10 @@ public class MKAtom: MKBase {
     }
     
     public func setId(_ id: Int) {
-        self._id = ._id(id)
+        self._id = .Ref(id)
     }
     
-    public func getId() -> MKBaseID {
+    public func getId() -> Ref {
         return self._id
     }
     
@@ -455,8 +455,8 @@ public class MKAtom: MKBase {
 
     //! Add a bond to the internal list. Does not update the bond.
     func addBond(_ bond: MKBond) {
-        if var bonds = self._vbond {
-            bonds.append(bond)
+        if self._vbond != nil {
+            self._vbond!.append(bond)
         } else {
             self._vbond = [bond]
         }
@@ -465,8 +465,8 @@ public class MKAtom: MKBase {
     //! \brief Insert @p bond into the internal list at the position from @p i
     //! Does not modify the bond
     func insertBond(_ i: Int, _ bond: MKBond) {
-        if var bonds = self._vbond {
-            bonds.insert(bond, at: i)
+        if self._vbond != nil {
+            self._vbond!.insert(bond, at: i)
         } else {
             self._vbond = [bond]
         }
@@ -1031,7 +1031,7 @@ public class MKAtom: MKBase {
     func isChiral() -> Bool {
         guard let mol = self.getParent() else { return false }
         let stereoFacade = MKStereoFacade(mol)
-        return stereoFacade.hasTetrahedralStereo(self._id.rawValue)
+        return stereoFacade.hasTetrahedralStereo(self._id.intValue)
     }
     
     // //! \return Is the atom part of a periodic unit cell?
@@ -1328,7 +1328,7 @@ public class MKAtom: MKBase {
         self._vbond?.removeAll()
         self._vbond?.reserveCapacity(4)
         self._residue = nil;
-        self._id = ._id(generateUUID())
+        self._id = .Ref(generateUUID())
         self._c = []
         self._v = Vector<Double>.init(dimensions: 3, repeatedValue: 0.0)
     }

@@ -203,14 +203,14 @@ func isPotentialCisTrans(_ bond: MKBond) -> Bool {
 */
 func isUnitInFragment(_ mol: MKMol, _ unit: MKStereoUnit, _ fragment: MKBitVec) -> Bool {
     if (unit.type == .Tetrahedral) {
-        if (fragment.bitIsSet(unit.id.intValue!)) {
+        if (fragment.bitIsSet(unit.id.intValue)) {
             return true
         }
     } else if (unit.type == .CisTrans) {
         guard let bond = mol.getBondById(unit.id) else { return false }
         let begin = bond.getBeginAtom()
         let end = bond.getEndAtom()
-        if (fragment.bitIsSet(begin.getId().rawValue) || fragment.bitIsSet(end.getId().rawValue)) {
+        if (fragment.bitIsSet(begin.getId().intValue) || fragment.bitIsSet(end.getId().intValue)) {
             return true
         }
     }
@@ -223,7 +223,7 @@ func isUnitInFragment(_ mol: MKMol, _ unit: MKStereoUnit, _ fragment: MKBitVec) 
    */
 func isTetrahedral(_ atom: MKAtom, _ units: [MKStereoUnit]) -> Bool {
     for unit in units {
-        if (unit.type == .Tetrahedral && unit.id.intValue! == atom.getId().rawValue) {
+        if (unit.type == .Tetrahedral && unit.id.intValue == atom.getId().intValue) {
             return true
         }
     }
@@ -236,7 +236,7 @@ func isTetrahedral(_ atom: MKAtom, _ units: [MKStereoUnit]) -> Bool {
 //    */
 func isCisTrans(_ bond: MKBond, _ units: [MKStereoUnit]) -> Bool {
     for unit in units {
-        if (unit.type == .CisTrans && unit.id.intValue! == bond.getId().intValue) {
+        if (unit.type == .CisTrans && unit.id.intValue == bond.getId().intValue) {
             return true
         }
     }
@@ -251,11 +251,11 @@ func classifyTetrahedralNbrSymClasses(_ symClasses: [UInt], _ atom: MKAtom) -> N
     var nbrClassesCopy = [UInt]()
     var uniqueClasses = [UInt]()
     for nbr in atom.getNbrAtomIterator()! {
-        nbrClasses.append(symClasses[nbr.getId().rawValue])
+        nbrClasses.append(symClasses[nbr.getId().intValue])
     }
     //     // add an implicit ref if there are only 3 explicit
     if nbrClasses.count == 3 {
-        nbrClasses.append(UInt(RefValue.ImplicitRef.intValue!))
+        nbrClasses.append(UInt(RefValue.ImplicitRef.intValue))
     }
 //     // use some STL to work out the number of unique classes
     nbrClassesCopy = nbrClasses // keep copy for count below
@@ -287,11 +287,11 @@ func classifyCisTransNbrSymClasses(_ symClasses: [UInt], _ doubleBond: MKBond, _
     var nbrClasses = [UInt]()
     for nbr in atom.getNbrAtomIterator()! {
         if (nbr.getId() != doubleBond.getNbrAtom(atom).getId()) {
-            nbrClasses.append(symClasses[nbr.getId().rawValue])
+            nbrClasses.append(symClasses[nbr.getId().intValue])
         }
     }
     if nbrClasses.count == 1 {
-        nbrClasses.append(UInt(RefValue.ImplicitRef.intValue!))
+        nbrClasses.append(UInt(RefValue.ImplicitRef.intValue))
     }
     if nbrClasses[0] == nbrClasses[1] {
         return .C11 // e.g. 1 1
@@ -365,11 +365,11 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ skip: MKAtom) {
             continue
         }
         // skip visited atoms
-        if (fragment.bitIsSet(nbr.getId().rawValue)) {
+        if (fragment.bitIsSet(nbr.getId().intValue)) {
             continue
         }
         // add the neighbor atom to the fragment
-        fragment.setBitOn(UInt32(nbr.getId().rawValue))
+        fragment.setBitOn(UInt32(nbr.getId().intValue))
         // recurse...
         addNbrs(&fragment, nbr, skip)
     }
@@ -382,7 +382,7 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ skip: MKAtom) {
 */
 func getFragment(_ atom: MKAtom, _ skip: MKAtom) -> MKBitVec {
     var fragment: MKBitVec = MKBitVec()
-    fragment.setBitOn(UInt32(atom.getId().rawValue))
+    fragment.setBitOn(UInt32(atom.getId().intValue))
     // start the recursion
     addNbrs(&fragment, atom, skip)
     return fragment
@@ -397,15 +397,15 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: inout MKBitVec)
         return
     }
     for nbr in nbors {
-        if (!mask.bitIsSet(nbr.getId().rawValue)) {
+        if (!mask.bitIsSet(nbr.getId().intValue)) {
             continue
         }
         // skip visited atoms
-        if (fragment.bitIsSet(nbr.getId().rawValue)) {
+        if (fragment.bitIsSet(nbr.getId().intValue)) {
             continue
         }
         // add the neighbor atom to the fragment
-        fragment.setBitOn(UInt32(nbr.getId().rawValue))
+        fragment.setBitOn(UInt32(nbr.getId().intValue))
         // recurse...
         addNbrs(&fragment, nbr, &mask)
     }
@@ -580,7 +580,7 @@ private func applyRule1<T: StereoRingType>(_ currentPara: T, _ symmetry_classes:
                 continue
             }
             // there is another atom already identified as stereo atom
-            if stereoAtoms.contains(UInt(paraAtom.inIdx.intValue!)) {
+            if stereoAtoms.contains(UInt(paraAtom.inIdx.intValue)) {
                 return true
             }
             if paraAtom.outsideNbrs.count == 1 {
@@ -611,7 +611,7 @@ private func applyRule1<T: StereoRingType>(_ currentPara: T, _ symmetry_classes:
                 continue
             }
             // there is another atom already identified as stereo atom
-            if stereoAtoms.contains(UInt(paraBond.inIdx.intValue!)) {
+            if stereoAtoms.contains(UInt(paraBond.inIdx.intValue)) {
                 return true
             }
             if paraBond.outsideNbrs.count == 1 {
@@ -655,7 +655,7 @@ func startRule1(_ symmetry_classes: inout [UInt], _ rings: inout [StereoRing], _
         for j in 0..<rings[i].paraAtoms.count {
             let paraAtom = rings[i].paraAtoms[j]
             // skip the atom if it is already in stereoAtoms
-            if stereoAtoms.contains(UInt(paraAtom.inIdx.intValue!)) {
+            if stereoAtoms.contains(UInt(paraAtom.inIdx.intValue)) {
                 continue
             }
             var visitedRings = [Bool](repeating: false, count: rings.count)
@@ -687,9 +687,9 @@ func startRule1(_ symmetry_classes: inout [UInt], _ rings: inout [StereoRing], _
                     }
                 }
                 if isStereoUnit {
-                    stereoAtoms.append(UInt(paraAtom.inIdx.intValue!))
+                    stereoAtoms.append(UInt(paraAtom.inIdx.intValue))
                     let atom = paraAtom.insideNbrs[0].getParent()!.getAtomById(paraAtom.id)
-                    units.append(MKStereoUnit(.Tetrahedral, atom!.getId().ref, true))
+                    units.append(MKStereoUnit(.Tetrahedral, atom!.getId(), true))
                 }
             }
         }
@@ -697,7 +697,7 @@ func startRule1(_ symmetry_classes: inout [UInt], _ rings: inout [StereoRing], _
         for j in 0..<rings[i].paraBonds.count {
             let paraBond = rings[i].paraBonds[j]
             // skip the atom if it is already in stereoAtoms
-            if stereoAtoms.contains(UInt(paraBond.inIdx.intValue!)) {
+            if stereoAtoms.contains(UInt(paraBond.inIdx.intValue)) {
                 continue
             }
             var visitedRings = [Bool](repeating: false, count: rings.count)
@@ -729,8 +729,8 @@ func startRule1(_ symmetry_classes: inout [UInt], _ rings: inout [StereoRing], _
                     }
                 }
                 if isStereoUnit {
-                    stereoAtoms.append(UInt(paraBond.inIdx.intValue!))
-                    stereoAtoms.append(UInt(paraBond.outIdx.intValue!))
+                    stereoAtoms.append(UInt(paraBond.inIdx.intValue))
+                    stereoAtoms.append(UInt(paraBond.outIdx.intValue))
                     let bond = paraBond.insideNbrs[0].getParent()!.getBondById(paraBond.id)
                     units.append(MKStereoUnit(.CisTrans, bond!.getId(), true))
                 }
@@ -880,7 +880,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
         if isChiral {
             // true-stereocenter found
             stereoAtoms.append(UInt(atom.getIndex()))
-            units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref))
+            units.append(MKStereoUnit(.Tetrahedral, atom.getId()))
         }
     }
 
@@ -1018,7 +1018,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                 guard let atom = mol.getAtom(Int(paraAtoms[j])) else {
                     fatalError("ERROR: atom is not found!!")
                 }
-                ring.paraAtoms.append(StereoRing.ParaAtom(id: atom.getId().ref, idx: .Ref(Int(paraAtoms[j]))))
+                ring.paraAtoms.append(StereoRing.ParaAtom(id: atom.getId(), idx: .Ref(Int(paraAtoms[j]))))
                 for nbr in atom.getNbrAtomIterator()! {
                     if lssr[i]._pathSet.bitIsSet(nbr.getIndex()) {
                         guard var lastAtom = ring.paraAtoms.last else { break }
@@ -1119,7 +1119,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
         var alreadyAdded: Bool = false 
         for u2 in units {
             if u2.type == .Tetrahedral {
-                if atom.getId().ref == u2.id {
+                if atom.getId() == u2.id {
                     alreadyAdded = true
                     break
                 }
@@ -1136,7 +1136,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
             guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
             if containsAtLeast_1true_2para(ligandAtom, atom: atom, units: units) {
-                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
             }
         case .T1122:
             // rule 2a with 2 pairs
@@ -1147,21 +1147,21 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             guard let ligandAtom2 = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass2, symClasses: symClasses) else { break }
             if (containsAtLeast_1true_2para(ligandAtom1, atom: atom, units: units) &&
                 containsAtLeast_1true_2para(ligandAtom2, atom: atom, units: units)) {
-                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
             }
         case .T1112:
             // rule 2b with 3 identical
             let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
             guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
             if containsAtLeast_2true_2paraAssemblies(ligandAtom, atom: atom, units: units, mergedRings: mergedRings) {
-                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
             }
         case .T1111:
             // rule 2b with 4 identical
             let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
             guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
             if containsAtLeast_2true_2paraAssemblies(ligandAtom, atom: atom, units: units, mergedRings: mergedRings) {
-                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
             }
         default: break
         }
@@ -1212,7 +1212,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             let ligand: MKBitVec = getFragment(ligandAtom!, begin)
             for u2 in units {
                 if u2.type == .Tetrahedral {
-                    if ligand.bitIsSet(u2.id.intValue!) {
+                    if ligand.bitIsSet(u2.id.intValue) {
                         beginValid = true
                         break
                     }
@@ -1254,7 +1254,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             let ligand: MKBitVec = getFragment(ligandAtom!, end)
             for u2 in units {
                 if u2.type == .Tetrahedral {
-                    if ligand.bitIsSet(u2.id.intValue!) {
+                    if ligand.bitIsSet(u2.id.intValue) {
                         endValid = true
                         break
                     }
@@ -1464,7 +1464,7 @@ func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, u
     var ringIndices = [UInt]()
     for u2 in units {
         if u2.type == .Tetrahedral {
-            if ligand.bitIsSet(u2.id.intValue!) {
+            if ligand.bitIsSet(u2.id.intValue) {
                 if u2.para {
                     if let paraAtom: MKAtom = mol.getAtomById(u2.id) {
                         for ringIdx in 0..<mergedRings.count {
@@ -1768,7 +1768,7 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
     while true {
         
         for atom in mol.getAtomIterator() {
-            if doneAtoms.contains(UInt(atom.getId().rawValue)) {
+            if doneAtoms.contains(UInt(atom.getId().intValue)) {
                 continue
             }
             // consider only potential steroecenters
@@ -1799,8 +1799,8 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
             if !foundPermutation {
                 // true-stereocenter found
                 let isParaCenter = (classification == .T1234) ? false : true
-                units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, isParaCenter))
-                doneAtoms.append(UInt(atom.getId().rawValue))
+                units.append(MKStereoUnit(.Tetrahedral, atom.getId(), isParaCenter))
+                doneAtoms.append(UInt(atom.getId().intValue))
             } else {
                 // count ligand configurations:
                 // If there exists at least one automorphic permutation causing the inversion of the
@@ -1820,8 +1820,8 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
                     let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
                     guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
                     if containsAtLeast_1true_2para(ligandAtom, atom: atom, units: units) {
-                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
-                        doneAtoms.append(UInt(atom.getId().rawValue))
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
+                        doneAtoms.append(UInt(atom.getId().intValue))
                     }
                 case .T1122:
                     // rule 2a with 2 pairs
@@ -1832,16 +1832,16 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
                     guard let ligandAtom2 = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass2, symClasses: symClasses) else { break }
                     if (containsAtLeast_1true_2para(ligandAtom1, atom: atom, units: units) &&
                         containsAtLeast_1true_2para(ligandAtom2, atom: atom, units: units)) {
-                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
-                        doneAtoms.append(UInt(atom.getId().rawValue))
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
+                        doneAtoms.append(UInt(atom.getId().intValue))
                     }
                 case .T1112, .T1111:
                     // rule 2b with 4 identical
                     let duplicatedSymClass = findDuplicatedSymmetryClass(atom, symClasses: symClasses)
                     guard let ligandAtom = findAtomWithSymmetryClass(atom, symClass: duplicatedSymClass, symClasses: symClasses) else { break }
                     if containsAtLeast_2true_2paraAssemblies(ligandAtom, atom: atom, units: units, mergedRings: mergedRings) {
-                        units.append(MKStereoUnit(.Tetrahedral, atom.getId().ref, true))
-                        doneAtoms.append(UInt(atom.getId().rawValue))
+                        units.append(MKStereoUnit(.Tetrahedral, atom.getId(), true))
+                        doneAtoms.append(UInt(atom.getId().intValue))
                     }
                 default: break
                 }
@@ -1849,7 +1849,7 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
         }
 
         for bond in mol.getBondIterator() {
-            if doneBonds.contains(UInt(bond.getId().intValue!)) {
+            if doneBonds.contains(UInt(bond.getId().intValue)) {
                 continue
             }
             // consider only potential steroecenters
@@ -1881,7 +1881,7 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
                 //  true stereocenter found
                 var isParaCenter = (beginClassification == .C12) && (endClassification == .C12) ? false : true
                 units.append(MKStereoUnit(.CisTrans, bond.getId(), isParaCenter))
-                doneBonds.append(UInt(bond.getId().intValue!))
+                doneBonds.append(UInt(bond.getId().intValue))
             } else {
                 // count ligand configurations:
                 var beginValid: Bool = false
@@ -1927,7 +1927,7 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
                 }
                 if endValid {
                     units.append(MKStereoUnit(.CisTrans, bond.getId(), true))
-                    doneBonds.append(UInt(bond.getId().intValue!))
+                    doneBonds.append(UInt(bond.getId().intValue))
                 }
             }
         }

@@ -15,31 +15,6 @@ func generateUUID() -> Int {
     return uuidUInt
 }
 
-public enum MKBaseID: Comparable {
-    case NoId
-    case _id(Int)
-
-    var rawValue: Int {
-        switch self {
-        case .NoId:
-            return -1
-        case ._id(let id):
-            return id
-        }
-    }
-    
-    var ref: RefValue {
-        switch self {
-        case .NoId:
-            return .NoRef
-        case ._id(let val):
-            return .Ref(val)
-        }
-    }
-    
-}
-
-
 public class MKBase: NSObject {
     
     var _vdata: [MKGenericData]? = nil

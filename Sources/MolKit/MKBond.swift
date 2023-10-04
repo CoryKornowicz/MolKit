@@ -31,7 +31,7 @@ public class MKBond: MKBase {
     private var _begin: MKAtom? = nil
     private var _end: MKAtom? = nil
     private var _order: UInt = 0  // 0 = single, 1 = double, 2 = triple, 3 = aromatic
-    private var _id: MKBaseID = ._id(generateUUID())
+    private var _id: Ref = .Ref(generateUUID())
 
     override init() {
         super.init()
@@ -51,31 +51,17 @@ public class MKBond: MKBase {
     }
 
     func getId() -> Ref {
-        return self._id.ref
-    }
-    
-    func getId() -> MKBaseID {
         return self._id
     }
-
-    func setId(_ id: Int) {
-        self._id = ._id(id)
-    }
     
-    func setId(_ id: MKBaseID) {
-        self._id = id
+    func setId(_ id: Int) {
+        self._id = .Ref(id)
     }
     
     func setId(_ id: Ref) {
-        if case .NoRef = id {
-            self._id = .NoId
-        } else if case .ImplicitRef = id {
-            self._id = .NoId
-        } else {
-            self._id = ._id(id.intValue!)
-        }
+        self._id = id
     }
-
+    
     func getIdx() -> UInt {
         return self._idx
     }

@@ -71,7 +71,7 @@ class MKGen3DStereoHelper {
         // // Make sure to respect previously unspecifed stereochemistry
         let facade = MKStereoFacade(mol)
         for i in 0..<m_unspecifiedTetrahedral.count {
-            let ts = facade.getTetrahedralStereo(m_unspecifiedTetrahedral[i].intValue!)
+            let ts = facade.getTetrahedralStereo(m_unspecifiedTetrahedral[i].intValue)
             if ts == nil {
                 continue
             }
@@ -80,7 +80,7 @@ class MKGen3DStereoHelper {
             ts!.setConfig(cfg)
         }
         for i in 0..<m_unspecifiedCisTrans.count {
-            let ct = facade.getCisTransStereo(m_unspecifiedCisTrans[i].intValue!)
+            let ct = facade.getCisTransStereo(m_unspecifiedCisTrans[i].intValue)
             if ct == nil {
                 continue
             }

@@ -194,7 +194,10 @@ class MKRingSearch {
     }
     
     //! Starting with a full ring set - reduce to SSSR set
-    func removeRedundant(_ frj: Int) {        
+    func removeRedundant(_ frj: Int) {  
+        
+        if _rlist.count == 0 { return } // nothing to do
+
         //remove identical rings
         for i in (1..._rlist.count-1).reversed() {
             for j in (0...i-1).reversed() {
@@ -206,7 +209,7 @@ class MKRingSearch {
         }
         
         if _rlist.count == 0 { return } // nothing to do
-        
+                
         // handle LSSR
         if frj < 0 {
             guard let mol = _rlist[0].getParent() else { return }
@@ -259,8 +262,10 @@ class MKRingSearch {
     
     //! Add a new ring from a "closure" bond: See OBBond::IsClosure()
     func addRingFromClosure(_ mol: MKMol, _ cbond: MKBond) {
-        var t1: [MKRTree] = []
-        var t2: [MKRTree] = []
+        
+        var t1: [MKRTree] = [MKRTree]()
+        var t2: [MKRTree] = [MKRTree]()
+
         let bv1: MKBitVec = MKBitVec()
         let bv2: MKBitVec = MKBitVec()
         
@@ -530,7 +535,7 @@ private let MK_RTREE_CUTOFF = 20
 
 func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree], _ bv: MKBitVec) {
     
-    vt[atom.getIdx()] = MKRTree(atom, prv)
+    vt.append(MKRTree(atom, prv))
     
     guard let mol = atom.getParent() else { return }
     var curr: MKBitVec = MKBitVec()
@@ -552,7 +557,9 @@ func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree], 
                 if !used[nbr.getIdx()] {
                     next |= nbr.getIdx()
                     used |= nbr.getIdx()
-                    vt[nbr.getIdx()] = MKRTree(nbr, vt[aom.getIdx()])
+                    guard let nbrIndex = vt.firstIndex(where: { tree in tree._atom == nbr }) else { break }
+                    guard let aomIndex = vt.firstIndex(where: { tree in tree._atom == aom }) else { break }
+                    vt[nbrIndex] = MKRTree(nbr, vt[aomIndex])
                 }
             }
         } while i != bv.endBit()

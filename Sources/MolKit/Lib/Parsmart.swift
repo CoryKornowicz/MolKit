@@ -70,73 +70,41 @@ private let SmartsImplicitRef = -9999 // Used as a placeholder when recording at
 //! \union _AtomExpr parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) atomic expression
 
-protocol _MKAtomExpr {}
-
-protocol _AtomExprProtocol {
-    var type: Int { get set }
+indirect enum AtomExpr {
+//    case type(Int)
+    case leaf(type: Int, value: Int)
+    case recur(type: Int, recur: Pattern)
+    case mon(type: Int, arg: AtomExpr)
+    case bin(type: Int, lft: AtomExpr, rgt: AtomExpr)
 }
 
-struct _AtomExprLeaf: _AtomExprProtocol, _MKAtomExpr {
-    var type: Int
-    var value: Int
-}
-
-struct _AtomExprRecur: _AtomExprProtocol, _MKAtomExpr {
-    var type: Int
-    var recur: Pattern?
-}
-
-struct _AtomExprMon: _AtomExprProtocol, _MKAtomExpr {
-    var type: Int
-    var arg: _MKAtomExpr
-}
-
-struct _AtomExprBin: _AtomExprProtocol, _MKAtomExpr {
-    var type: Int
-    var lft: _MKAtomExpr
-    var rgt: _MKAtomExpr
-}
-
-indirect enum _AtomExpr: _MKAtomExpr {
-    case leaf(_AtomExprLeaf)
-    case recur(_AtomExprRecur)
-    case mon(_AtomExprMon)
-    case bin(_AtomExprBin)
-}
-
-//! \union _BondExpr parsmart.h <openbabel/parsmart.h>
+//! \union BondExpr parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) bond expression
 
-protocol _BondExprProtocol {
-    var type: Int { get set }
+indirect enum BondExpr {
+    case type(Int)
+    case mon(type: Int, arg: BondExpr)
+    case bin(type: Int, lft: BondExpr, rgt: BondExpr)
+    
+    var type: Int {
+        switch self {
+        case .type(let int):
+            return int
+        case .mon(let type, _):
+            return type
+        case .bin(let type, _, _):
+            return type
+        }
+    }
+    
 }
 
-struct _BondExprLeaf: _BondExprProtocol {
-    var type: Int
-}
-
-struct _BondExprMon: _BondExprProtocol {
-    var type: Int
-    var arg: _BondExpr
-}
-
-struct _BondExprBin: _BondExprProtocol {
-    var type: Int
-    var lft: _BondExpr
-    var rgt: _BondExpr
-}
-
-indirect enum _BondExpr {
-    case leaf(_BondExprLeaf)
-    case mon(_BondExprMon)
-    case bin(_BondExprBin)
-}
 
 //! \struct BondSpec parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) bond specification
 struct BondSpec: Equatable {
     
-    var expr: _BondExpr
+    var expr: BondExpr
     var src, dst: Int
     var visit: Int?
     var grow: Bool?
@@ -151,7 +119,7 @@ struct BondSpec: Equatable {
 //! \brief An internal (SMARTS parser) atom specification
 struct AtomSpec: Equatable {
 
-    var expr: _MKAtomExpr
+    var expr: AtomExpr
     var visit: Int?
     var part: Int
     var chiral_flag: Int?
@@ -210,8 +178,8 @@ struct Pattern: Equatable {
 //! \struct ParseState parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal state
 struct ParseState {
-    var closord: [_BondExpr?] = []
-    var closure: [Int] = []
+    var closord: [BondExpr?] = [BondExpr?](repeating: nil, count: 100)
+    var closure: [Int] = [Int](repeating: 0, count: 100)
     var closindex: Int = 0
 }
 
@@ -554,7 +522,7 @@ class MKSmartsPattern {
         if var result = result {
             if flag {
                 // TODO: throw error here
-                print("SMARTS Error: Flag was triggered")
+                MKLogger.throwError(errorMsg: "SMARTS Error: Flag was triggered - pattern \(result) part \(part)")
                 return result
             } else {
                 markGrowBonds(&result)
@@ -573,9 +541,9 @@ class MKSmartsPattern {
     }
     
     // private func SMARTSError(_ pat: Pattern) -> Pattern {}
-    // private func parseSMARTSError(_ pat: Pattern, _ expr: _BondExpr) -> Pattern {}
+    // private func parseSMARTSError(_ pat: Pattern, _ expr: BondExpr) -> Pattern {}
     
-    private func parseSimpleAtomPrimitive() -> _MKAtomExpr? {
+    private func parseSimpleAtomPrimitive() -> AtomExpr? {
         switch self.LexPtr.next() {
         case "*":
             return buildAtomPred(AE_TRUE)
@@ -632,7 +600,7 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseComplexAtomPrimitive() -> _MKAtomExpr? {
+    private func parseComplexAtomPrimitive() -> AtomExpr? {
         var pat: Pattern?
         var index: Int
         
@@ -1045,9 +1013,9 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseAtomExpr(_ level: Int) -> _MKAtomExpr? {
-        var expr1: _MKAtomExpr?
-        var expr2: _MKAtomExpr?
+    private func parseAtomExpr(_ level: Int) -> AtomExpr? {
+        var expr1: AtomExpr?
+        var expr2: AtomExpr?
         var prev: Character
         
         switch level {
@@ -1113,7 +1081,7 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseBondPrimitive() -> _BondExpr? {
+    private func parseBondPrimitive() -> BondExpr? {
         switch self.LexPtr.next() {
         case "-": return buildBondLeaf(BE_SINGLE)
         case "=": return buildBondLeaf(BE_DOUBLE)
@@ -1132,9 +1100,9 @@ class MKSmartsPattern {
         return nil
     }
     
-    private func parseBondExpr(_ level: Int) -> _BondExpr? {
-        var expr1: _BondExpr?
-        var expr2: _BondExpr?
+    private func parseBondExpr(_ level: Int) -> BondExpr? {
+        var expr1: BondExpr?
+        var expr2: BondExpr?
         var prev: Character
         
         switch level {
@@ -1230,8 +1198,8 @@ class MKSmartsPattern {
     
     private func SMARTSParser(_ pat: inout Pattern?, _ stat: inout ParseState, _ prev: inout Int, _ part: Int) -> Pattern? {
         var vb = 0
-        var aexpr: _MKAtomExpr? = nil
-        var bexpr: _BondExpr? = nil
+        var aexpr: AtomExpr? = nil
+        var bexpr: BondExpr? = nil
         var index: Int = 0
         while !self.LexPtr.empty() {
             switch self.LexPtr.next() {
@@ -1431,36 +1399,31 @@ class MKSmartsPattern {
 /*  Atom Expression Manipulation  */
 /*================================*/
 
-func buildAtomPred(_ type: Int) -> _MKAtomExpr {
-    let res = _AtomExprLeaf(type: type, value: 0)
-    return _AtomExpr.leaf(res)
+func buildAtomPred(_ type: Int) -> AtomExpr {
+    return AtomExpr.leaf(type: type, value: 0)
 }
 
-func buildAtomLeaf(_ type: Int, _ value: Int) -> _MKAtomExpr {
-    let res = _AtomExprLeaf(type: type, value: value)
-    return _AtomExpr.leaf(res)
+func buildAtomLeaf(_ type: Int, _ value: Int) -> AtomExpr {
+    return AtomExpr.leaf(type: type, value: value)
 }
 
-func buildAtomNot(_ expr: _MKAtomExpr) -> _MKAtomExpr {
-    let res = _AtomExprMon(type: AE_NOT, arg: expr)
-    return _AtomExpr.mon(res)
+func buildAtomNot(_ expr: AtomExpr) -> AtomExpr {
+    return AtomExpr.mon(type: AE_NOT, arg: expr)
 }
 
-func buildAtomBinary(_ type: Int, _ lhs: _MKAtomExpr, _ rhs: _MKAtomExpr) -> _MKAtomExpr {
-    let res = _AtomExprBin(type: type, lft: lhs, rgt: rhs)
-    return _AtomExpr.bin(res)
+func buildAtomBinary(_ type: Int, _ lhs: AtomExpr, _ rhs: AtomExpr) -> AtomExpr {
+    return AtomExpr.bin(type: type, lft: lhs, rgt: rhs)
 }
 
-func buildAtomRecurs(_ pat: Pattern) -> _MKAtomExpr {
-    let res = _AtomExprRecur(type: AE_RECUR, recur: pat)
-    return _AtomExpr.recur(res)
+func buildAtomRecurs(_ pat: Pattern) -> AtomExpr {
+    return AtomExpr.recur(type: AE_RECUR, recur: pat)
 }
 
-func generateElement(_ elem: Int) -> _MKAtomExpr {
+func generateElement(_ elem: Int) -> AtomExpr {
     return buildAtomLeaf(AE_ELEM, elem)
 }
 
-func generateAromElem(_ elem: Int, _ flag: Bool) -> _MKAtomExpr {
+func generateAromElem(_ elem: Int, _ flag: Bool) -> AtomExpr {
     // MARK: sneakily add aliphatic elements here as well (for now)
     return flag ? buildAtomLeaf(AE_AROMELEM, elem) : buildAtomLeaf(AE_ALIPHELEM, elem)
 }
@@ -1482,62 +1445,40 @@ func generateAromElem(_ elem: Int, _ flag: Bool) -> _MKAtomExpr {
    *   C1CCCCC#1
    *   C1CCCCC=1
    */
-func equivalentBonExpr(_ lhs: _BondExpr, _ rhs: _BondExpr) -> Bool {
-    if (lhs as! _BondExprProtocol ).type != (rhs as! _BondExprProtocol ).type {
+func equivalentBonExpr(_ lhs: BondExpr, _ rhs: BondExpr) -> Bool {
+    if lhs.type != rhs.type {
         return false
     }
     
-    switch lhs {
-    case .leaf:
-        break
-    case .mon(let expr1):
-        switch rhs {
-        case .leaf:
-            break
-        case .mon(let expr2):
-            switch expr1.type {
-            case BE_NOT:
-                return equivalentBonExpr(expr1.arg, expr2.arg)
-            default: break
-            }
-        case .bin(_):
-            break
-        }
-    case .bin(let expr1):
-        switch rhs {
-        case .leaf:
-            break
-        case .mon(_):
-            break
-        case .bin(let expr2):
-            switch expr1.type {
-            case BE_ANDHI, BE_ANDLO, BE_OR:
-                return equivalentBonExpr(expr1.lft, expr2.lft) &&
-                       equivalentBonExpr(expr1.rgt, expr2.rgt)
-            default: break
-            }
-        }
+    switch lhs.type {
+    case BE_ANDHI, BE_ANDLO, BE_OR:
+        guard case let .bin(_, lft1, rgt1) = lhs,
+              case let .bin(_, lft2, rgt2) = rhs else { return false }
+            return equivalentBonExpr(lft1, lft2) &&
+                    equivalentBonExpr(rgt1, rgt2)
+        case BE_NOT:
+        guard case let .mon(_, arg1) = lhs,
+              case let .mon(_, arg2) = rhs else { return false }
+            return equivalentBonExpr(arg1, arg2)
+        default:
+            return true
     }
-    return true
 }
 
 
-func buildBondLeaf(_ type: Int) -> _BondExpr {
-    let res = _BondExprLeaf(type: type)
-    return .leaf(res)
+func buildBondLeaf(_ type: Int) -> BondExpr {
+    return .type(type)
 }
 
-func buildBondNot(_ expr: _BondExpr) -> _BondExpr {
-    let res = _BondExprMon(type: BE_NOT, arg: expr)
-    return .mon(res)
+func buildBondNot(_ expr: BondExpr) -> BondExpr {
+    return .mon(type: BE_NOT, arg: expr)
 }
 
-func buildBondBin(_ type: Int, _ lhs: _BondExpr, _ rhs: _BondExpr) -> _BondExpr {
-    let res = _BondExprBin(type: type, lft: lhs, rgt: rhs)
-    return .bin(res)
+func buildBondBin(_ type: Int, _ lhs: BondExpr, _ rhs: BondExpr) -> BondExpr {
+    return .bin(type: type, lft: lhs, rgt: rhs)
 }
 
-func generateDefaultBond() -> _BondExpr {
+func generateDefaultBond() -> BondExpr {
     return buildBondLeaf(BE_DEFAULT)
 }
 
@@ -1545,13 +1486,13 @@ func generateDefaultBond() -> _BondExpr {
   /*  SMARTS Pattern Manipulation  */
   /*===============================*/
 
-func createAtom(_ pat: inout Pattern, _ expr: _MKAtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
+func createAtom(_ pat: inout Pattern, _ expr: AtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
     pat.atom.append(AtomSpec(expr: expr, part: part, vb: vb))
     return pat.acount - 1
 }
 
 @discardableResult
-func createBond(_ pat: inout Pattern, _ expr: _BondExpr, _ src: Int, _ dst: Int) -> Int {
+func createBond(_ pat: inout Pattern, _ expr: BondExpr, _ src: Int, _ dst: Int) -> Int {
     pat.bond.append(BondSpec(expr: expr, src: src, dst: dst))
     return pat.bcount - 1
 }
@@ -1567,108 +1508,108 @@ func markGrowBonds(_ pat: inout Pattern) {
     }
 }
 
-func getChiralFlag(_ expr: _MKAtomExpr) -> Int {
+func getChiralFlag(_ expr: AtomExpr) -> Int {
 
-    switch (expr as! _AtomExpr) {
-    case .leaf(let _expr1):
-        if _expr1.type == AE_CHIRAL {
-            return _expr1.value
+    switch expr {
+    case .leaf(let type, let value):
+        if type == AE_CHIRAL {
+            return value
         }
-    case .mon(let expr1):
+    case .mon(let type, let arg):
         // Treat [!@] as [@@], and [!@@] as [@]
-        if expr1.type == AE_NOT {
-            let tmp1 = getChiralFlag(expr1.arg)
+        if type == AE_NOT {
+            let tmp1 = getChiralFlag(arg)
             if tmp1 == AL_ANTICLOCKWISE { return AL_CLOCKWISE }
             if tmp1 == AL_CLOCKWISE { return AL_ANTICLOCKWISE }
         }
-    case .bin(let expr1):
-        if expr1.type == AE_OR {
-            let tmp1 = getChiralFlag(expr1.lft)
-            let tmp2 = getChiralFlag(expr1.rgt)
+    case .bin(let type, let lft, let rgt):
+        if type == AE_OR {
+            let tmp1 = getChiralFlag(lft)
+            let tmp2 = getChiralFlag(rgt)
             if tmp1 == 0 || tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
-        if  expr1.type == AE_ANDHI ||
-            expr1.type == AE_ANDLO {
-            let tmp1 = getChiralFlag(expr1.lft)
-            let tmp2 = getChiralFlag(expr1.rgt)
+        if  type == AE_ANDHI ||
+            type == AE_ANDLO {
+            let tmp1 = getChiralFlag(lft)
+            let tmp2 = getChiralFlag(rgt)
             if tmp1 == 0 { return 0 }
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         }
-    case .recur(_):
+    case .recur(_, _):
         break
     }
     return 0
 
 }
 
-func getExprCharge(_ expr: _MKAtomExpr) -> Int {
-    switch expr as! _AtomExpr {
-    case .leaf(let expr1):
-        if expr1.type == AE_CHARGE {
-            return expr1.value
-        }
-    case .mon:
-        break
-    case .bin(let expr1):
-        if expr1.type == AE_OR {
-            let tmp1 = getExprCharge(expr1.lft)
-            if tmp1 == 0  { return 0 }
-            let tmp2 = getExprCharge(expr1.rgt)
-            if tmp2 == 0 { return 0 }
-            if tmp1 == tmp2 { return tmp1 }
-        }
-        if expr1.type == AE_ANDHI ||
-            expr1.type == AE_ANDLO {
-            let tmp1 = getExprCharge(expr1.lft)
-            let tmp2 = getExprCharge(expr1.rgt)
-            if tmp1 == 0 { return tmp2 }
-            if tmp2 == 0 { return tmp1 }
-            if tmp1 == tmp2 { return tmp1 }
-        }
-    case .recur(_):
-        break
-    }
-    return 0
-}
-
-func getExprAtomicNum(_ expr: _MKAtomExpr) -> Int {
-    switch expr as! _AtomExpr {
-    case .leaf(let expr1):
-        if expr1.type == AE_ELEM ||
-           expr1.type == AE_AROMELEM ||
-           expr1.type == AE_ALIPHELEM {
-            return expr1.value
-        }
-    case .mon:
-        break
-    case .bin(let expr1):
-        if expr1.type == AE_OR {
-            let tmp1 = getExprAtomicNum(expr1.lft)
-            if tmp1 == 0  { return 0 }
-            let tmp2 = getExprAtomicNum(expr1.rgt)
-            if tmp2 == 0 { return 0 }
-            if tmp1 == tmp2 { return tmp1 }
-        }
-        if expr1.type == AE_ANDHI ||
-           expr1.type == AE_ANDLO  {
-            let tmp1 = getExprAtomicNum(expr1.lft)
-            let tmp2 = getExprAtomicNum(expr1.rgt)
-            if tmp1 == 0 { return tmp2 }
-            if tmp2 == 0 { return tmp1 }
-            if tmp1 == tmp2 { return tmp1 }
-        }
-    case .recur(_):
-        break
-    }
-    return 0
-}
-
-func getExprOrder(_ expr: _BondExpr) -> Int {
+func getExprCharge(_ expr: AtomExpr) -> Int {
     switch expr {
-    case .leaf(let expr1):
-        switch expr1.type {
+    case .leaf(let type, let value):
+        if type == AE_CHARGE {
+            return value
+        }
+    case .mon:
+        break
+    case .bin(let type, let lft, let rgt):
+        if type == AE_OR {
+            let tmp1 = getExprCharge(lft)
+            if tmp1 == 0  { return 0 }
+            let tmp2 = getExprCharge(rgt)
+            if tmp2 == 0 { return 0 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+        if  type == AE_ANDHI ||
+            type == AE_ANDLO {
+            let tmp1 = getExprCharge(lft)
+            let tmp2 = getExprCharge(rgt)
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+    case .recur(_, _):
+        break
+    }
+    return 0
+}
+
+func getExprAtomicNum(_ expr: AtomExpr) -> Int {
+    switch expr {
+    case .leaf(let type, let value):
+        if type == AE_ELEM ||
+           type == AE_AROMELEM ||
+           type == AE_ALIPHELEM {
+            return value
+        }
+    case .mon:
+        break
+    case .bin(let type, let lft, let rgt):
+        if type == AE_OR {
+            let tmp1 = getExprAtomicNum(lft)
+            if tmp1 == 0  { return 0 }
+            let tmp2 = getExprAtomicNum(rgt)
+            if tmp2 == 0 { return 0 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+        if type == AE_ANDHI ||
+           type == AE_ANDLO  {
+            let tmp1 = getExprAtomicNum(lft)
+            let tmp2 = getExprAtomicNum(rgt)
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
+            if tmp1 == tmp2 { return tmp1 }
+        }
+    case .recur(_, _):
+        break
+    }
+    return 0
+}
+
+func getExprOrder(_ expr: BondExpr) -> Int {
+    switch expr {
+    case .mon(let type, _):
+        switch type {
         case BE_SINGLE: return 1
         case BE_DOUBLE: return 2
         case BE_TRIPLE: return 3
@@ -1677,18 +1618,8 @@ func getExprOrder(_ expr: _BondExpr) -> Int {
         case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
         default: break
         }
-    case .mon(let expr1):
-        switch expr1.type {
-        case BE_SINGLE: return 1
-        case BE_DOUBLE: return 2
-        case BE_TRIPLE: return 3
-        case BE_QUAD: return 4
-        case BE_AROM: return 5
-        case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
-        default: break
-        }
-    case .bin(let expr1):
-        switch expr1.type {
+    case .bin(let type, let lft, let rgt):
+        switch type {
         case BE_SINGLE: return 1
         case BE_DOUBLE: return 2
         case BE_TRIPLE: return 3
@@ -1696,21 +1627,30 @@ func getExprOrder(_ expr: _BondExpr) -> Int {
         case BE_AROM: return 5
         case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
         case BE_ANDHI, BE_ANDLO:
-            let tmp1 = getExprOrder(expr1.lft)
-            let tmp2 = getExprOrder(expr1.rgt)
+            let tmp1 = getExprOrder(lft)
+            let tmp2 = getExprOrder(rgt)
             if tmp1 == 0 { return tmp2 }
             if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
         case BE_OR:
-            let tmp1 = getExprOrder(expr1.lft)
+            let tmp1 = getExprOrder(lft)
             if tmp1 == 0  { return 0 }
-            let tmp2 = getExprOrder(expr1.rgt)
+            let tmp2 = getExprOrder(rgt)
             if tmp2 == 0 { return 0 }
             if tmp1 == tmp2 { return tmp1 }
         default: break
         }
+    case .type(let type):
+        switch type {
+        case BE_SINGLE: return 1
+        case BE_DOUBLE: return 2
+        case BE_TRIPLE: return 3
+        case BE_QUAD: return 4
+        case BE_AROM: return 5
+        case BE_UP, BE_DOWN, BE_UPUNSPEC, BE_DOWNUNSPEC: return 1
+        default: break
+        }
     }
-    
     return 0
 }
 
@@ -1726,119 +1666,126 @@ class MKSmartsMatcher {
 
     }
 
-    func evalAtomExpr(_ expr: _MKAtomExpr, _ atom: MKAtom) -> Bool {
-        switch (expr as! _AtomExprProtocol).type {
-        case AE_TRUE: return true
-        case AE_FALSE: return false
-        case AE_AROMATIC: return atom.isAromatic()
-        case AE_ALIPHATIC: return !atom.isAromatic()
-        case AE_CYCLIC: return atom.isInRing()
-        case AE_ACYCLIC: return !atom.isInRing()
-        default: break
-        }
+    func evalAtomExpr(_ expr: inout AtomExpr, _ atom: MKAtom) -> Bool {
+        while true {
+            //Switch on type first, then evaluate deeper with expr cases
+            var type: Int
+            switch expr {
+            case .leaf(type: let typ, value: _):
+                type = typ
+            case .bin(type: let typ, lft: _, rgt: _):
+                type = typ
+            case .mon(type: let typ, arg: _):
+                type = typ
+            case .recur(type: let typ, recur: _):
+                type = typ
+            }
+            
+            switch type {
+                case AE_TRUE: return true
+                case AE_FALSE: return false
+                case AE_AROMATIC: return atom.isAromatic()
+                case AE_ALIPHATIC: return !atom.isAromatic()
+                case AE_CYCLIC: return atom.isInRing()
+                case AE_ACYCLIC: return !atom.isInRing()
+                default: break
+            }
 
-        switch (expr as! _AtomExpr) {
-        case .leaf(let expr):
-            switch expr.type {
-            case AE_MASS: 
-                return expr.value == atom.getIsotope()
-            case AE_ELEM:
-                return expr.value == atom.getAtomicNum()
-            case AE_AROMELEM:
-                return atom.isAromatic() && expr.value == atom.getAtomicNum()
-            case AE_ALIPHELEM:
-                return !atom.isAromatic() && expr.value == atom.getAtomicNum()
-            case AE_HCOUNT:
-                return expr.value == (atom.getImplicitHCount() + atom.explicitHydrogenCount())
-            case AE_CHARGE:
-                return expr.value == atom.getFormalCharge()
-            case AE_CONNECT:
-                return expr.value == atom.getTotalDegree()
-            case AE_DEGREE:
-                return expr.value == atom.getExplicitDegree()
-            case AE_IMPLICIT:
-                return expr.value == atom.getImplicitHCount()
-            case AE_RINGS:
-                return expr.value == atom.memberOfRingCount()
-            case AE_SIZE:
-                return atom.isInRingSize(expr.value)
-            case AE_VALENCE:
-                return expr.value == atom.getTotalValence()
-            case AE_CHIRAL:
-            // always return true (i.e. accept the match) and check later
-                return true
-            case AE_HYB:
-                return expr.value == atom.getHyb()
-            case AE_RINGCONNECT:
-                return expr.value == atom.countRingBonds()
-            default: break
-            }
-        case .mon(let expr):
-            if expr.type == AE_NOT {
-                return !evalAtomExpr(expr.arg, atom)
-            }
-        case .bin(var expr):
-            if (expr as _AtomExprProtocol).type == AE_ANDHI ||
-               (expr as _AtomExprProtocol).type == AE_ANDLO {
-                if !evalAtomExpr(expr.lft, atom) { return false }
-                expr = expr.rgt as! _AtomExprBin
-            } else if (expr as _AtomExprProtocol).type == AE_OR {
-                if evalAtomExpr(expr.lft, atom) { return true }
-                expr = expr.rgt as! _AtomExprBin
-            }
-        case .recur(var expr):
-            //see if pattern has been matched
-            for i in 0..<rscache.count {
-                if rscache[i].0 == expr.recur {
-                    return rscache[i].1[atom.getIdx()]
+            switch expr {
+            case .leaf(let type, let value):
+                switch type {
+                case AE_MASS:
+                    return value == atom.getIsotope()
+                case AE_ELEM:
+                    return value == atom.getAtomicNum()
+                case AE_AROMELEM:
+                    return atom.isAromatic() && value == atom.getAtomicNum()
+                case AE_ALIPHELEM:
+                    return !atom.isAromatic() && value == atom.getAtomicNum()
+                case AE_HCOUNT:
+                    return value == (atom.getImplicitHCount() + atom.explicitHydrogenCount())
+                case AE_CHARGE:
+                    return value == atom.getFormalCharge()
+                case AE_CONNECT:
+                    return value == atom.getTotalDegree()
+                case AE_DEGREE:
+                    return value == atom.getExplicitDegree()
+                case AE_IMPLICIT:
+                    return value == atom.getImplicitHCount()
+                case AE_RINGS:
+                    return value == atom.memberOfRingCount()
+                case AE_SIZE:
+                    return atom.isInRingSize(value)
+                case AE_VALENCE:
+                    return value == atom.getTotalValence()
+                case AE_CHIRAL:
+                // always return true (i.e. accept the match) and check later
+                    return true
+                case AE_HYB:
+                    return value == atom.getHyb()
+                case AE_RINGCONNECT:
+                    return value == atom.countRingBonds()
+                default: break
                 }
-            }
-            //perceive and match pattern
-            var vb: [Bool] = []
-            var mlist : [[Int]] = []
-            guard let par = atom.getParent() else { return false }
-            if match(par, &expr.recur!, &mlist) {
-                for j in mlist {
-                    vb[j[0]] = true
+            case .mon(let type, var arg):
+                if type == AE_NOT {
+                    return !evalAtomExpr(&arg, atom)
                 }
+            case .bin(let type, var lft, let rgt):
+                if type == AE_ANDHI ||
+                   type == AE_ANDLO {
+                    if !evalAtomExpr(&lft, atom) { return false }
+                    expr = rgt
+                } else if type == AE_OR {
+                    if evalAtomExpr(&lft, atom) { return true }
+                    expr = rgt
+                }
+            case .recur(_, var recur):
+                //see if pattern has been matched
+                for i in 0..<rscache.count {
+                    if rscache[i].0 == recur {
+                        return rscache[i].1[atom.getIdx() - 1]
+                    }
+                }
+                //perceive and match pattern
+                var mlist : [[Int]] = []
+                guard let par = atom.getParent() else { return false }
+                var vb: [Bool] = [Bool].init(repeating: false, count: par.numAtoms())
+                
+                if match(par, &recur, &mlist) {
+                    for j in mlist {
+                        vb[j[0]] = true
+                    }
+                }
+                //cache result
+                rscache.append(Pair(recur, vb))
+                return vb[atom.getIdx()]
             }
-            //cache result
-            rscache.append(Pair(expr.recur!, vb))
-            return vb[atom.getIdx()]
+            return false
         }
-        return false
     }
 
-    func evalBondExpr(_ expr: inout _BondExpr, _ bond: MKBond) -> Bool {
+    func evalBondExpr(_ expr: inout BondExpr, _ bond: MKBond) -> Bool {
         while true {
-            switch (expr as! _BondExprProtocol).type {
+            switch expr.type {
             case BE_ANDHI, BE_ANDLO:
-                // get expr to _BondExprBin type
-                switch expr {
-                case .bin(var expr1):
-                    if !evalBondExpr(&expr1.lft, bond) {
-                        return false
-                    }
-                    expr = expr1.rgt
-                default: break
+                // get expr to BondExpr bin type
+                guard case var .bin(_, lft, rgt) = expr else { return false }
+                if !evalBondExpr(&lft, bond) {
+                    return false
                 }
+                expr = rgt
             case BE_OR:
-                // get expr to _BondExprBin type 
-                switch expr {
-                case .bin(var expr1):
-                    if evalBondExpr(&expr1.lft, bond) {
-                        return true
-                    }
-                    expr = expr1.rgt
-                default: break
+                // get expr to BondExpr bin type
+                guard case var .bin(_, lft, rgt) = expr else { return false }
+                if evalBondExpr(&lft, bond) {
+                    return true
                 }
+                expr = rgt
             case BE_NOT:
-                // get expr to _BondExprMon type 
-                switch expr {
-                case .mon(var expr1):
-                    return !evalBondExpr(&expr1.arg, bond)
-                default: break
-                }
+                // get expr to BondExpr mon type
+                guard case var .mon(_, arg) = expr else { return false }
+                return !evalBondExpr(&arg, bond)
 
             case BE_ANY: return true
             case BE_DEFAULT:
@@ -1862,7 +1809,7 @@ class MKSmartsMatcher {
         }
     }
     
-    private func setupAtomMatchTable(_ ttab: inout [[Bool]], _ pat: Pattern, _ mol: MKMol) {
+    private func setupAtomMatchTable(_ ttab: inout [[Bool]], _ pat: inout Pattern, _ mol: MKMol) {
         
         ttab.reserveCapacity(pat.acount)
         for i in 0..<pat.acount {
@@ -1871,7 +1818,7 @@ class MKSmartsMatcher {
         
         for i in 0..<pat.acount {
             for atom in mol.getAtomIterator() {
-                if evalAtomExpr(pat.atom[0].expr, atom) {
+                if evalAtomExpr(&pat.atom[0].expr, atom) {
                     ttab[i][atom.getIdx()] = true
                 }
             }
@@ -1893,7 +1840,7 @@ class MKSmartsMatcher {
 
         var bcount: Int = 0 
         for atom in mol.getAtomIterator() {
-            if evalAtomExpr(pat.atom[0].expr, atom) {
+            if evalAtomExpr(&pat.atom[0].expr, atom) {
                 
                 map[0] = atom.getIdx()
                 if (pat.bcount != 0) {
@@ -1942,7 +1889,7 @@ class MKSmartsMatcher {
 
                         while nbr != nil {
                             if !bv[nbr!.getIdx()] {
-                                if evalAtomExpr(pat.atom[pat.bond[bcount].dst].expr, nbr!) {
+                                if evalAtomExpr(&pat.atom[pat.bond[bcount].dst].expr, nbr!) {
                                     if let bond = mol.getBond(a1.getIdx(), nbr!.getIdx()) {
                                         if evalBondExpr(&pat.bond[bcount].expr, bond) {
                                             bv.setBitOn(UInt32(nbr!.getIdx()))
@@ -2002,7 +1949,7 @@ class MKSmartsMatcher {
                     // get the OBTetrahedralStereo::Config from the molecule
 
                     let stereo: MKStereoFacade = MKStereoFacade(mol)
-                    let ts: MKTetrahedralStereo? = stereo.getTetrahedralStereo(center.getId().rawValue)
+                    let ts: MKTetrahedralStereo? = stereo.getTetrahedralStereo(center.getId().intValue)
                     if ts == nil {
                         allStereoCentersMatch = false
                         break
@@ -2023,12 +1970,12 @@ class MKSmartsMatcher {
 
                     // construct a OBTetrahedralStereo::Config using the smarts pattern
                     var smartsConfig = MKTetrahedralStereo.Config()
-                    smartsConfig.center = center.getId().ref
+                    smartsConfig.center = center.getId()
                     if nbrs[0] == SmartsImplicitRef {
                         smartsConfig.from_or_towrds = .from(.ImplicitRef)
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[0]])?.getId() else { continue }
-                        smartsConfig.from_or_towrds = .from(ma.ref)
+                        smartsConfig.from_or_towrds = .from(ma)
                     }
                     
                     var firstref: Ref
@@ -2036,13 +1983,13 @@ class MKSmartsMatcher {
                         firstref = .ImplicitRef
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[1]])?.getId() else { continue }
-                        firstref = ma.ref
+                        firstref = ma
                     }
 
                     guard let ra2 = mol.getAtom(m[nbrs[2]]) else { continue }
                     guard let ra3 = mol.getAtom(m[nbrs[3]]) else { continue }
 
-                    smartsConfig.refs = MKStereo.makeRefs(firstref, ra2.getId().ref, ra3.getId().ref)
+                    smartsConfig.refs = MKStereo.makeRefs(firstref, ra2.getId(), ra3.getId())
                     
                     smartsConfig.view = MKStereo.View.ViewFrom
                     
@@ -2096,7 +2043,7 @@ class MKSSMatch {
         self._pat = pat
 
         if !mol.isEmpty() {
-            _uatoms.reserveCapacity(mol.numAtoms()+1)
+            _uatoms.resize(mol.numAtoms()+1, with: false)
         }
     }
 
@@ -2104,8 +2051,8 @@ class MKSSMatch {
         let matcher = MKSmartsMatcher()
         if bidx == -1 {
             for atom in _mol.getAtomIterator() {
-                if matcher.evalAtomExpr(_pat.atom[0].expr, atom) {
-                    _map[0] = atom.getIdx()
+                if matcher.evalAtomExpr(&_pat.atom[0].expr, atom) {
+                    _map.append(atom.getIdx()) // _map[0] = atom.getIdx()
                     _uatoms[atom.getIdx()] = true
                     match(&mlist, 0)
                     _map[0] = 0
@@ -2127,14 +2074,14 @@ class MKSSMatch {
                 return
             }
             
-            let aexpr = _pat.atom[dst].expr
+            var aexpr = _pat.atom[dst].expr
             var bexpr = _pat.bond[bidx].expr
             
             guard let atom = _mol.getAtom(_map[src]) else { return }
             if let nbratoms = atom.getNbrAtomIterator() {
                 for nbr in nbratoms {
 //                    MARK: could bond be nil?
-                    if !_uatoms[nbr.getIdx()] && matcher.evalAtomExpr(aexpr, nbr) &&
+                    if !_uatoms[nbr.getIdx()] && matcher.evalAtomExpr(&aexpr, nbr) &&
                         matcher.evalBondExpr(&bexpr, atom.getBond(nbr)!) {
                         _map[dst] = nbr.getIdx()
                         _uatoms[nbr.getIdx()] = true

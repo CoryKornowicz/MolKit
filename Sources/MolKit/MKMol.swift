@@ -165,13 +165,18 @@ public class MKMol: MKBase, Copying {
         guard id != .NoRef else { return nil }
         guard id != .ImplicitRef else { return nil }
         
-        if id.intValue! >= self._vatomIds.count { return nil }
-        return self._vatomIds[id.intValue!]
+        if id.intValue >= self._vatomIds.count { return nil }
+        return self._vatomIds[id.intValue]
     }
     
-    func getFirstAtom() -> MKAtom? {
+    public func getFirstAtom() -> MKAtom? {
         if self._natoms == 0 { return nil }
-        return self._vatom[0]
+        return self._vatom.first
+    }
+    
+    public func getLastAtom() -> MKAtom? {
+        if self._natoms == 0 { return nil }
+        return self._vatom.last
     }
     
     func getAllAtoms() -> [MKAtom] {
@@ -201,8 +206,8 @@ public class MKMol: MKBase, Copying {
         guard id != .NoRef else { return nil }
         guard id != .ImplicitRef else { return nil }
         
-        if id.intValue! >= self._vbondIds.count { return nil }
-        return self._vbondIds[id.intValue!]
+        if id.intValue >= self._vbondIds.count { return nil }
+        return self._vbondIds[id.intValue]
     }
     
     func getBond(_ bgn: MKAtom, _ end: MKAtom) -> MKBond? {
@@ -576,7 +581,7 @@ public class MKMol: MKBase, Copying {
             }
         }
         
-        self._vatomIds.remove(at: atom.getId().rawValue)
+        self._vatomIds.remove(at: atom.getId().intValue)
         self._vatom.remove(at: atom.getIdx())
         
         //reset all the indices to the atoms
@@ -589,7 +594,7 @@ public class MKMol: MKBase, Copying {
         self.endModify(false)
         
         // Delete any stereo objects involving this atom
-        let id: Ref = .Ref(atom.getId().rawValue)
+        let id: Ref = atom.getId()
         MKMol.deleteStereoOnAtom(self, id)
         
 //        if destroyAtom {}
@@ -621,7 +626,7 @@ public class MKMol: MKBase, Copying {
         bond.getBeginAtom().deleteBond(bond)
         bond.getEndAtom().deleteBond(bond)
         self._vbond.remove(at: Int(bond.getIdx()))
-        self._vbondIds.remove(at: bond.getId().intValue!)
+        self._vbondIds.remove(at: bond.getId().intValue)
 
         //reset all the indices to the atoms
         var _idx = 0
@@ -809,24 +814,24 @@ public class MKMol: MKBase, Copying {
     func addAtom(_ atom: MKAtom, _ forceNewId: Bool = false) -> Bool {
         //    BeginModify();
         // Use the existing atom Id unless either it's invalid or forceNewId has been specified
-        var id: MKBaseID
+        var id: Ref
         if forceNewId {
-            id = MKBaseID._id(self._vatomIds.count)
+            id = .Ref(self._vatomIds.count)
         } else {
             id = atom.getId()
-            if id == MKBaseID.NoId {
-                id = MKBaseID._id(self._vatomIds.count)
+            if id == Ref.NoRef {
+                id = .Ref(self._vatomIds.count)
             }
         }
 
         atom.setIdx(self._natoms+1)
         atom.setParent(self)
-        if id.rawValue >= self._vatomIds.count {
-            self._vatomIds.reserveCapacity(id.rawValue+1)
+        if id.intValue >= self._vatomIds.count {
+            self._vatomIds.reserveCapacity(id.intValue+1)
         }
 
-        atom.setId(id.rawValue)
-        self._vatomIds[id.rawValue] = atom
+        atom.setId(id.intValue)
+        self._vatomIds[id.intValue] = atom
 
         if self._natoms+1 >= self._vatom.count {
             self._vatom.reserveCapacity(self._natoms+1)
@@ -874,8 +879,8 @@ public class MKMol: MKBase, Copying {
             bond.setParent(self)
             bond.setId(self._vbondIds.count)
             self._vbondIds.append(bond)
-            
             self._vbond.append(bond)
+            
             if insertpos == -1 {
                 bgn.addBond(bond)
                 end.addBond(bond)
@@ -1127,8 +1132,8 @@ public class MKMol: MKBase, Copying {
         // Deleting hydrogens does not invalidate the stereo objects
         // - however, any explicit refs to the hydrogen atom must be
         //   converted to implicit refs
-        let ref = Ref(rawValue: atom.getId().rawValue)
-        stereoRefToImplicit(self, ref!)
+        let ref = atom.getId()
+        stereoRefToImplicit(self, ref)
 //      Cast Ref back to int
         var id = 0
         switch ref {
@@ -1318,7 +1323,7 @@ public class MKMol: MKBase, Copying {
 //                    MARK: Error catch here
                     _ = self.addBond(atom.getIdx(), h.getIdx(), 1, bondFlags)
                     h.setCoordPtr(self._c)
-                    implicitRefToStereo(self, .Ref(atom.getId().rawValue), .Ref(h.getId().rawValue))
+                    implicitRefToStereo(self, atom.getId(), h.getId())
                 }
             }
         }
@@ -1370,7 +1375,7 @@ public class MKMol: MKBase, Copying {
 //                    MARK: Error catch here
                 _ = self.addBond(atom.getIdx(), h.getIdx(), 1, bondFlags)
                 h.setCoordPtr(self._c)
-                implicitRefToStereo(self, .Ref(atom.getId().rawValue), .Ref(h.getId().rawValue))
+                implicitRefToStereo(self, atom.getId(), h.getId())
             }
         }
 
@@ -3547,11 +3552,11 @@ public class MKMol: MKBase, Copying {
                     
                     let newcfg: MKCisTransStereo.Config = MKCisTransStereo.Config()
                     newcfg.specified = cfg.specified
-                    newcfg.begin = cfg.begin == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.begin)!]!.getId().ref
-                    newcfg.end = cfg.end == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.end)!]!.getId().ref
+                    newcfg.begin = cfg.begin == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.begin)!]!.getId()
+                    newcfg.end = cfg.end == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(cfg.end)!]!.getId()
                     var refs: [Ref] = []
                     for ri in cfg.refs {
-                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId().ref
+                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId()
                         refs.append(ref)
                     }
                     newcfg.refs = refs
@@ -3591,14 +3596,14 @@ public class MKMol: MKBase, Copying {
 
                     var newcfg: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config()
                     newcfg.specified = cfg.specified
-                    newcfg.center = centerit.getId().ref
+                    newcfg.center = centerit.getId()
                     if case .from(let val) = cfg.from_or_towrds {
-                        newcfg.from_or_towrds = val == .ImplicitRef ? .from(.ImplicitRef) : .from(AtomMap[getAtomById(val)!]!.getId().ref)
+                        newcfg.from_or_towrds = val == .ImplicitRef ? .from(.ImplicitRef) : .from(AtomMap[getAtomById(val)!]!.getId())
                     }
                     
                     var refs: [Ref] = []
                     for ri in cfg.refs {
-                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId().ref
+                        let ref = ri == .ImplicitRef ? .ImplicitRef : AtomMap[getAtomById(ri)!]!.getId()
                         refs.append(ref)
                     }
                     newcfg.refs = refs
@@ -3827,12 +3832,12 @@ public class MKMol: MKBase, Copying {
         for atom in rhs.getAtomIterator() {
             lhs.addAtom(atom) // forceNewId=true (don't reuse the original Id)
             let addedAtom = lhs.getAtom(lhs.numAtoms())!
-            correspondingId[atom.getId().ref] = addedAtom.getId().ref
+            correspondingId[atom.getId()] = addedAtom.getId()
         }
         correspondingId[.ImplicitRef] = .ImplicitRef
         
         for bond in rhs.getBondIterator() {
-            bond.setId(.NoId)
+            bond.setId(.NoRef)
             lhs.addBond(bond.getBeginAtomIdx() + prevatms, bond.getEndAtomIdx() + prevatms,
                         Int(bond.getBondOrder()), Int(bond.getFlags()))
         }
