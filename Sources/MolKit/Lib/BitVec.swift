@@ -77,7 +77,7 @@ public class MKBitVec: Equatable {
         self._set = vec._set
     }
 
-    func setBitOn(_ bit_offset: UInt32) {
+    public func setBitOn(_ bit_offset: UInt32) {
         let word_offset = bit_offset >> WORDROLL
         let bit_offset_in_word = bit_offset & WORDMASK
         if word_offset >= _size {
@@ -94,20 +94,20 @@ public class MKBitVec: Equatable {
         }
     }
     
-    func setBitOn(_ bit_offset: Int) {
+    public func setBitOn(_ bit_offset: Int) {
         setBitOn(UInt32(bit_offset))
     }
     
-    func setBitOff(_ bit_offset: Int) {
+    public func setBitOff(_ bit_offset: Int) {
         setBitOff(UInt32(bit_offset))
     }
     
-    func setBitOn(_ bit_offset: UInt) {
+    public func setBitOn(_ bit_offset: UInt) {
         setBitOn(UInt32(bit_offset))
     }
     
-    func setBitOn(_ bit_offset: Ref) {
-        setBitOn(UInt32(bit_offset.intValue ?? Int.min))
+    public func setBitOn(_ bit_offset: Ref) {
+        setBitOn(UInt32(bit_offset.intValue))
     }
     
 
@@ -308,7 +308,7 @@ public class MKBitVec: Equatable {
     }
     
     func toVecInt(_ bit_offset: inout [Int]) {
-        for i in bit_offset {
+        for i in bit_offset where i >= 0 {
             bit_offset[i] = 0
         }
         bit_offset.reserveCapacity(self.countBits())
@@ -353,7 +353,8 @@ public class MKBitVec: Equatable {
         return self.resizeWords(WORDSIZE_OF_BITSIZE(size_in_bits))
     }
 
-    func resizeWords(_ size_in_words: UInt32) -> Bool {
+    @discardableResult
+    public func resizeWords(_ size_in_words: UInt32) -> Bool {
         
         if size_in_words <= _size {
             return false
@@ -372,7 +373,8 @@ public class MKBitVec: Equatable {
         var rtn = false
         let word_offset = bit_offset >> WORDROLL
         if word_offset < _size {
-            rtn = ((_set[Int(word_offset)] >> bit_offset) & 1) != 0
+            var internal_bit_offset = bit_offset & Int(WORDMASK)
+            rtn = ((_set[Int(word_offset)] >> internal_bit_offset) & 1) != 0
         }
         return rtn
     }
@@ -380,12 +382,7 @@ public class MKBitVec: Equatable {
     func bitIsSet(_ bit_offset: Ref) -> Bool {
         guard bit_offset != .NoRef else { return false }
         guard bit_offset != .ImplicitRef else { return false }
-        var rtn = false
-        let word_offset = bit_offset.intValue >> WORDROLL
-        if word_offset < _size {
-            rtn = ((_set[Int(word_offset)] >> bit_offset.intValue) & 1) != 0
-        }
-        return rtn
+        return bitIsSet(bit_offset.intValue)
     }
 
     func getSize() -> Int { return self._size }
@@ -406,32 +403,45 @@ public class MKBitVec: Equatable {
     
 //     Operator Overloads
     
-    
-    static public func &= (lhs: inout MKBitVec, rhs: MKBitVec) {
+    public static func &= (lhs: inout MKBitVec, rhs: MKBitVec) {
         let min = lhs._size < rhs._size ? lhs._size : rhs._size
         for i in 0..<min {
             lhs._set[i] &= rhs._set[i]
         }
     }
     
-    static public func |= (lhs: inout MKBitVec, rhs: MKBitVec) {
+    public static func |= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))
         }
         
         for i in 0..<rhs.getSize() {
-            lhs._set[i] |= rhs._set[i]
+            
+            let word_offset = UInt32(rhs._set[i]) >> WORDROLL
+            
+            if lhs._size <= word_offset {
+                _ = lhs.resizeWords(word_offset + 1)
+            }
+            
+            let bit_offset_in_word = UInt32(rhs._set[i]) & WORDMASK
+            
+            lhs._set[Int(word_offset)] |= (1 << bit_offset_in_word)
         }
     }
     
-    static public func |= (lhs: inout MKBitVec, rhs: Int) {
-        if lhs._size <= 0 {
-            _ = lhs.resizeWords(1)
+    public static func |= (lhs: inout MKBitVec, rhs: Int) {
+        
+        let word_offset = UInt32(rhs) >> WORDROLL
+        let bit_offset_in_word = UInt32(rhs) & WORDMASK
+        
+        if lhs._size <= word_offset {
+            _ = lhs.resizeWords(word_offset + 1)
         }
-        lhs._set[0] |= UInt32(rhs)
+        
+        lhs._set[Int(word_offset)] |= (1 << bit_offset_in_word)
     }
     
-    static public func ^= (lhs: inout MKBitVec, rhs: MKBitVec) {
+    public static func ^= (lhs: inout MKBitVec, rhs: MKBitVec) {
         if (lhs._size < rhs.getSize()) {
             _ = lhs.resizeWords(UInt32(rhs.getSize()))
         }
@@ -454,6 +464,12 @@ public class MKBitVec: Equatable {
     }
 
     public static func | (lhs: MKBitVec, rhs: MKBitVec) -> MKBitVec {
+        var temp = lhs
+        temp |= rhs
+        return temp
+    }
+    
+    public static func | (lhs: MKBitVec, rhs: Int) -> MKBitVec {
         var temp = lhs
         temp |= rhs
         return temp

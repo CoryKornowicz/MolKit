@@ -263,8 +263,8 @@ class MKRingSearch {
     //! Add a new ring from a "closure" bond: See OBBond::IsClosure()
     func addRingFromClosure(_ mol: MKMol, _ cbond: MKBond) {
         
-        var t1: [MKRTree] = [MKRTree]()
-        var t2: [MKRTree] = [MKRTree]()
+        var t1: [MKRTree?] = [MKRTree?].init(repeating:  nil, count: mol.numAtoms() + 1)
+        var t2: [MKRTree?] = [MKRTree?].init(repeating:  nil, count: mol.numAtoms() + 1)
 
         let bv1: MKBitVec = MKBitVec()
         let bv2: MKBitVec = MKBitVec()
@@ -282,32 +282,31 @@ class MKRingSearch {
         var path2: [MKAtom] = []
         var p2: Deque<Int> = []
         
-        for tree1 in t1 {
+        for tr1 in t1 where tr1 != nil {
+            guard let tree1 = tr1 else { continue }
             path1.removeAll()
             tree1.pathToRoot(&path1)
 //            Check if the index is greater than the size of t2, if not, the element will be in there
             if t2.count > tree1.getAtomIdx() {
                 pathok = true
                 path2.removeAll()
-                t2[tree1.getAtomIdx()].pathToRoot(&path2)
+                
+                guard let tree2 = t2[tree1.getAtomIdx()] else { continue }
+                tree2.pathToRoot(&path2)
                 
                 p1.removeAll()
-//              m = path1.begin();
-//              if (m != path1.end())
-//              p1.push_back((*m)->GetIdx());
-                // Not sure what exactly the logic is doing here since it seems to add the first node
-                // twice, as it enters the loop over path1
-                // we will add the first node and then start the loop beginning at the second node
-                if path1.count > 1 {
-                    p1.append(path1[0].getIdx())
+    
+                if let m = path1.first, m != path1.last {
+                    p1.append(m.getIdx())
                 }
-                for m in path1[1...] {
+                
+                for m in path1 {
                     p1.append(m.getIdx())
                     p2.removeAll()
                     for n in path2 {
                         p2.insert(n.getIdx(), at: 0)
                         if n == m {
-                            p2.popFirst()
+                            let _ = p2.popFirst()
                             if p1.count + p2.count > 2 {
                                 saveUniqueRings(p1, p2)
                             }
@@ -324,11 +323,6 @@ class MKRingSearch {
                 }
             }
         }
-        //clean up OBRTree vectors???
-        defer {
-            t1 = []
-            t2 = []
-        }
         // set parent for all rings
         for j in 0..<_rlist.count {
             _rlist[j].setParent(mol)
@@ -336,7 +330,7 @@ class MKRingSearch {
     }
     
     @discardableResult
-    func saveUniqueRings(_ d1: Deque<Int>, _ d2: Deque<Int>) -> Bool {
+    public func saveUniqueRings(_ d1: Deque<Int>, _ d2: Deque<Int>) -> Bool {
         var path: [Int] = []
         let bv = MKBitVec()
         for i in d1 {
@@ -516,7 +510,7 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
     var bvisit: [Int] = Array<Int>.init(repeating: 0, count: bsize)
     
     let acount = mol.numAtoms()
-    let asize = acount+1
+    let asize = acount + 1
     var avisit: [Int] = Array<Int>.init(repeating: 0, count: asize)
     
     var frj: UInt = 0
@@ -533,9 +527,9 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
 
 private let MK_RTREE_CUTOFF = 20
 
-func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree], _ bv: MKBitVec) {
+func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree?], _ bv: MKBitVec) {
     
-    vt.append(MKRTree(atom, prv))
+    vt[atom.getIdx()] = MKRTree(atom, prv)
     
     guard let mol = atom.getParent() else { return }
     var curr: MKBitVec = MKBitVec()
@@ -543,33 +537,34 @@ func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree], 
     var next: MKBitVec = MKBitVec()
     var i: Int = 0
     curr |= atom.getIdx()
-    used = bv|curr
+    used = bv | curr
     
     var level = 0
-    
-    repeat {
+
+    while level <= MK_RTREE_CUTOFF {
         next.clear()
-        repeat {
-            i = curr.nextBit(i)
+        i = curr.nextBit(i)
+        while i != bv.endBit() {
             guard let aom = mol.getAtom(i) else { break }
             guard let neighs = aom.getNbrAtomIterator() else { break }
             for nbr in neighs {
                 if !used[nbr.getIdx()] {
                     next |= nbr.getIdx()
                     used |= nbr.getIdx()
-                    guard let nbrIndex = vt.firstIndex(where: { tree in tree._atom == nbr }) else { break }
-                    guard let aomIndex = vt.firstIndex(where: { tree in tree._atom == aom }) else { break }
-                    vt[nbrIndex] = MKRTree(nbr, vt[aomIndex])
+//                    guard let nbrIndex = vt.firstIndex(where: { tree in tree._atom == nbr }) else { break }
+//                    guard let aomIndex = vt.firstIndex(where: { tree in tree._atom == aom }) else { break }
+                    vt[nbr.getIdx()] = MKRTree(nbr, vt[aom.getIdx()])
                 }
             }
-        } while i != bv.endBit()
+            i = curr.nextBit(i)
+        }
         
         if next.isEmpty() {
             break
         }
         
-        curr = next
+        curr = MKBitVec(next)
         level += 1
-    } while level < MK_RTREE_CUTOFF
+    }
 
 }

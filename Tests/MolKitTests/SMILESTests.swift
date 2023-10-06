@@ -16,7 +16,7 @@ final class SmilesTest: XCTestCase {
     }
     
     override class func setUp() {
-        let smi: SMIFormat = SMIFormat()
+        let smi: SMIFormat = SMIFormat() // initialize format so that MKConversion finds its input options
     }
     
     func testTetrahedralStereo() throws {
@@ -52,6 +52,26 @@ final class SmilesTest: XCTestCase {
         print(cfg)
         // compare stereochemistry
         XCTAssert(ts.getConfig() == cfg)
+    }
+    
+    func testComplexSMILES() throws {
+        
+        var mol: MKMol = MKMol()
+        let conv: MKConversion = MKConversion()
+        XCTAssert(conv.setInFormat("smi"))
+        let smi = "OC[C@@H](O1)[C@@H](O)[C@H](O)[C@@H](O)[C@@H](O)1" //OP(=O)(=O)c1[se]c2ccccc2c1Br
+        print("Parsing smiles: \(smi)")
+        
+        XCTAssert(conv.readString(&mol, smi))
+        
+        // Get the stereo data
+        XCTAssert(mol.hasData(.StereoData))
+        
+        for atom in mol.getAtomIterator() {
+            print("Atom \(atom.getAtomicNum()) \(atom.getType()) ")
+        }
+        print(MKAtomTyper().get_vettyp())
+        
     }
     
 

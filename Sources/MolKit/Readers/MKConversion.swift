@@ -172,7 +172,7 @@ public class MKConversion {
 
     }
     
-    public init(_ inStream: InputFileHandler? = nil, _ outStream: OutputFileHandler? = nil) {
+    public init(_ inStream: InputFileHandlerProtocol? = nil, _ outStream: OutputFileHandlerProtocol? = nil) {
         defaultInit()
         setInStream(inStream)
         setOutStream(outStream)
@@ -991,6 +991,7 @@ Conversion options
     /// Part of "API" interface.
     /// The input stream can be specified and the change is retained in the OBConversion instance
     /// \return false and pOb=NULL on error
+    @discardableResult
     open func read<T: MKBase>(_ pOb: inout T, _ pin: InputFileHandler? = nil) -> Bool {
 //        if(pin != nil) {
           //for backwards compatibility, attempt to detect a gzip file

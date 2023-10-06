@@ -178,8 +178,8 @@ struct Pattern: Equatable {
 //! \struct ParseState parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal state
 struct ParseState {
-    var closord: [BondExpr?] = [BondExpr?](repeating: nil, count: 100)
-    var closure: [Int] = [Int](repeating: 0, count: 100)
+    var closord: [BondExpr?] = [BondExpr?]()
+    var closure: [Int] = [Int]()
     var closindex: Int = 0
 }
 
@@ -190,7 +190,7 @@ struct ParseState {
 
 
 //! \brief SMARTS (SMiles ARbitrary Target Specification) substructure searching
-class MKSmartsPattern {
+public class MKSmartsPattern {
     
     enum MatchType {
         case All
@@ -301,8 +301,10 @@ class MKSmartsPattern {
     //! \param mtype The match type to use. Default is All.
     //! \return Whether matches occurred
     func match(_ mol: MKMol, _ mlist: inout [[Int]], _ mtype: MatchType = .All) -> Bool {
+        
         let matcher = MKSmartsMatcher()
         mlist.removeAll()
+        
         guard var _pat = _pat else { return false }
         
         if _pat.hasExplicitH { //The SMARTS pattern contains [H]
@@ -311,6 +313,8 @@ class MKSmartsPattern {
             tmol.addHydrogens(false, false)
             if !matcher.match(tmol, &_pat, &mlist, mtype == .Single) { return false }
         } else if !matcher.match(mol, &_pat, &mlist, mtype == .Single) { return false }
+        
+        self._pat = _pat
         
         if mtype == .AllUnique && mlist.count > 1 {
             //uniquify
@@ -501,10 +505,7 @@ class MKSmartsPattern {
     private func parseSMARTSPart(_ result: inout Pattern?, _ part: Int) -> Pattern? {
         
         var stat: ParseState = ParseState()
-        stat.closure.reserveCapacity(100)
-        stat.closord.reserveCapacity(100)
         var flag: Bool
-        
         for _ in 0..<100 {
             stat.closure.append(-1)
             stat.closord.append(nil)
@@ -1295,7 +1296,12 @@ class MKSmartsPattern {
                     print("ParseSMARTSError: found bad prev in \"0-9\"")
                     return nil
                 }
-                index = self.LexPtr.next()?.wholeNumberValue ?? -1
+                
+                guard let index = self.LexPtr.next()!.wholeNumberValue else {
+                    print("Could not translate Int from String")
+                    return nil
+                }
+                
                 if stat.closure[index] == -1 {
                     // Ring Opening
                     stat.closord[index] = bexpr
@@ -2041,7 +2047,8 @@ class MKSSMatch {
     init(_ mol: MKMol, _ pat: Pattern) {
         self._mol = mol
         self._pat = pat
-
+        self._map.resize(pat.acount, with: 0)
+        
         if !mol.isEmpty() {
             _uatoms.resize(mol.numAtoms()+1, with: false)
         }
@@ -2049,10 +2056,11 @@ class MKSSMatch {
 
     func match(_ mlist: inout [[Int]], _ bidx: Int = -1) {
         let matcher = MKSmartsMatcher()
+        
         if bidx == -1 {
             for atom in _mol.getAtomIterator() {
                 if matcher.evalAtomExpr(&_pat.atom[0].expr, atom) {
-                    _map.append(atom.getIdx()) // _map[0] = atom.getIdx()
+                    _map[0] = atom.getIdx()
                     _uatoms[atom.getIdx()] = true
                     match(&mlist, 0)
                     _map[0] = 0
@@ -2061,11 +2069,14 @@ class MKSSMatch {
             }
             return
         }
+        
         if bidx == _pat.bcount { //save full match here
             mlist.append(_map)
             return
         }
+        
         let grow = _pat.bond[bidx].grow != nil ? _pat.bond[bidx].grow! : false
+        
         if grow { //match the next bond
             let src = _pat.bond[bidx].src
             let dst = _pat.bond[bidx].dst
@@ -2143,6 +2154,7 @@ class LexicalParser: IteratorProtocol, Equatable {
     init() { }
     
     func setLex(_ string: String) {
+        self._index = 0
         self._lexCharacters = Array<Character>(string)
     }
 

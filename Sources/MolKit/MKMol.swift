@@ -795,15 +795,14 @@ public class MKMol: MKBase, Copying {
         }
 
         let bond = MKBond()
-        bond.setIdx(self._nbonds+1)
         bond.setParent(self)
+        bond.setIdx(self._nbonds)
 
-        self._vbondIds[Int(id)] = bond
         bond.setId(Int(id))
+        self._vbondIds[Int(id)] = bond
 
         self._vbond.append(bond)
-
-        // End Modify 
+        // End Modify
         return bond 
     }
 
@@ -1264,10 +1263,7 @@ public class MKMol: MKBase, Copying {
             self._flags = (~(OB_SSSR_MOL | OB_AROMATIC_MOL))
             return true
         }
-                
-        //realloc memory in coordinate arrays for new hydrogens
-//        MARK: Not really a thing in Swift....
-        
+                        
         self.incrementMod()
         
         let hbrad = self.correctedBondRad(1, 0)
@@ -1284,7 +1280,7 @@ public class MKMol: MKBase, Copying {
                         // Ensure that add hydrogens only returns finite coords
                         //atom->GetNewBondVector(v,bondlen);
                         let v = MKBuilder.getNewBondVector(atom, bondlen)
-                        if v.x.isFinite || v.y.isFinite || v.z.isFinite { // MARK: Why are we only ensuring one??
+                        if v.x.isFinite && v.y.isFinite && v.z.isFinite {
                             self._c[self.numAtoms()*3]       = v.x
                             self._c[(self.numAtoms()*3) + 1] = v.y
                             self._c[(self.numAtoms()*3) + 2] = v.z

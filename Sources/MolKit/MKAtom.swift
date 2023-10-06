@@ -37,6 +37,15 @@ public let SHELL: [Int] = [0,2,2,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,18,18,18,18
                            18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,8,8,18,18,18,18,
                            18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18]
 
+
+//! \return Is this atom a metal?
+//! \since version 2.4
+public let NMETALS = 78
+public let METALS: Array<Int> = [ 3,4,11,12,13,19,20,21,22,23,24,25,26,27,28,29,
+                                   30,31,37,38,39,40,41,42,43,44,45,46,47,48,49,50,55,56,57,58,59,60,61,62,63,
+                                   64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,87,88,89,90,91,
+                                   92,93,94,95,96,97,98,99,100,101,102,103 ]
+
 public class MKAtom: MKBase {
     
     private var _parent: MKBase? = nil
@@ -1207,15 +1216,8 @@ public class MKAtom: MKBase {
         return false
     }
     
-    //! \return Is this atom a metal?
-    //! \since version 2.4
-    private let NMETALS = 78
-    private let metals: Array<Int> = [ 3,4,11,12,13,19,20,21,22,23,24,25,26,27,28,29,
-                                       30,31,37,38,39,40,41,42,43,44,45,46,47,48,49,50,55,56,57,58,59,60,61,62,63,
-                                       64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,87,88,89,90,91,
-                                       92,93,94,95,96,97,98,99,100,101,102,103 ]
     func isMetal() -> Bool {
-        return metals.contains(self._ele)
+        return METALS.contains(self._ele)
     }
     
     //! \return Whether a neighboring atom (alpha) has an unsaturated bond

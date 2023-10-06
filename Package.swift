@@ -35,7 +35,7 @@ let package = Package(
                     // If path is a directory, the rule is applied recursively.
                     // By default, a file will be copied if no rule applies.
                     // Process file in Sources/MolKit/Data/*
-                    .copy("Data/")
+                    .copy("Data")
                   ]),
         .testTarget(
             name: "MolKitTests",

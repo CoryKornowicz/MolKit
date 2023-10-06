@@ -104,7 +104,7 @@ class Kekulizer {
         // Location of assigned double bonds
         doubleBonds = MKBitVec(UInt32(bondArraySize)) // defaults all to false
         var finished = false
-        repeat {
+    mainLoop: repeat {
             // Complete all of the degree one nodes
             while !degreeOneAtoms.isEmpty {
                 guard let atom = degreeOneAtoms.popLast() else { break }
@@ -150,12 +150,12 @@ class Kekulizer {
             let iterator: NodeIterator = NodeIterator(m_degrees: degrees, m_atomArraySize: atomArraySize)
             var change = false
             var atomIdx = iterator.next()
-            repeat {
-                if !needs_dbl_bond!.bitIsSet(atomIdx) { continue }
+            atomIterator: repeat {
+                if !needs_dbl_bond!.bitIsSet(atomIdx) { atomIdx = iterator.next(); continue }
             // The following is almost identical to the code above for deg 1 atoms
             // except for handling the variable 'change'
                 guard let atom = m_mol.getAtom(atomIdx) else { break }
-                guard let bonds = atom.getBondIterator() else { continue }
+                guard let bonds = atom.getBondIterator() else { atomIdx = iterator.next(); continue }
                 
                 for bond in bonds {
                     if !bond.isAromatic() { continue }
@@ -186,14 +186,14 @@ class Kekulizer {
                 }
                 
                 if change {
-                    break // exit the iterator once we have actually set a double bond
+                    break atomIterator // exit the iterator once we have actually set a double bond
                 }
                 
                 atomIdx = iterator.next()
             } while atomIdx != 0
             // We exit if we are finished or if no degree 2/3 nodes can be set
             if !change {
-                break
+                break mainLoop
             }
         } while true // Main Loop
         
@@ -207,7 +207,7 @@ class Kekulizer {
         let cound = needs_dbl_bond.countBits()
         var total_handled = 0
         var idx = needs_dbl_bond.firstBit()
-        repeat {
+        while idx != -1 {
             total_handled += 1
             
             // If there is no additional bit available to match this bit, then terminate
@@ -238,7 +238,7 @@ class Kekulizer {
                 }
             }
             idx = needs_dbl_bond.nextBit(idx)
-        } while idx != -1
+        }
         
         return needs_dbl_bond.isEmpty()
     }

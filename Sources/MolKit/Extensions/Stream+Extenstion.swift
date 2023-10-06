@@ -57,6 +57,9 @@ public class FileHandler : FileHandlerProtocol {
     
     var filepath: URL
     public var streamStatus: Stream.Status = .notOpen
+    public var handle: UnsafeMutablePointer<FILE>
+    public var closer: Closer
+
     
     public convenience init(path: URL, mode: String) throws {
         guard let handle = Darwin.fopen(path.path, mode) else {
@@ -66,7 +69,7 @@ public class FileHandler : FileHandlerProtocol {
         self.filepath = path
         streamStatus = .open
     }
-    
+        
     public init(handle: UnsafeMutablePointer<FILE>,
                 closer: Closer, _ path: URL)
     {
@@ -74,9 +77,6 @@ public class FileHandler : FileHandlerProtocol {
         self.closer = closer
         self.filepath = path
     }
-    
-    public var handle: UnsafeMutablePointer<FILE>
-    public var closer: Closer
     
     public func open(_ url: String, mode: String) throws {
         guard let handle = Darwin.fopen(url, mode) else {

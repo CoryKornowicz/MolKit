@@ -21,14 +21,22 @@ import Foundation
     \endcode
   */
 
-class MKAtomTyper: MKGlobalDataBase {
+public class MKAtomTyper: MKGlobalDataBase {
 
-    var _vinthyb: [Pair<MKSmartsPattern, Int>] = []    //!< internal hybridization rules
-    var _vexttyp: [Pair<MKSmartsPattern, String>] = [] //!< external atom type rules
+    private var _vinthyb: [Pair<MKSmartsPattern, Int>] = []    //!< internal hybridization rules
+    private var _vexttyp: [Pair<MKSmartsPattern, String>] = [] //!< external atom type rules
     
     public init() {
         super.init(fileName: "atomtyp", subDir: "Data")
         self.readFile()
+    }
+    
+    public func get_vinthyb() -> [Pair<MKSmartsPattern, Int>] {
+        return _vinthyb
+    }
+    
+    public func get_vettyp() -> [Pair<MKSmartsPattern, String>] {
+        return _vexttyp
     }
     
     //! \return the number of internal hybridization rules

@@ -866,7 +866,7 @@ class MKSmilesParser {
     
     func insertTetrahedralRef(_ mol: MKMol, id: Ref) {
         
-        print(id)
+//        print(id)
         
         guard let ChiralSearchIndex = _tetrahedralMap.keys.firstIndex(where: { $0 == mol.getAtom(_prev) }) else {
             return

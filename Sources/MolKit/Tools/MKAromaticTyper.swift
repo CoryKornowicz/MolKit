@@ -412,7 +412,7 @@ class MKAromaticTyperMolState {
         var hvyNbrs: Int = 0
         var ringNbrs: Int = 0
         var newRoot: Int = -1
-        var ringAtoms: [[MKRing]] = [] // store ring pointers on an atom basis
+        var ringAtoms: [[MKRing]] = [[MKRing]]() // store ring pointers on an atom basis
 
         //generate list of closure bonds
         for bond in mol.getBondIterator() {
@@ -428,6 +428,7 @@ class MKAromaticTyperMolState {
             //for every atom fill vector with ring pointer it's associated with
             for k in sssRings {
                 let tmp = k._path
+                ringAtoms.append([MKRing]())
                 for j in tmp {
                     ringAtoms[j].append(k)
                 }
@@ -474,62 +475,64 @@ class MKAromaticTyperMolState {
                     if ringNbrs > 2 {
                         // try to find another root atom
                         // only loop over rings which contain rootAtom
-                        for ring in ringAtoms[rootAtom] {
-                            tmp = ring._path
-                            
-                            var checkThisRing = false
-                            var rootAtomNumber = 0
-                            var idx = 0
-                            // avoiding two root atoms in one ring!
-                            for j in 0..<tmpRootAtoms.count {
-                                idx = tmpRootAtoms[j]
-                                if ring.isInRing(idx) {
-                                    rootAtomNumber += 1
-                                    if rootAtomNumber >= 2 {
-                                        break
-                                    }
-                                }
-                            }
-                            if rootAtomNumber < 2 {
-                                for j in 0..<tmp.count {
-                                    // find critical ring
-                                    if tmp[j] == rootAtom {
-                                        checkThisRing = true
-                                    } else {
-                                        // second root atom in this ring ?
-                                        if _root[tmp[j]] == true {
-                                            // when there is a second root
-                                            // atom this ring can not be
-                                            // used for getting an other
-                                            // root atom
-                                            checkThisRing = false
+                        if !ringAtoms.isEmpty {
+                            for ring in ringAtoms[rootAtom] {
+                                tmp = ring._path
+                                
+                                var checkThisRing = false
+                                var rootAtomNumber = 0
+                                var idx = 0
+                                // avoiding two root atoms in one ring!
+                                for j in 0..<tmpRootAtoms.count {
+                                    idx = tmpRootAtoms[j]
+                                    if ring.isInRing(idx) {
+                                        rootAtomNumber += 1
+                                        if rootAtomNumber >= 2 {
                                             break
                                         }
                                     }
                                 }
-                            }
-                            // check ring for getting another
-                            // root atom to avoid aromaticity typer problems
-                            if checkThisRing {
-                                // check if we can find another root atom
-                                for m in 0..<tmp.count {
-                                    ringNbrs = 0
-                                    hvyNbrs = 0
-                                    guard let atom = mol.getAtom(tmp[m]) else { break }
-                                    guard let nbrs2 = atom.getNbrAtomIterator() else { break }
-                                    for nbr2 in nbrs2 {
-                                        if nbr2.getAtomicNum() != MKElements.Hydrogen.atomicNum {
-                                            hvyNbrs += 1
-                                            if nbr2.isInRing() {
-                                                ringNbrs += 1
+                                if rootAtomNumber < 2 {
+                                    for j in 0..<tmp.count {
+                                        // find critical ring
+                                        if tmp[j] == rootAtom {
+                                            checkThisRing = true
+                                        } else {
+                                            // second root atom in this ring ?
+                                            if _root[tmp[j]] == true {
+                                                // when there is a second root
+                                                // atom this ring can not be
+                                                // used for getting an other
+                                                // root atom
+                                                checkThisRing = false
+                                                break
                                             }
                                         }
                                     }
-                                    // if the number of neighboured heavy atoms is also
-                                    // the number of neighboured ring atoms, the aromaticity
-                                    // typer could be stuck in a local traversing trap
-                                    if ringNbrs <= 2 && ring.isInRing(atom.getIdx()) {
-                                        newRoot = tmp[m]
+                                }
+                                // check ring for getting another
+                                // root atom to avoid aromaticity typer problems
+                                if checkThisRing {
+                                    // check if we can find another root atom
+                                    for m in 0..<tmp.count {
+                                        ringNbrs = 0
+                                        hvyNbrs = 0
+                                        guard let atom = mol.getAtom(tmp[m]) else { break }
+                                        guard let nbrs2 = atom.getNbrAtomIterator() else { break }
+                                        for nbr2 in nbrs2 {
+                                            if nbr2.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                                                hvyNbrs += 1
+                                                if nbr2.isInRing() {
+                                                    ringNbrs += 1
+                                                }
+                                            }
+                                        }
+                                        // if the number of neighboured heavy atoms is also
+                                        // the number of neighboured ring atoms, the aromaticity
+                                        // typer could be stuck in a local traversing trap
+                                        if ringNbrs <= 2 && ring.isInRing(atom.getIdx()) {
+                                            newRoot = tmp[m]
+                                        }
                                     }
                                 }
                             }
