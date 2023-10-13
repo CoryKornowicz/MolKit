@@ -6,7 +6,7 @@
 //
 
 import Foundation
-
+import Bitset
 
 
 /**
@@ -42,9 +42,9 @@ func getMaxBondIdx(_ mol: MKMol) -> Int {
 class Kekulizer {
     
     var m_mol: MKMol
-    var needs_dbl_bond: MKBitVec?
-    var doubleBonds: MKBitVec?
-    var kekule_system: MKBitVec?
+    var needs_dbl_bond: Bitset?
+    var doubleBonds: Bitset?
+    var kekule_system: Bitset?
     var atomArraySize: Int = 0
     var bondArraySize: Int = 0
     var m_path: [Int] = []
@@ -64,15 +64,15 @@ class Kekulizer {
         // What atoms need a double bond? The job of kekulization is
         // to give all of these atoms a single double bond.
         
-        needs_dbl_bond = MKBitVec(UInt32(atomArraySize))// defaults to all False
+        needs_dbl_bond = Bitset()// defaults to all False
         for atom in m_mol.getAtomIterator() {
             if needsDoubleBond(atom) {
-                needs_dbl_bond!.setBitOn(UInt32(atom.getIdx()))
+                needs_dbl_bond!.add(atom.getIdx())
             }
         }
         
         // Make a copy of needs_dbl_bond, to restrict the traversal in BackTrack()
-        kekule_system = MKBitVec(needs_dbl_bond!)
+        kekule_system = Bitset(needs_dbl_bond!)
         
         // Create lookup of degrees
         var degrees: [Int] = []
@@ -82,8 +82,8 @@ class Kekulizer {
         
         for atom in m_mol.getAtomIterator() {
             let atom_idx = atom.getIdx()
-            if !needs_dbl_bond!.bitIsSet(atom_idx) {
-                degrees[atom_idx - 1] = 0
+            if !needs_dbl_bond!.contains(atom_idx) {
+                degrees[atom_idx] = 0
                 continue
             }
             var mdeg = 0
@@ -91,18 +91,18 @@ class Kekulizer {
             for bond in bonds {
                 if !bond.isAromatic() { continue }
                 let nbr = bond.getNbrAtom(atom)
-                if needs_dbl_bond!.bitIsSet(nbr.getIdx()) {
+                if needs_dbl_bond!.contains(nbr.getIdx()) {
                     mdeg += 1
                 }
             }
-            degrees[atom_idx - 1] = mdeg
+            degrees[atom_idx] = mdeg
             if mdeg == 1 {
                 degreeOneAtoms.append(atom)
             }
         }
         
         // Location of assigned double bonds
-        doubleBonds = MKBitVec(UInt32(bondArraySize)) // defaults all to false
+        doubleBonds = Bitset() // defaults all to false
         var finished = false
     mainLoop: repeat {
             // Complete all of the degree one nodes
@@ -110,25 +110,25 @@ class Kekulizer {
                 guard let atom = degreeOneAtoms.popLast() else { break }
                 
                 // some nodes may already have been handled
-                if !needs_dbl_bond!.bitIsSet(atom.getIdx()) { continue }
+                if !needs_dbl_bond!.contains(atom.getIdx()) { continue }
                 guard let bonds = atom.getBondIterator() else { continue }
                 for bond in bonds {
                     if !bond.isAromatic() { continue }
                     let nbr = bond.getNbrAtom(atom)
-                    if !needs_dbl_bond!.bitIsSet(nbr.getIdx()) { continue }
+                    if !needs_dbl_bond!.contains(nbr.getIdx()) { continue }
                     // create a double bond from atom -> nbr
-                    doubleBonds!.setBitOn(UInt32(bond.getIdx()))
-                    needs_dbl_bond!.setBitOff(UInt32(atom.getIdx()))
-                    needs_dbl_bond!.setBitOff(UInt32(nbr.getIdx()))
+                    doubleBonds!.add(Int(bond.getIdx()))
+                    needs_dbl_bond!.remove(atom.getIdx())
+                    needs_dbl_bond!.remove(nbr.getIdx())
                     // now update degree information for nbr's neighbors
                     guard let nbrbonds = nbr.getBondIterator() else { continue }
                     for nbrbond in nbrbonds {
                         if nbrbond == bond || !nbrbond.isAromatic() { continue }
                         let nbrnbr = nbrbond.getNbrAtom(nbr)
                         let nbrnbrIdx = nbrnbr.getIdx()
-                        if !needs_dbl_bond!.bitIsSet(nbrnbrIdx) { continue }
-                        degrees[nbrnbrIdx - 1] -= 1
-                        if degrees[nbrnbrIdx - 1] == 1 {
+                        if !needs_dbl_bond!.contains(nbrnbrIdx) { continue }
+                        degrees[nbrnbrIdx] -= 1
+                        if degrees[nbrnbrIdx] == 1 {
                             degreeOneAtoms.append(nbrnbr)
                         }
                     }
@@ -151,7 +151,7 @@ class Kekulizer {
             var change = false
             var atomIdx = iterator.next()
             atomIterator: repeat {
-                if !needs_dbl_bond!.bitIsSet(atomIdx) { atomIdx = iterator.next(); continue }
+                if !needs_dbl_bond!.contains(atomIdx) { atomIdx = iterator.next(); continue }
             // The following is almost identical to the code above for deg 1 atoms
             // except for handling the variable 'change'
                 guard let atom = m_mol.getAtom(atomIdx) else { break }
@@ -160,11 +160,11 @@ class Kekulizer {
                 for bond in bonds {
                     if !bond.isAromatic() { continue }
                     let nbr = bond.getNbrAtom(atom)
-                    if !needs_dbl_bond!.bitIsSet(nbr.getIdx()) { continue }
+                    if !needs_dbl_bond!.contains(nbr.getIdx()) { continue }
                     // create a double bond from atom -> nbr
-                    doubleBonds!.setBitOn(UInt32(bond.getIdx()))
-                    needs_dbl_bond!.setBitOff(UInt32(atomIdx))
-                    needs_dbl_bond!.setBitOff(UInt32(nbr.getIdx()))
+                    doubleBonds!.add(Int(bond.getIdx()))
+                    needs_dbl_bond!.remove(atomIdx)
+                    needs_dbl_bond!.remove(nbr.getIdx())
                     // now update degree information for both atom's and nbr's neighbors
                     for N in 0..<2 {
                         let ref = N == 0 ? atom : nbr
@@ -173,9 +173,9 @@ class Kekulizer {
                             if nbrbond == bond || !nbrbond.isAromatic() { continue }
                             let nbrnbr = nbrbond.getNbrAtom(ref)
                             let nbrnbrIdx = nbrnbr.getIdx()
-                            if !needs_dbl_bond!.bitIsSet(nbrnbrIdx) { continue }
-                            degrees[nbrnbrIdx - 1] -= 1
-                            if degrees[nbrnbrIdx - 1] == 1 {
+                            if !needs_dbl_bond!.contains(nbrnbrIdx) { continue }
+                            degrees[nbrnbrIdx] -= 1
+                            if degrees[nbrnbrIdx] == 1 {
                                 degreeOneAtoms.append(nbrnbr)
                                 change = true
                             }
@@ -204,10 +204,10 @@ class Kekulizer {
         // With an odd number of bits, it's never going to kekulize fully, but let's fill in as many as we can
         guard let needs_dbl_bond = needs_dbl_bond else { return false }
         guard let doubleBonds = doubleBonds else { return false }
-        let cound = needs_dbl_bond.countBits()
+        let cound = needs_dbl_bond.count()
         var total_handled = 0
-        var idx = needs_dbl_bond.firstBit()
-        while idx != -1 {
+        
+        for idx in needs_dbl_bond {
             total_handled += 1
             
             // If there is no additional bit available to match this bit, then terminate
@@ -217,63 +217,62 @@ class Kekulizer {
             
             // Our goal is to find an alternating path to another atom
             // that needs a double bond
-            needs_dbl_bond.setBitOff(UInt32(idx)) // to avoid the trivial null path being found
-            var visited = MKBitVec(UInt32(atomArraySize))
+            needs_dbl_bond.remove(idx) // to avoid the trivial null path being found
+            var visited = Bitset()
             m_path.removeAll()
             let found_path = findPath(idx, false, &visited)
             if !found_path { // could only happen if not kekulizable
-                needs_dbl_bond.setBitOn(UInt32(idx)) // reset
+                needs_dbl_bond.add(idx) // reset
                 continue
             }
             total_handled += 1
             m_path.append(idx)
-            needs_dbl_bond.setBitOff(UInt32(m_path[0]))
+            needs_dbl_bond.remove(m_path[0])
             // Flip all of the bond orders on the path from double<-->single
             for i in 0..<m_path.count-1 {
                 guard let bond = m_mol.getBond(m_path[i], m_path[i+1]) else { continue }
                 if i % 2 == 0 {
-                    doubleBonds.setBitOn(UInt32(bond.getIdx()))
+                    doubleBonds.add(Int(bond.getIdx()))
                 } else {
-                    doubleBonds.setBitOff(UInt32(bond.getIdx()))
+                    doubleBonds.remove(Int(bond.getIdx()))
                 }
             }
-            idx = needs_dbl_bond.nextBit(idx)
         }
         
         return needs_dbl_bond.isEmpty()
     }
     
     func assignDoubleBonds() {
-        guard var bit = doubleBonds?.firstBit() else { return }
-        repeat {
+        guard doubleBonds != nil, !doubleBonds!.isEmpty() else { return }
+        
+        for bit in doubleBonds! {
             guard let bond = m_mol.getBond(bit) else { continue }
             bond.setBondOrder(2)
-            bit = doubleBonds?.nextBit(bit) ?? -1
-        } while bit != -1
+        }
     }
     
     // The isDoubleBond alternates between double and single, as we need to find
     // an alternating path
-    private func findPath(_ atomidx: Int, _ isDoubleBond: Bool, _ visited: inout MKBitVec) -> Bool {
+    private func findPath(_ atomidx: Int, _ isDoubleBond: Bool, _ visited: inout Bitset) -> Bool {
 //        Nil checking
         if needs_dbl_bond == nil || doubleBonds == nil || kekule_system == nil {
             return false
         }
         
-        if needs_dbl_bond!.bitIsSet(atomidx) {
+        if needs_dbl_bond!.contains(atomidx) {
             return true
         }
         
-        visited.setBitOn(UInt32(atomidx))
+        visited.add(atomidx)
         guard let atom = m_mol.getAtom(atomidx) else { return false }
         guard let bonds = atom.getBondIterator() else { return false }
         
         for bond in bonds {
             if !bond.isAromatic() { continue }
             let nbr = bond.getNbrAtom(atom)
-            if !kekule_system!.bitIsSet(nbr.getIdx()) { continue }
-            if doubleBonds!.bitIsSet(Int(bond.getIdx())) == isDoubleBond {
-                if visited.bitIsSet(nbr.getIdx()) { continue }
+            if !kekule_system!.contains(nbr.getIdx()) { continue }
+            if doubleBonds!.contains(Int(bond.getIdx())) == isDoubleBond {
+                if visited.contains(nbr.getIdx()) { continue }
                 let found_path: Bool = findPath(nbr.getIdx(), !isDoubleBond, &visited)
                 if found_path {
                     m_path.append(nbr.getIdx())
@@ -281,7 +280,7 @@ class Kekulizer {
                 }
             }
         }
-        visited.setBitOff(UInt32(atomidx))
+        visited.remove(atomidx)
         return false
     }
     
@@ -317,7 +316,6 @@ extension Kekulizer {
         guard let bonds = atom.getBondIterator() else { return false }
         for bond in bonds {
             if bond.isAromatic() { continue }
-            _ = bond.getNbrAtom(atom)
             switch bond.getBondOrder() {
             case 0, 1:
                 continue

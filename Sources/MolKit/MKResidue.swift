@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Bitset
 
 //! Residue types.
 public enum MKResidueProperty: Int {
@@ -530,12 +531,12 @@ public class MKResidue: MKBase {
     //! \return all bonds in this residue. @p exterior includes bonds to atoms
     //!  outside this residue (default is true)
     func getBonds(_ exterior: Bool = true) -> [MKBond] {
-        let idxs: MKBitVec = MKBitVec()
+        let idxs: Bitset = Bitset()
         let bonds: [MKBond] = [MKBond]()
         for atom in self._atoms {
             guard let bonds = atom.getBondIterator() else { continue }
             for bond in bonds {
-                if !idxs.bitIsSet(Int(bond.getIdx())) {
+                if !idxs.contains(Int(bond.getIdx())) {
                     if !exterior {
                         if bond.getNbrAtom(atom).getResidue() == self {
                             bonds.append(bond)
@@ -543,7 +544,7 @@ public class MKResidue: MKBase {
                     } else {
                         bonds.append(bond)
                     }
-                    idxs.setBitOn(UInt32(bond.getIdx()))
+                    idxs.add(Int(bond.getIdx()))
                 }
             }
         }

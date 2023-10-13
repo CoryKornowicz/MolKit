@@ -1,5 +1,5 @@
 import Foundation
-
+import Bitset
 /**
 * @class OBQueryAtom query.h <openbabel/query.h>
 * @brief Atom in an OBQuery
@@ -234,12 +234,12 @@ class MKQuery {
 * @return A pointer to an OBQuery object for the smiles string. This pointer should be deleted.
 * @since version 2.3
 */
-func compileMoleculeQuery(_ mol: MKMol, _ mask: MKBitVec = MKBitVec()) -> MKQuery {
+func compileMoleculeQuery(_ mol: MKMol, _ mask: Bitset = Bitset()) -> MKQuery {
     // set all atoms to 1 if the mask is empty
     var mask2 = mask
-    if mask2.countBits() == 0 {
+    if mask2.count() == 0 {
         for i in 0..<mol.numAtoms() {
-            mask2.setBitOn(UInt32(i + 1))
+            mask2.add(i + 1)
         }
     }
     var query = MKQuery()
@@ -247,7 +247,7 @@ func compileMoleculeQuery(_ mol: MKMol, _ mask: MKBitVec = MKBitVec()) -> MKQuer
     var indexes: [Int] = []
     for atom in mol.getAtomIterator() {
         indexes.append(atom.getIndex() - offset)
-        if !mask2.bitIsSet(atom.getIndex() + 1) {
+        if !mask2.contains(atom.getIndex() + 1) {
             offset += 1
             continue
         }
@@ -256,7 +256,7 @@ func compileMoleculeQuery(_ mol: MKMol, _ mask: MKBitVec = MKBitVec()) -> MKQuer
     for bond in mol.getBondIterator() {
         let beginIndex = bond.getBeginAtom().getIndex()
         let endIndex = bond.getEndAtom().getIndex()
-        if !mask2.bitIsSet(beginIndex + 1) || !mask2.bitIsSet(endIndex + 1) {
+        if !mask2.contains(beginIndex + 1) || !mask2.contains(endIndex + 1) {
             continue
         }
         query.addBond(MKQueryBond(query.getAtoms()[indexes[beginIndex]], query.getAtoms()[indexes[endIndex]], Int(bond.getBondOrder()), bond.isAromatic()))
@@ -271,7 +271,7 @@ func compileMoleculeQuery(_ mol: MKMol, _ mask: MKBitVec = MKBitVec()) -> MKQuer
 * @return A pointer to an OBQuery object for the smiles string. This pointer should be deleted.
 * @since version 2.3
 */
-func compileSmilesQuery(_ smiles: String, _ mask: MKBitVec = MKBitVec()) -> MKQuery {
+func compileSmilesQuery(_ smiles: String, _ mask: Bitset = Bitset()) -> MKQuery {
     let conv = MKConversion()
     conv.setInFormat("smi")
     var mol: MKMol = MKMol()

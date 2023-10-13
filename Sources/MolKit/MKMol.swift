@@ -9,6 +9,7 @@ import Foundation
 import Collections
 import Surge
 import simd
+import Bitset
 
 public let OB_SSSR_MOL: UInt = 1<<1
 public let OB_RINGFLAGS_MOL: UInt = 1<<2
@@ -825,16 +826,9 @@ public class MKMol: MKBase, Copying {
 
         atom.setIdx(self._natoms+1)
         atom.setParent(self)
-        if id.intValue >= self._vatomIds.count {
-            self._vatomIds.reserveCapacity(id.intValue+1)
-        }
 
         atom.setId(id.intValue)
         self._vatomIds[id.intValue] = atom
-
-        if self._natoms+1 >= self._vatom.count {
-            self._vatom.reserveCapacity(self._natoms+1)
-        }
 
         self._vatom[self._natoms] = atom
 
@@ -1702,10 +1696,10 @@ public class MKMol: MKBase, Copying {
         var va = v
         if va.isEmpty || va.count != self.numAtoms() { return }
         
-        var bv = MKBitVec()
+        let bv = Bitset()
         
         for i in va {
-            bv |= i.getIdx()
+            bv.add(i.getIdx())
         }
         
         for atom in self.getAtomIterator() {
@@ -1852,26 +1846,26 @@ public class MKMol: MKBase, Copying {
     //! children must not include 'end'
     func findChildren(_ bgn: MKAtom, _ end: MKAtom, _ children: inout [MKAtom]) {
         
-        var used: MKBitVec = MKBitVec()
-        var curr: MKBitVec = MKBitVec()
-        var next: MKBitVec = MKBitVec()
+        var used: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        var next: Bitset = Bitset()
 
-        used |= bgn.getIdx()
-        used |= end.getIdx()
-        curr |= end.getIdx()
+        used.add(bgn.getIdx())
+        used.add(end.getIdx())
+        curr.add(end.getIdx())
         children.removeAll()
         
         // MARK: Potentially bad code but unsure how to convert for (;;) loop
         while true {
-            next.clear()
-            for i in curr.nextBit(-1)..<curr.endBit() {
+            next.removeAll()
+            for i in curr {
                 guard let atom = self.getAtom(i) else { break }
                 guard let neighA = atom.getNbrAtomIterator() else { continue }
                 for nbr in neighA {
                     if !used[nbr.getIdx()] {
                         children.append(nbr)
-                        next |= nbr.getIdx()
-                        used |= nbr.getIdx()
+                        next.add(nbr.getIdx())
+                        used.add(nbr.getIdx())
                     }
                 }
                 
@@ -1886,22 +1880,22 @@ public class MKMol: MKBase, Copying {
     //! children must not include 'second'
     func findChildren(_ first: Int, _ second: Int, _ children: inout [Int]) {
 
-        var used: MKBitVec = MKBitVec()
-        var curr: MKBitVec = MKBitVec()
-        let next: MKBitVec = MKBitVec()
+        let used: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        let next: Bitset = Bitset()
         
-        used.setBitOn(UInt32(first))
-        used.setBitOn(UInt32(second))
-        curr.setBitOn(UInt32(second))
+        used.add(first)
+        used.add(second)
+        curr.add(second)
 
         while !curr.isEmpty() {
-            next.clear()
-            for i in curr.nextBit(-1)..<curr.endBit() {
+            next.removeAll()
+            for i in curr  {
                 guard let atom = self.getAtom(i) else { break }
                 guard let bondA = atom.getBondIterator() else { continue }
                 for bond in bondA {
                     if !used[bond.getNbrAtomIdx(atom)] {
-                        next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                        next.add(bond.getNbrAtomIdx(atom))
                     }
                 }
             }
@@ -1909,9 +1903,9 @@ public class MKMol: MKBase, Copying {
             curr = next
         }
         
-        used.setBitOff(UInt32(first))
-        used.setBitOff(UInt32(second))
-        used.toVecInt(&children)
+        used.remove(first)
+        used.remove(second)
+        used.fillArray(&children)
     }
     
     func findAngles() {
@@ -1989,28 +1983,28 @@ public class MKMol: MKBase, Copying {
         }
     }
     
-    func findLargestFragment(_ lf: inout MKBitVec) {
-        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var frag: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+    func findLargestFragment(_ lf: inout Bitset) {
+        let used: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        let next: Bitset = Bitset()
+        var frag: Bitset = Bitset()
         
-        lf.clear()
-        while used.countBits() < numAtoms() {
+        lf.removeAll()
+        while used.count() < numAtoms() {
             for atom in self.getAtomIterator() {
-                if !used.bitIsSet(atom.getIdx()) {
-                    curr.setBitOn(UInt32(atom.getIdx()))
+                if !used.contains(atom.getIdx()) {
+                    curr.add(atom.getIdx())
                     break
                 }
             }
             frag |= curr
             while !curr.isEmpty() {
-                for j in curr.nextBit(-1)..<curr.endBit() {
+                for j in curr {
                     guard let atom = self.getAtom(j) else { continue }
                     guard let bonds = atom.getBondIterator() else { continue }
                     for bond in bonds {
-                        if !used.bitIsSet(bond.getNbrAtomIdx(atom)) {
-                            next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                        if !used.contains(bond.getNbrAtomIdx(atom)) {
+                            next.add(bond.getNbrAtomIdx(atom))
                         }
                     }
                 }
@@ -2019,7 +2013,7 @@ public class MKMol: MKBase, Copying {
                 frag |= next
                 curr = next
             }
-            if lf.isEmpty() || lf.countBits() < frag.countBits() {
+            if lf.isEmpty() || lf.count() < frag.count() {
                 lf = frag
             }
         }
@@ -2047,7 +2041,7 @@ public class MKMol: MKBase, Copying {
         //get Fr�rejacque taking int account multiple possible spanning graphs
         let frj = determineFRJ(self)
         if frj != 0 {
-            var vr: [MKRing] = []
+            var vr: [MKRing] = [MKRing]()
             self.findRingAtomsAndBonds()
             
             //restrict search for rings around closure bonds
@@ -2743,29 +2737,29 @@ public class MKMol: MKBase, Copying {
 
     func contigFragList(_ cfl: inout Array<Array<Int>>) {
        
-        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var frag: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        let used: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        let next: Bitset = Bitset()
+        var frag: Bitset = Bitset()
         
 
-        while used.countBits() < self.numAtoms() {
-            curr.clear()
-            frag.clear()
+        while used.count() < self.numAtoms() {
+            curr.removeAll()
+            frag.removeAll()
             for atom in self.getAtomIterator() {
-                if !used.bitIsSet(atom.getIdx()) {
-                    curr.setBitOn(UInt32(atom.getIdx()))
+                if !used.contains(atom.getIdx()) {
+                    curr.add(atom.getIdx())
                     break
                 }
             }
             frag |= curr
             while !curr.isEmpty() {
-                next.clear()
-                for j in curr.nextBit(-1)..<curr.endBit() {
+                next.removeAll()
+                for j in curr {
                     guard let atom = self.getAtom(j) else { continue }
                     for bond in atom.getBondIterator()! {
-                        if !used.bitIsSet(bond.getNbrAtomIdx(atom)) {
-                            next.setBitOn(UInt32(bond.getNbrAtomIdx(atom)))
+                        if !used.contains(bond.getNbrAtomIdx(atom)) {
+                            next.add(bond.getNbrAtomIdx(atom))
                         }
                     }
                 }
@@ -2775,7 +2769,7 @@ public class MKMol: MKBase, Copying {
                 curr = next
             }
             var tmp: [Int] = []
-            frag.toVecInt(&tmp)
+            frag.fillArray(&tmp)
             cfl.append(tmp)
         }
 
@@ -2806,27 +2800,27 @@ public class MKMol: MKBase, Copying {
 
         var gtdcount: Int = 0
 
-        var used: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        var curr: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
-        let next: MKBitVec = MKBitVec(UInt32(self.numAtoms() + 1))
+        let used: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        let next: Bitset = Bitset()
 
-        next.clear()
+        next.removeAll()
 
         for atom in self.getAtomIterator() {
             gtdcount = 0
-            used.clear()
-            curr.clear()
-            used.setBitOn(UInt32(atom.getIdx()))
-            curr.setBitOn(UInt32(atom.getIdx()))
+            used.removeAll()
+            curr.removeAll()
+            used.add(atom.getIdx())
+            curr.add(atom.getIdx())
 
             while !curr.isEmpty() {
-                next.clear()
-                for natom in curr.nextBit(-1)..<curr.endBit() {
+                next.removeAll()
+                for natom in curr {
                     guard let atom1 = self.getAtom(natom) else { continue }
                     for bond in atom1.getBondIterator()! {
-                        if !used.bitIsSet(bond.getNbrAtomIdx(atom1)) && !curr.bitIsSet(bond.getNbrAtomIdx(atom1)) {
+                        if !used.contains(bond.getNbrAtomIdx(atom1)) && !curr.contains(bond.getNbrAtomIdx(atom1)) {
                             if bond.getNbrAtom(atom1).getAtomicNum() != 1 { // Hydrogen
-                                next.setBitOn(UInt32(bond.getNbrAtomIdx(atom1)))
+                                next.add(bond.getNbrAtomIdx(atom1))
                             }
                         }
                     }
@@ -3396,12 +3390,12 @@ public class MKMol: MKBase, Copying {
       OBBitVec atoms(mol.NumAtoms() + 1); // the maximum size needed
       FOR_ATOMS_OF_MOL(atom, mol) {
         if(atom->IsInRing())
-          atoms.SetBitOn(atom->Idx());
+          atoms.add(atom->Idx());
       }
       OBBitVec excludebonds(mol.NumBonds()); // the maximum size needed
       FOR_BONDS_OF_MOL(bond, mol) {
         if(!bond->IsInRing())
-          excludebonds.SetBitOn(bond->Idx());
+          excludebonds.add(bond->Idx());
       }
       OBMol newmol;
       mol.CopySubstructure(&newmol, &atoms, &excludebonds);
@@ -3440,7 +3434,7 @@ public class MKMol: MKBase, Copying {
 
       **/
     @discardableResult
-    func copySubstructure(_ newmol: MKMol, _ atoms: MKBitVec, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?, _ excludedBonds: MKBitVec? = nil, _ correctValence: Int = 1) -> Bool {
+    func copySubstructure(_ newmol: MKMol, _ atoms: Bitset, _ atomOrder: inout [Int]?, _ bondOrder: inout [Int]?, _ excludedBonds: Bitset? = nil, _ correctValence: Int = 1) -> Bool {
         
         let record_atomorder: Bool = atomOrder != nil
         let record_bondorder: Bool = bondOrder != nil
@@ -3466,8 +3460,8 @@ public class MKMol: MKBase, Copying {
 
         // Now add the atoms
         var AtomMap: [MKAtom: MKAtom] = [:] //key is from old mol; value from new mol
-        var bit: Int = atoms.firstBit()
-        repeat {
+        
+        for bit in atoms {
             let atom = getAtom(bit)
             if atom == nil {
                 return false
@@ -3477,14 +3471,12 @@ public class MKMol: MKBase, Copying {
                 atomOrder?.append(bit)
             }
             AtomMap[atom!] = newmol.getAtom(newmol.numAtoms())
-            bit = atoms.nextBit(bit)
-        } while bit != atoms.endBit()
+        }
         
         // add the residues
         if checkresidues {
             var ResidueMap: [MKResidue: MKResidue] = [:] // map from old to new
-            bit = atoms.firstBit()
-            repeat {
+            for bit in atoms {
                 guard let atom = getAtom(bit) else { break }
                 if let res: MKResidue = atom.getResidue() {
                     var newres: MKResidue
@@ -3501,8 +3493,7 @@ public class MKMol: MKBase, Copying {
                     newres.setHetAtom(newatom, res.isHetAtom(atom))
                     newres.setSerialNum(newatom, res.getSerialNum(atom))
                 }
-                bit = atoms.nextBit(bit)
-            } while bit != atoms.endBit()
+            }
         }
         
         // Update Stereo
@@ -3524,14 +3515,14 @@ public class MKMol: MKBase, Copying {
                     var skip_cfg: Bool = true 
                     if bonds_specified {
                         for bond in begin.getBondIterator()! {
-                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                            if excludedBonds!.contains(Int(bond.getIdx())) {
                                 skip_cfg = false
                                 break
                             }
                         }
                         if skip_cfg { continue }
                         for bond in end.getBondIterator()! {
-                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                            if excludedBonds!.contains(Int(bond.getIdx())) {
                                 skip_cfg = false
                                 break
                             }
@@ -3575,7 +3566,7 @@ public class MKMol: MKBase, Copying {
                     var skip_cfg: Bool = false 
                     if bonds_specified {
                         for bond in center.getBondIterator()! {
-                            if excludedBonds!.bitIsSet(Int(bond.getIdx())) {
+                            if excludedBonds!.contains(Int(bond.getIdx())) {
                                 skip_cfg = true
                                 break
                             }
@@ -3616,7 +3607,7 @@ public class MKMol: MKBase, Copying {
         // 2. As 1. but implicit Hs are added to replace them
         // 3. As 1. but asterisks are added to replace them
         for bond in self.getBondIterator() {
-            let skipping_bond = bonds_specified && excludedBonds!.bitIsSet(Int(bond.getIdx()))
+            let skipping_bond = bonds_specified && excludedBonds!.contains(Int(bond.getIdx()))
             let beginAtom: MKAtom = bond.getBeginAtom()
             let endAtom: MKAtom = bond.getEndAtom()
             if AtomMap[beginAtom] == nil && AtomMap[endAtom] == nil {
@@ -3696,12 +3687,11 @@ public class MKMol: MKBase, Copying {
     
     func getNextFragment(_ iter: MKAtomDFSIterator, _ newmol: MKMol) -> Bool {
         if iter.isEmpty() { return false }
-        
         // We want to keep the atoms in their original order rather than use
         // the DFS order so just record the information first
-        let infragment: MKBitVec = MKBitVec(UInt32(self.numAtoms()+1))
+        let infragment: Bitset = Bitset()
         repeat {
-            infragment.setBitOn(iter.current()!.getIdx())
+            infragment.add(iter.current()!.getIdx())
         } while iter.next() != nil
         var atomO: [Int]? = nil
         var bondO: [Int]? = nil

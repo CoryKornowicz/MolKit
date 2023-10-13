@@ -3,6 +3,8 @@
 import Foundation
 import Surge
 import Collections
+import Bitset
+
 
 class MKRTree {
     
@@ -35,7 +37,7 @@ class MKRing: MKBase {
 
     var ring_id: Int = 0
     var _path: [Int] = []
-    var _pathSet: MKBitVec = MKBitVec()
+    var _pathSet: Bitset = Bitset()
     
     override init() {
         super.init()
@@ -43,14 +45,13 @@ class MKRing: MKBase {
     
     init(_ path: [Int], _ size: Int) {
         self._path = path
-        self._pathSet.fromVecInt(_path)
-        self._pathSet.resize(UInt32(size))
+        self._pathSet = Bitset(_path)
         self._type = ""
         
         super.init()
     }
     
-    init(_ path: [Int], _ set: MKBitVec) {
+    init(_ path: [Int], _ set: Bitset) {
         self._path = path
         self._pathSet = set
         self._type = ""
@@ -70,7 +71,7 @@ class MKRing: MKBase {
     }
     
     func getType() -> String {
-        guard let mol = self._parent else { return "" }
+        guard var mol = self._parent else { return "" }
         if !mol.hasRingTypesPerceived() {
             MolKit._RingTyper.assignTypes(mol)
         }
@@ -78,12 +79,12 @@ class MKRing: MKBase {
     }
     
     func getRootAtom() -> Int {
-        guard let mol = self._parent else { return 0 }
+        guard var mol = self._parent else { return 0 }
         
         if size() == 6 {
             for i in _path {
                 guard let atom = mol.getAtom(i) else { return 0 }
-                if atom.getAtomicNum() != MKElements.getAtomicNum("C") {
+                if atom.getAtomicNum() != MKElements.Carbon.atomicNum {
                     return i
                 }
             }
@@ -93,11 +94,11 @@ class MKRing: MKBase {
             for i in _path {
                 guard let atom = mol.getAtom(i) else { return 0 }
                 switch atom.getAtomicNum() {
-                case MKElements.getAtomicNum("S"), MKElements.getAtomicNum("O"):
+                case MKElements.Sulfur.atomicNum, MKElements.Oxygen.atomicNum:
                     if atom.getExplicitDegree() == 2 {
                         return i
                     }
-                case MKElements.getAtomicNum("N"):
+                case MKElements.Nitrogen.atomicNum:
                     if atom.getExplicitValence() == atom.getExplicitDegree() {
                         return i
                     }
@@ -119,16 +120,16 @@ class MKRing: MKBase {
 
     //! \return Whether @p i as an atom index is in this ring
     func isInRing(_ i: Int) -> Bool {
-       return _pathSet.bitIsSet(i)
+       return _pathSet.contains(i)
     }
     
     func isMember(_ atom: MKAtom) -> Bool {
-        return _pathSet.bitIsSet(atom.getIdx())
+        return _pathSet.contains(atom.getIdx())
         
     }
     
     func isMember(_ bond: MKBond) -> Bool {
-        return _pathSet.bitIsSet(bond.getBeginAtomIdx()) && _pathSet.bitIsSet(bond.getEndAtomIdx())
+        return _pathSet.contains(bond.getBeginAtomIdx()) && _pathSet.contains(bond.getEndAtomIdx())
     }
     
     func isAromatic() -> Bool {
@@ -199,11 +200,14 @@ class MKRingSearch {
         if _rlist.count == 0 { return } // nothing to do
 
         //remove identical rings
-        for i in (1..._rlist.count-1).reversed() {
-            for j in (0...i-1).reversed() {
-                if _rlist[i]._pathSet == _rlist[j]._pathSet {
-                    _rlist.remove(at: i)
-                    break
+        if _rlist.count > 1 {
+            for i in (1..._rlist.count-1).reversed() {
+                for j in (0...i-1).reversed() {
+                    if j == i { continue }
+                    if _rlist[i]._pathSet == _rlist[j]._pathSet {
+                        _rlist.remove(at: i)
+                        break
+                    }
                 }
             }
         }
@@ -219,16 +223,9 @@ class MKRingSearch {
                 visitRing(mol, _rlist[i], &rlist, &rignored)
             }
             for i in 0..<rignored.count {
-                // delete rignored[i]
-                // in c++ this would free the pointer which arises from _rlist
-                // in swift we will simply delete the ring from _rlist
-                // TODO: this may have unforseen consequences
-                let delRing = rignored[i]
-                if let delindex = rlist.firstIndex(of: delRing) {
-                    rlist.remove(at: delindex)
-                }
+                rlist.remove(at: i)
             }
-            self._rlist = rlist
+            _rlist = rlist
             return
         }
         
@@ -236,21 +233,21 @@ class MKRingSearch {
         if _rlist.count == frj { return }
         
         //make sure tmp is the same size as the rings
-        var tmp: MKBitVec = MKBitVec()
+        var tmp: Bitset = Bitset()
         for j in 0..<_rlist.count {
             tmp = _rlist[j]._pathSet
         }
         
         //remove larger rings that cover the same atoms as smaller rings
         for i in (0..._rlist.count-1).reversed() {
-            tmp.clear()
+            tmp.removeAll()
             for j in 0..<_rlist.count {
                 if (_rlist[j]._path.count <= _rlist[i]._path.count) && (i != j) {
                     tmp |= _rlist[j]._pathSet
                 }
             }
             
-            tmp = tmp & _rlist[i]._pathSet
+            tmp &= _rlist[i]._pathSet
             
             if tmp == _rlist[i]._pathSet {
                 _rlist.remove(at: i)
@@ -266,13 +263,13 @@ class MKRingSearch {
         var t1: [MKRTree?] = [MKRTree?].init(repeating:  nil, count: mol.numAtoms() + 1)
         var t2: [MKRTree?] = [MKRTree?].init(repeating:  nil, count: mol.numAtoms() + 1)
 
-        let bv1: MKBitVec = MKBitVec()
-        let bv2: MKBitVec = MKBitVec()
+        let bv1: Bitset = Bitset()
+        let bv2: Bitset = Bitset()
         
         var pathok: Bool = false
         
-        bv1.setBitOn(UInt32(cbond.getEndAtomIdx()))
-        bv2.setBitOn(UInt32(cbond.getBeginAtomIdx()))
+        bv1.add(cbond.getEndAtomIdx())
+        bv2.add(cbond.getBeginAtomIdx())
         
         buildMKRTreeVector(cbond.getBeginAtom(), nil, &t1, bv1)
         buildMKRTreeVector(cbond.getEndAtom(), nil, &t2, bv2)
@@ -282,30 +279,27 @@ class MKRingSearch {
         var path2: [MKAtom] = []
         var p2: Deque<Int> = []
         
-        for tr1 in t1 where tr1 != nil {
-            guard let tree1 = tr1 else { continue }
+        for i in t1 where i != nil {
+            guard i != nil else { continue }
             path1.removeAll()
-            tree1.pathToRoot(&path1)
-//            Check if the index is greater than the size of t2, if not, the element will be in there
-            if t2.count > tree1.getAtomIdx() {
+            i!.pathToRoot(&path1)
+            
+            if let tree2 = t2[i!.getAtomIdx()] {
                 pathok = true
                 path2.removeAll()
-                
-                guard let tree2 = t2[tree1.getAtomIdx()] else { continue }
                 tree2.pathToRoot(&path2)
-                
                 p1.removeAll()
-    
+                    
                 if let m = path1.first, m != path1.last {
                     p1.append(m.getIdx())
                 }
                 
-                for m in path1 {
+                for m in path1[1...] {
                     p1.append(m.getIdx())
                     p2.removeAll()
-                    for n in path2 {
+                    for n in path2[1...] {
                         p2.insert(n.getIdx(), at: 0)
-                        if n == m {
+                        if n.getIdx() == m.getIdx() { //don't traverse across identical atoms
                             let _ = p2.popFirst()
                             if p1.count + p2.count > 2 {
                                 saveUniqueRings(p1, p2)
@@ -313,7 +307,7 @@ class MKRingSearch {
                             pathok = false
                             break
                         }
-                        if n.isConnected(m) && (p1.count + p2.count > 2) {
+                        if n.isConnected(m) && ((p1.count + p2.count) > 2) {
                             saveUniqueRings(p1, p2)
                         }
                     }
@@ -331,23 +325,26 @@ class MKRingSearch {
     
     @discardableResult
     public func saveUniqueRings(_ d1: Deque<Int>, _ d2: Deque<Int>) -> Bool {
+        let bv = Bitset()
         var path: [Int] = []
-        let bv = MKBitVec()
+        
         for i in d1 {
             path.append(i)
-            bv.setBitOn(UInt32(i))
+            bv.add(i)
         }
+        
         for i in d2 {
             path.append(i)
-            bv.setBitOn(UInt32(i))
+            bv.add(i)
         }
+        
         for j in _rlist {
             if bv == j._pathSet {
                 return false
             }
         }
-        let ring = MKRing(path, bv)
-        _rlist.append(ring)
+        
+        _rlist.append(MKRing(path, bv))
         return true
     }
     
@@ -383,16 +380,16 @@ func atomRingToBondRing(_ mol: MKMol, _ atoms: [Int]) -> [UInt] {
    */
 func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored: inout [MKRing]) {
     
-    var mask = MKBitVec()
+    var mask = Bitset()
     // Make sure mask is the same size as the maximum ring atom/bond index.
-    mask.setBitOn(UInt32(mol.numAtoms()))
-    mask.setBitOn(UInt32(mol.numBonds()))
+    mask.add(mol.numAtoms())
+    mask.add(mol.numBonds())
     
     //
     // Remove larger rings that cover the same atoms as smaller rings.
     //
     
-    mask.clear()
+    mask.removeAll()
     for j in 0..<rlist.count {
         // Here we select only smaller rings.
         if rlist[j]._path.count < ring._path.count {
@@ -400,26 +397,26 @@ func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored:
         }
     }
     
-    mask = mask & ring._pathSet
+    mask &= ring._pathSet
     
     let containsSmallerAtomRing = mask == ring._pathSet ? true : false
     
     // Translate ring atom indexes to ring bond indexes.
     let bonds = atomRingToBondRing(mol, ring._path)
-    let bondset : MKBitVec = MKBitVec()
+    let bondset : Bitset = Bitset()
     bonds.forEach { bd in
-        bondset.setBitOn(UInt32(bd))
+        bondset.add(Int(bd))
     }
     
     //
     // Remove larger rings that cover the same bonds as smaller rings.
     //
-    mask.clear()
+    mask.removeAll()
     for j in 0..<rlist.count {
         let otherBonds = atomRingToBondRing(mol, rlist[j]._path)
-        let bs = MKBitVec()
+        let bs = Bitset()
         otherBonds.forEach { bd in
-            bs.setBitOn(UInt32(bd))
+            bs.add(Int(bd))
         }
         // Here we select only smaller rings.
         if otherBonds.count < bonds.count {
@@ -427,7 +424,7 @@ func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored:
         }
     }
     
-    mask = mask & bondset
+    mask &= bondset
     
     let containsSmallerBondRing = mask == bondset ? true : false
     
@@ -457,7 +454,7 @@ func determineFRJ(_ mol: MKMol) -> Int {
 
 /* A recursive O(N) traversal of the molecule */
 @discardableResult
-func findRings(_ atom: MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ frj: inout UInt, _ depth: Int) -> Int {
+func findRings(_ atom: inout MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ frj: inout UInt, _ depth: Int) -> Int {
     var result = -1
     
     guard let bonds = atom.getBondIterator() else { return result }
@@ -467,12 +464,12 @@ func findRings(_ atom: MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ f
         
         if bvisit[Int(bidx)] == 0 {
             bvisit[Int(bidx)] = 1
-            let nbor = bond.getNbrAtom(atom)
+            var nbor = bond.getNbrAtom(atom)
             let nidx = nbor.getIdx()
             var nvisit = avisit[nidx]
             if nvisit == 0 {
                 avisit[nidx] = depth+1
-                nvisit = findRings(nbor, &avisit, &bvisit, &frj, depth+1)
+                nvisit = findRings(&nbor, &avisit, &bvisit, &frj, depth+1)
                 if nvisit > 0 {
                     if nvisit <= depth {
                         bond.setInRing()
@@ -488,7 +485,10 @@ func findRings(_ atom: MKAtom, _ avisit: inout [Int], _ bvisit: inout [Int], _ f
         }
     }
     
-    if result > 0 && result <= depth { atom.setInRing() }
+    if result > 0 && result <= depth {
+        atom.setInRing()
+    }
+    
     return result
 }
 
@@ -517,8 +517,8 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
     for i in 1...acount {
         if avisit[i] == 0 {
             avisit[i] = 1
-            guard let atom = mol.getAtom(i) else { break }
-            findRings(atom, &avisit, &bvisit, &frj, 1)
+            guard var atom = mol.getAtom(i) else { break }
+            findRings(&atom, &avisit, &bvisit, &frj, 1)
         }
     }
     
@@ -527,43 +527,40 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
 
 private let MK_RTREE_CUTOFF = 20
 
-func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree?], _ bv: MKBitVec) {
+func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree?], _ bv: Bitset) {
     
     vt[atom.getIdx()] = MKRTree(atom, prv)
     
     guard let mol = atom.getParent() else { return }
-    var curr: MKBitVec = MKBitVec()
-    var used: MKBitVec = MKBitVec()
-    var next: MKBitVec = MKBitVec()
-    var i: Int = 0
-    curr |= atom.getIdx()
+    
+    var curr: Bitset = Bitset()
+    var used: Bitset = Bitset()
+    var next: Bitset = Bitset()
+        
+    curr.add(atom.getIdx())
     used = bv | curr
     
     var level = 0
 
     while level <= MK_RTREE_CUTOFF {
-        next.clear()
-        i = curr.nextBit(i)
-        while i != bv.endBit() {
+        next.removeAll()
+        for i in curr {
             guard let aom = mol.getAtom(i) else { break }
             guard let neighs = aom.getNbrAtomIterator() else { break }
             for nbr in neighs {
                 if !used[nbr.getIdx()] {
-                    next |= nbr.getIdx()
-                    used |= nbr.getIdx()
-//                    guard let nbrIndex = vt.firstIndex(where: { tree in tree._atom == nbr }) else { break }
-//                    guard let aomIndex = vt.firstIndex(where: { tree in tree._atom == aom }) else { break }
+                    next.add(nbr.getIdx())
+                    used.add(nbr.getIdx())
                     vt[nbr.getIdx()] = MKRTree(nbr, vt[aom.getIdx()])
                 }
             }
-            i = curr.nextBit(i)
         }
         
         if next.isEmpty() {
             break
         }
         
-        curr = MKBitVec(next)
+        curr = Bitset(next)
         level += 1
     }
 

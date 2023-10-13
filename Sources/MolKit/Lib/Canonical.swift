@@ -28,6 +28,7 @@
 import Foundation
 import Algorithms
 import Collections
+import Bitset
 
 let MAX_IDENTITY_NODES: Int = 50
 
@@ -38,13 +39,13 @@ func totalHydrogenCount(_ atom: MKAtom) -> UInt {
 /**
 * Helper function for getFragment below.
 */
-func addNbrs(_ fragment: MKBitVec, _ atom: MKAtom, _ mask: MKBitVec, _ metalloceneBonds: [MKBond]) {
+func addNbrs(_ fragment: Bitset, _ atom: MKAtom, _ mask: Bitset, _ metalloceneBonds: [MKBond]) {
     for nbr in atom.getNbrAtomIterator()! {
-        if !mask.bitIsSet(nbr.getIdx()) { // interestingly, you mask __only__ the atoms you want to check, not the atoms to ignore
+        if !mask.contains(nbr.getIdx()) { // interestingly, you mask __only__ the atoms you want to check, not the atoms to ignore
             continue
         }
         // skip visited atoms
-        if fragment.bitIsSet(nbr.getIdx()) {
+        if fragment.contains(nbr.getIdx()) {
             continue
         }
         // skip mettalocene bonds
@@ -52,7 +53,7 @@ func addNbrs(_ fragment: MKBitVec, _ atom: MKAtom, _ mask: MKBitVec, _ metalloce
             continue
         }
         // add the neighbor atom to the fragment
-        fragment.setBitOn(UInt32(nbr.getIdx()))
+        fragment.add(nbr.getIdx())
         // recurse...
         addNbrs(fragment, nbr, mask, metalloceneBonds)
     }
@@ -63,9 +64,9 @@ func addNbrs(_ fragment: MKBitVec, _ atom: MKAtom, _ mask: MKBitVec, _ metalloce
 * atoms for which there is a path to atom without going through skip. These
 * fragment bitvecs are indexed by atom idx (i.e. OBAtom::GetIdx()).
  */
-func getFragment(_ atom: MKAtom, _ mask: MKBitVec, _ metalloceneBonds: [MKBond] = [MKBond]()) -> MKBitVec {
-    let fragment: MKBitVec = MKBitVec()
-    fragment.setBitOn(UInt32(atom.getIdx()))
+func getFragment(_ atom: MKAtom, _ mask: Bitset, _ metalloceneBonds: [MKBond] = [MKBond]()) -> Bitset {
+    let fragment: Bitset = Bitset()
+    fragment.add(atom.getIdx())
     // start the recursion
     addNbrs(fragment, atom, mask, metalloceneBonds)
     return fragment
@@ -74,30 +75,30 @@ func getFragment(_ atom: MKAtom, _ mask: MKBitVec, _ metalloceneBonds: [MKBond] 
 
 struct getFragmentImpl {
     // OBBitVec &fragment, OBAtom *atom, OBAtom *skip, const OBBitVec &mask
-    static func addNbrs(_ fragment: MKBitVec, _ atom: MKAtom, _ skip: MKAtom, _ mask: MKBitVec) {
+    static func addNbrs(_ fragment: Bitset, _ atom: MKAtom, _ skip: MKAtom, _ mask: Bitset) {
         for nbr in atom.getNbrAtomIterator()! {
             // don't pass through skip
             if nbr.getIdx() == skip.getIdx() {
                 continue
             }
             // skip visited atoms
-            if fragment.bitIsSet(nbr.getIdx()) {
+            if fragment.contains(nbr.getIdx()) {
                 continue
             }
-            if !mask.bitIsSet(nbr.getIdx()) {
+            if !mask.contains(nbr.getIdx()) {
                 continue
             }
             // add the neighbor atom to the fragment
-            fragment.setBitOn(UInt32(nbr.getIdx()))
+            fragment.add(nbr.getIdx())
             // recurse...
             addNbrs(fragment, nbr, skip, mask)
         }
     }
 }
 
-func getFragment(_ atom: MKAtom, _ skip: MKAtom, _ mask: MKBitVec) -> MKBitVec {
-    let fragment: MKBitVec = MKBitVec()
-    fragment.setBitOn(UInt32(atom.getIdx()))
+func getFragment(_ atom: MKAtom, _ skip: MKAtom, _ mask: Bitset) -> Bitset {
+    let fragment: Bitset = Bitset()
+    fragment.add(atom.getIdx())
     // start the recursion
     getFragmentImpl.addNbrs(fragment, atom, skip, mask)
     return fragment
@@ -495,7 +496,7 @@ struct CanonicalLabelsImpl {
         /**
          * The connected fragment. This is a subset of the mask.
          */
-        var fragment: MKBitVec
+        var fragment: Bitset
         var onlyOne: Bool = false
         /**
          * The pre-computed stereo centers. Non-const since it needs to be
@@ -512,10 +513,10 @@ struct CanonicalLabelsImpl {
         var identityCodes: [FullCode]
         var backtrackDepth: UInt = 0 
         var orbits: Orbits 
-        var mcr: MKBitVec 
+        var mcr: Bitset 
         
-        init(_ _symmetry_classes: [UInt], _ _fragment: MKBitVec, _ _stereoCenters: [StereoCenter], 
-             _ _identityCodes: [FullCode], _ _orbits: Orbits, _ _mcr: MKBitVec, _ _onlyOne: Bool = false) {
+        init(_ _symmetry_classes: [UInt], _ _fragment: Bitset, _ _stereoCenters: [StereoCenter], 
+             _ _identityCodes: [FullCode], _ _orbits: Orbits, _ _mcr: Bitset, _ _onlyOne: Bool = false) {
             symmetry_classes = _symmetry_classes
             fragment = _fragment
             onlyOne = _onlyOne
@@ -525,10 +526,11 @@ struct CanonicalLabelsImpl {
             orbits = _orbits
             mcr = _mcr
             
-            mcr.clear()
+            mcr.removeAll()
+            
             if mcr.isEmpty() {
                 for i in 0..<_symmetry_classes.count {
-                    mcr.setBitOn(UInt32(i+1))
+                    mcr.add(i+1)
                 }
             }
         }
@@ -567,7 +569,7 @@ struct CanonicalLabelsImpl {
             var closures: [Pair<MKBond, UInt>] = []
             for bond in atom.getBondIterator()! {
                 // skip atoms not in the fragment 
-                if !state.fragment.bitIsSet(bond.getNbrAtom(atom).getIdx()) {
+                if !state.fragment.contains(bond.getNbrAtom(atom).getIdx()) {
                     continue
                 }
                 // a closure bond is a bond not found while generating the FROM spanning tree.
@@ -645,7 +647,7 @@ struct CanonicalLabelsImpl {
             for i in 0..<state.stereoCenters.count {
                 var isInFragment: Bool = false
                 for j in 0..<state.stereoCenters[i].indexes.count {
-                    if state.fragment.bitIsSet(Int(state.stereoCenters[i].indexes[j]) + 1) {
+                    if state.fragment.contains(Int(state.stereoCenters[i].indexes[j]) + 1) {
                         isInFragment = true
                         break
                     }
@@ -688,8 +690,8 @@ struct CanonicalLabelsImpl {
             var lcodes: [Pair<Int, CanonicalLabelsImpl.FullCode>] = []
             var ligandSizes: [UInt] = []
             for i in 0..<nbrs.count {
-                let ligand: MKBitVec = getFragment(current, nbrs[i], state.fragment)
-                ligandSizes.append(UInt(ligand.countBits()))
+                let ligand: Bitset = getFragment(current, nbrs[i], state.fragment)
+                ligandSizes.append(UInt(ligand.count()))
                 var lbestCode = FullCode()
                 if ligandSizes.last! == 1 {
                     // Avoid additional state creation if the neighbor is a single terminal atom.
@@ -703,7 +705,7 @@ struct CanonicalLabelsImpl {
                     lbestCode.code.append(UInt(nbrs[i].getAtomicNum()))
                     lbestCode.labels[nbrs[i].getIndex()] = 1
                     for nbr in nbrs[i].getNbrAtomIterator()! {
-                        if !state.fragment.bitIsSet(nbr.getIdx()) { continue }
+                        if !state.fragment.contains(nbr.getIdx()) { continue }
                         if code.labels[nbr.getIndex()] == 0 { continue }
                         lbestCode.code.append(UInt(nbr.getAtomicNum())) // ATOM-TYPES 2
                         let bond = mol.getBond(nbrs[i], nbr)!
@@ -718,7 +720,7 @@ struct CanonicalLabelsImpl {
                     // Start labeling from the ligand atom.
                     let identityCode: [FullCode] = []
                     let orbits = Orbits()
-                    let mcr = MKBitVec()
+                    let mcr = Bitset()
                     var lstate = State(state.symmetry_classes, ligand, state.stereoCenters, identityCode, orbits, mcr, state.onlyOne)
                     lstate.code.add(nbrs[i])
                     lstate.code.labels[nbrs[i].getIndex()] = 1
@@ -908,15 +910,15 @@ struct CanonicalLabelsImpl {
     /**
      * Update the minimum cell representations (mcr).
      */
-    static func updateMCR(_ mcr: inout MKBitVec, _ orbits: inout Orbits, _ bestLabels: [UInt]) {
+    static func updateMCR(_ mcr: inout Bitset, _ orbits: inout Orbits, _ bestLabels: [UInt]) {
         for i in 0..<bestLabels.count {
-            mcr.setBitOn(UInt32(i+1))
+            mcr.add(i+1)
         }
         for j in 0..<orbits.count {
             orbits[j].sort(using: SortAtomsAscending(ranks: bestLabels))
             for k in 0..<orbits[j].count {
                 if k != 0 {
-                    mcr.setBitOn(UInt32(orbits[j][k].getIdx()))
+                    mcr.add(orbits[j][k].getIdx())
                 }
             }
         }
@@ -949,7 +951,7 @@ struct CanonicalLabelsImpl {
         }
         
         // Check if there is a full mapping.
-        if label == state.fragment.countBits() {
+        if label == state.fragment.count() {
             // Complete the canonical code
             var fullcode = FullCode()
             completeCode(mol, &fullcode, &state)
@@ -1034,7 +1036,7 @@ struct CanonicalLabelsImpl {
 
         for nbr in currentNbrs {
             // skip atoms not in the fragment 
-            if !state.fragment.bitIsSet(nbr.getIdx()) {
+            if !state.fragment.contains(nbr.getIdx()) {
                 continue
             }
             // skip atoms already labeled
@@ -1146,7 +1148,7 @@ struct CanonicalLabelsImpl {
 
                     // Add the other permutations.
                     for perm in finalNbrs.permutations() {
-                        if state.mcr.bitIsSet(perm[0].getIdx()) {
+                        if state.mcr.contains(perm[0].getIdx()) {
                             for j in 0..<allOrderedNbrsCopy.count {
                                 allOrderedNbrs.append(allOrderedNbrsCopy[j])
                                 for i in 0..<perm.count {
@@ -1195,11 +1197,11 @@ struct CanonicalLabelsImpl {
     /**
      * Select an initial atom from a fragment to assign the first label.
      */
-    static func findStartAtoms(_ mol: MKMol, _ fragment: MKBitVec, _ symmetry_classes: [UInt]) -> [MKAtom] {
+    static func findStartAtoms(_ mol: MKMol, _ fragment: Bitset, _ symmetry_classes: [UInt]) -> [MKAtom] {
         // find the symmetry class in the fragment using criteria 
         var ranks: [UInt] = []
         for i in 0..<mol.numAtoms() {
-            if !fragment.bitIsSet(i+1) {
+            if !fragment.contains(i+1) {
                 continue
             }
             guard let atom = mol.getAtom(i+1) else { 
@@ -1217,7 +1219,7 @@ struct CanonicalLabelsImpl {
         }
         var result: [MKAtom] = []
         for i in 0..<mol.numAtoms() {
-            if !fragment.bitIsSet(i+1) {
+            if !fragment.contains(i+1) {
                 continue
             }
             guard let atom = mol.getAtom(i+1) else { 
@@ -1242,7 +1244,7 @@ struct CanonicalLabelsImpl {
      * This is the CanonicalLabelsImpl entry point.
      */
     
-    static func calcCanonicalLabels(_ mol: MKMol, _ symmetry_classes: [UInt], _ canonical_labels: inout [UInt], _ stereoUnits: MKStereoUnitSet, _ mask: MKBitVec, _ stereoFacade: MKStereoFacade?, _ maxSeconds: Int, _ onlyOne: Bool = false) {
+    static func calcCanonicalLabels(_ mol: MKMol, _ symmetry_classes: [UInt], _ canonical_labels: inout [UInt], _ stereoUnits: MKStereoUnitSet, _ mask: Bitset, _ stereoFacade: MKStereoFacade?, _ maxSeconds: Int, _ onlyOne: Bool = false) {
 
         // Handle some special cases 
         if mol.numAtoms() == 0 {
@@ -1261,10 +1263,10 @@ struct CanonicalLabelsImpl {
         findMetalloceneBonds(&metalloceneBonds, mol, symmetry_classes)
 
         // Find the (dis)connected fragments.
-        var visited: MKBitVec = MKBitVec()
-        var fragments: [MKBitVec] = []
+        var visited: Bitset = Bitset()
+        var fragments: [Bitset] = []
         for i in 0..<mol.numAtoms() {
-            if (!mask.bitIsSet(i+1) || visited.bitIsSet(i+1)) {
+            if (!mask.contains(i+1) || visited.contains(i+1)) {
                 continue
             }
             fragments.append(getFragment(mol.getAtom(i+1)!, mask, metalloceneBonds))
@@ -1377,13 +1379,13 @@ struct CanonicalLabelsImpl {
             var bestCode: CanonicalLabelsImpl.FullCode = CanonicalLabelsImpl.FullCode()
             var identityCodes: [CanonicalLabelsImpl.FullCode] = []
             var orbits: Orbits = Orbits()
-            var mcr: MKBitVec = MKBitVec()
+            var mcr: Bitset = Bitset()
 
             for i in 0..<startAtoms.count {
                 let atom = startAtoms[i]
                 // Start labeling of the fragment.
                 var state: State = State(symmetry_classes, fragment, stereoCenters, identityCodes, orbits, mcr, onlyOne)
-                //if (!state.mcr.BitIsSet(atom->GetIdx()) && atom->IsInRing())
+                //if (!state.mcr.contains(atom->GetIdx()) && atom->IsInRing())
                 //  continue; // Original impl, might not be needed
                 state.code.add(atom)
                 state.code.labels[atom.getIndex()] = 1
@@ -1424,12 +1426,12 @@ struct CanonicalLabelsImpl {
    * The main purpose of this function is calling CanonicalLabelsImpl::CalcCanonicalLabels
    * with the correct parameters regarding stereochemistry.
    */
-func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical_labels: inout [UInt], _ mask: MKBitVec = MKBitVec(), _ maxSeconds: Int = 5, _ onlyOne: Bool = false) {
+func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical_labels: inout [UInt], _ mask: Bitset = Bitset(), _ maxSeconds: Int = 5, _ onlyOne: Bool = false) {
     // make sure the mask is valid: no mask = all atoms
     var maskCopy = mask 
-    if maskCopy.countBits() == 0 {
+    if maskCopy.count() == 0 {
         for atom in mol.getAtomIterator() {
-            maskCopy.setBitOn(UInt32(atom.getIdx()))
+            maskCopy.add(atom.getIdx())
         }
     }
     if onlyOne {

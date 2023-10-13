@@ -42,7 +42,7 @@ class MKTransform3D {
             
             if i != 0 { outString += "," }
             
-            n = Int(floorl(v[i] * 12.0 + 0.1))
+            n = Int(floor(v[i] * 12.0 + 0.1))
             j = 0
             while (m[i,j] == 0) {
                 j+=1

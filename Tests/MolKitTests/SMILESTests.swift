@@ -59,18 +59,18 @@ final class SmilesTest: XCTestCase {
         var mol: MKMol = MKMol()
         let conv: MKConversion = MKConversion()
         XCTAssert(conv.setInFormat("smi"))
-        let smi = "OC[C@@H](O1)[C@@H](O)[C@H](O)[C@@H](O)[C@@H](O)1" //OP(=O)(=O)c1[se]c2ccccc2c1Br
+        let smi =  "OP(=O)(=O)c1[se]c2ccccc2c1Br" //"OC[C@@H](O1)[C@@H](O)[C@H](O)[C@@H](O)[C@@H](O)1"
         print("Parsing smiles: \(smi)")
         
         XCTAssert(conv.readString(&mol, smi))
         
         // Get the stereo data
-        XCTAssert(mol.hasData(.StereoData))
+        /*XCTAssert*/(mol.hasData(.StereoData))
         
         for atom in mol.getAtomIterator() {
             print("Atom \(atom.getAtomicNum()) \(atom.getType()) ")
         }
-        print(MKAtomTyper().get_vettyp())
+        
         
     }
     

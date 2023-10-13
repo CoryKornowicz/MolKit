@@ -6,8 +6,7 @@
 //
 
 import Foundation
-
-
+import Bitset
 
 public func getTypicalValence(_ ele: UInt, _ bosum: UInt, _ charge: Int) -> UInt {
     
@@ -935,8 +934,8 @@ func MKBondGetSmallestRingSize(_ bond: MKBond, _ bound: Int) -> Int {
     let end = bond.getEndAtom()
     var qatoms: [MKAtom] = []
     let numatoms = bond.getParent()!.numAtoms()
-    let seen: MKBitVec = MKBitVec(numatoms + 1)
-    seen.setBitOn(start.getIdx())
+    let seen: Bitset = Bitset()
+    seen.add(start.getIdx())
     for nbond in start.getBondIterator()! {
         if nbond == bond { continue }
         if !nbond.isInRing() { continue }
@@ -953,10 +952,10 @@ func MKBondGetSmallestRingSize(_ bond: MKBond, _ bound: Int) -> Int {
             depthmarker = qatoms.count
         }
         qstart += 1
-        if seen.bitIsSet(curr.getIdx()) {
+        if seen.contains(curr.getIdx()) {
             continue
         }
-        seen.setBitOn(curr.getIdx())
+        seen.add(curr.getIdx())
         if depth < bound {
             for nbond in curr.getBondIterator()! {
                 if !nbond.isInRing() { continue }
@@ -964,7 +963,7 @@ func MKBondGetSmallestRingSize(_ bond: MKBond, _ bound: Int) -> Int {
                 if nbr == end {
                     return depth + 1
                 }
-                if !seen.bitIsSet(nbr.getIdx()) {
+                if !seen.contains(nbr.getIdx()) {
                     qatoms.append(nbr)
                 }
             }

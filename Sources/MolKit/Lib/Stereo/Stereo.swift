@@ -9,7 +9,8 @@ fileprivate let DELTA_ANGLE_FOR_OVERLAPPING_BONDS = 4.0
 /**
  * Special case Ref values.
  */
-public enum RefValue: Equatable, Hashable {    
+public enum RefValue: Equatable, Hashable {
+    
     case NoRef            //!< No Ref set (invalid Ref)
     case ImplicitRef      //!< Implicit Ref (i.e. hydrogen, N lone pair, ...).
     case Ref(_ value: Int)
@@ -33,8 +34,8 @@ public enum RefValue: Equatable, Hashable {
             switch self {
             case .NoRef, .ImplicitRef:
                 return
-            case .Ref(var value):
-                value = newValue
+            case .Ref(_):
+                self = .Ref(newValue)
             }
         }
     }
@@ -65,7 +66,7 @@ public enum RefValue: Equatable, Hashable {
         }
     }
     
-    static func < (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
+    public static func < (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
         switch lhs {
         case .NoRef:
             return false
@@ -113,7 +114,6 @@ extension RefValue: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .Ref(value)
     }
-    
 }
 
 public typealias Ref = RefValue

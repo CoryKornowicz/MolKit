@@ -10,7 +10,6 @@ enum ExocyclicAtom {
     case EXO_NONOXYGEN
 }
 
-
 // Start of helper functions for AssignOBAromaticityModel
 
 func findExocyclicAtom(_ atom: MKAtom) -> ExocyclicAtom {
@@ -90,7 +89,7 @@ func assignMKAromaticityModel(_ atm: MKAtom) -> (Int, Int, Bool) {
     let val = atm.getExplicitValence() + atm.getImplicitHCount()
 
     switch elem {
-    case MKElements.getAtomicNum("C"): // carbon
+    case MKElements.Carbon.atomicNum: // carbon
         switch chg {
         case 0 :
             if val == 4 && deg  == 3 {
@@ -134,8 +133,8 @@ func assignMKAromaticityModel(_ atm: MKAtom) -> (Int, Int, Bool) {
             }
         default: break
         }
-    case MKElements.getAtomicNum("N"),
-         MKElements.getAtomicNum("P"): // phosphorus, nitrogen
+    case MKElements.Nitrogen.atomicNum,
+        MKElements.Phosphorus.atomicNum: // phosphorus, nitrogen
         switch chg {
         case 0:
             switch val {
@@ -182,7 +181,7 @@ func assignMKAromaticityModel(_ atm: MKAtom) -> (Int, Int, Bool) {
             }
         default: break
         }
-    case MKElements.getAtomicNum("O"),
+    case MKElements.Oxygen.atomicNum,
          MKElements.getAtomicNum("Se"): // oxygen, selenium
         switch chg {
         case 0:
@@ -199,7 +198,7 @@ func assignMKAromaticityModel(_ atm: MKAtom) -> (Int, Int, Bool) {
             }
         default: break
         }
-    case MKElements.getAtomicNum("S"): // sulfur
+    case MKElements.Sulfur.atomicNum: // sulfur
         switch chg {
         case 0:
             switch val {
@@ -426,6 +425,7 @@ class MKAromaticTyperMolState {
 
         if avoidInnerRingAtoms {
             //for every atom fill vector with ring pointer it's associated with
+            ringAtoms.resize(mol.numAtoms()+1, with: [MKRing]())
             for k in sssRings {
                 let tmp = k._path
                 ringAtoms.append([MKRing]())

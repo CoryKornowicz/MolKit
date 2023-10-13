@@ -177,7 +177,7 @@ public class MKAtom: MKBase {
     func getHeavyDegree() -> UInt {
         // map reduce over neighbor atoms if they are not Hydrogens
         guard let bonds = self._vbond else { return 0 }
-        return bonds.map({ $0.getNbrAtom(self).getAtomicNum() != MKElements.getAtomicNum("H") ? 1 : 0 }).reduce(0, +)
+        return bonds.map({ $0.getNbrAtom(self).getAtomicNum() != MKElements.Hydrogen.atomicNum ? 1 : 0 }).reduce(0, +)
     }
     
     func getHeteroDegree() -> UInt {
@@ -522,7 +522,7 @@ public class MKAtom: MKBase {
     // //! \return success or failure
     func hToMethyl() -> Bool {
 
-        if self.getAtomicNum() != MKElements.getAtomicNum("H") {
+        if self.getAtomicNum() != MKElements.Hydrogen.atomicNum {
             return false
         }
 
@@ -596,7 +596,7 @@ public class MKAtom: MKBase {
         guard let bonds = self._vbond else { return 0 }
         return bonds.map { bond in
             let neatom = bond.getNbrAtom(self)
-            return (neatom.getAtomicNum() == MKElements.getAtomicNum("O") && neatom.getHeavyDegree() == 1) ? 1 : 0
+            return (neatom.getAtomicNum() == MKElements.Oxygen.atomicNum && neatom.getHeavyDegree() == 1) ? 1 : 0
         }.reduce(0, +)
     }
 
@@ -606,7 +606,7 @@ public class MKAtom: MKBase {
         guard let bonds = self._vbond else { return 0 }
         return bonds.map { bond in
             let neatom = bond.getNbrAtom(self)
-            return (neatom.getAtomicNum() == MKElements.getAtomicNum("S") && neatom.getHeavyDegree() == 1) ? 1 : 0
+            return (neatom.getAtomicNum() == MKElements.Sulfur.atomicNum && neatom.getHeavyDegree() == 1) ? 1 : 0
         }.reduce(0, +)
     }
     
@@ -615,7 +615,7 @@ public class MKAtom: MKBase {
         var numH: UInt = 0
         guard let neigh = self._vbond?.map({ $0.getNbrAtom(self) }) else { return numH }
         for ne in neigh {
-            if (ne.getAtomicNum() == MKElements.getAtomicNum("H") && !(excludeIsotopes && ne.getIsotope() != 0)) {
+            if (ne.getAtomicNum() == MKElements.Hydrogen.atomicNum && !(excludeIsotopes && ne.getIsotope() != 0)) {
                 numH+=1
             }
         }
@@ -625,7 +625,7 @@ public class MKAtom: MKBase {
     //! \return The number of rings that contain this atom
     func memberOfRingCount() -> UInt {
         var count: UInt = 0
-        guard let mol = self.getParent() else { return count }
+        guard var mol = self.getParent() else { return count }
         
         if (!mol.hasSSSRPerceived()) {
             mol.findSSSR()
@@ -637,7 +637,7 @@ public class MKAtom: MKBase {
         
         let rings = mol.getSSSR()
         
-        for ring in MKIterator<MKRing>(rings) {
+        for ring in rings {
             if ring.isInRing(self.getIdx()) {
                 count+=1
             }
@@ -646,8 +646,8 @@ public class MKAtom: MKBase {
     }
 
     //! \return The size of the smallest ring that contains this atom (0 if not in a ring)
-    func memberOfRingSize()	-> UInt {
-        guard let mol = self.getParent() else { return 0 }
+    func memberOfRingSize()	-> Int {
+        guard var mol = self.getParent() else { return 0 }
         
         if (!mol.hasSSSRPerceived()) {
             mol.findSSSR()
@@ -659,9 +659,9 @@ public class MKAtom: MKBase {
         
         let rings = mol.getSSSR()
         
-        for ring in MKIterator<MKRing>(rings) {
+        for ring in rings {
             if ring.isInRing(self.getIdx()) {
-                return UInt(ring.size())
+                return ring.size()
             }
         }
         return 0
@@ -775,7 +775,7 @@ public class MKAtom: MKBase {
 
     // //! \return Is the atom in a ring of a given size?
     func isInRingSize(_ size: Int) -> Bool {
-        guard let mol = self.getParent() else { return false }
+        guard var mol = self.getParent() else { return false }
         if !mol.hasSSSRPerceived() {
             mol.findSSSR()
         }
@@ -786,7 +786,7 @@ public class MKAtom: MKBase {
 
         let rings = mol.getSSSR()
         
-        for ring in MKIterator<MKRing>(rings) {
+        for ring in rings {
             if ring.isInRing(self.getIdx()) && ring.pathSize() == size {
                 return true
             }
@@ -851,7 +851,7 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a carboxyl (-CO2 or CO2H) group?
     func isCarboxylOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.getAtomicNum("O") || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
             return false
         }
         guard let bonds = self._vbond else { return false }
@@ -872,12 +872,12 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a phosphate (R-PO3) group?
     func isPhosphateOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.getAtomicNum("O") || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
             return false
         }
         guard let bonds = self._vbond else { return false }
         let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.getAtomicNum("P")
+            bond.getNbrAtom(self).getAtomicNum() == MKElements.Phosphorus.atomicNum
         }?.getNbrAtom(self)
         
         if atom != nil {
@@ -893,12 +893,12 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a sulfate (-SO3) group?
     func isSulfateOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.getAtomicNum("O") || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
             return false
         }
         guard let bonds = self._vbond else { return false }
         let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.getAtomicNum("S")
+            bond.getNbrAtom(self).getAtomicNum() == MKElements.Sulfur.atomicNum
         }?.getNbrAtom(self)
         
         if atom != nil {
@@ -914,12 +914,12 @@ public class MKAtom: MKBase {
     
     // Helper function for IsHBondAcceptor
     static func isSulfoneOxygen(_ atom: MKAtom) -> Bool {
-        if atom.getAtomicNum() != MKElements.getAtomicNum("O") || atom.getHeavyDegree() != 1 {
+        if atom.getAtomicNum() != MKElements.Oxygen.atomicNum || atom.getHeavyDegree() != 1 {
             return false
         }
         guard let bonds = atom._vbond else { return false }
         let atom2: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(atom).getAtomicNum() == MKElements.getAtomicNum("S")
+            bond.getNbrAtom(atom).getAtomicNum() == MKElements.Sulfur.atomicNum
         }?.getNbrAtom(atom)
         
         if atom2 != nil {
@@ -930,7 +930,7 @@ public class MKAtom: MKBase {
                 // check for sulfonamide
                 guard let bonds2 = atom2!._vbond else { return true }
                 let atom3: MKAtom? = bonds2.first { bond in
-                    bond.getNbrAtom(atom2!).getAtomicNum() == MKElements.getAtomicNum("N")
+                    bond.getNbrAtom(atom2!).getAtomicNum() == MKElements.Nitrogen.atomicNum
                 }?.getNbrAtom(atom2!)
                 return (atom3 == nil) ? true : false
             }
@@ -941,12 +941,12 @@ public class MKAtom: MKBase {
 
     // //! \return Is this atom an oxygen in a nitro (-NO2) group?
     func isNitroOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.getAtomicNum("O") || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
             return false
         }
         guard let bonds = self._vbond else { return false }
         let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.getAtomicNum("N")
+            bond.getNbrAtom(self).getAtomicNum() == MKElements.Nitrogen.atomicNum
         }?.getNbrAtom(self)
         
         if atom != nil {
@@ -963,7 +963,7 @@ public class MKAtom: MKBase {
     // //! \return Is this atom a nitrogen in an amide (-C(=O)NR2) group?
     func isAmideNitrogen() -> Bool {
         
-        if self.getAtomicNum() != MKElements.getAtomicNum("N") {
+        if self.getAtomicNum() != MKElements.Nitrogen.atomicNum {
             return false
         }
         
@@ -1021,14 +1021,14 @@ public class MKAtom: MKBase {
     // //!  double bond to an oxygen atom
     func isAromaticNOxide() -> Bool {
         
-        if (self.getAtomicNum() != MKElements.getAtomicNum("N")) || !self.isAromatic() {
+        if (self.getAtomicNum() != MKElements.Nitrogen.atomicNum) || !self.isAromatic() {
             return false
         }
 
         guard let bonds = self._vbond else { return false }
 
         for bond in bonds {
-            if bond.getNbrAtom(self).getAtomicNum() == MKElements.getAtomicNum("O") && !bond.isInRing() && bond.getBondOrder() == 2 {
+            if bond.getNbrAtom(self).getAtomicNum() == MKElements.Oxygen.atomicNum && !bond.isInRing() && bond.getBondOrder() == 2 {
                 return true
             }
         }
@@ -1129,7 +1129,7 @@ public class MKAtom: MKBase {
                         return false
                     }
                 } else {
-                    if neigh.getAtomicNum() == MKElements.getAtomicNum("H") {
+                    if neigh.getAtomicNum() == MKElements.Hydrogen.atomicNum {
                         return true // hydroxyl (YES)
                     } else {
                         guard let bond = neigh.getBond(self) else { continue }
@@ -1197,7 +1197,7 @@ public class MKAtom: MKBase {
         
         for bond in bonds {
             let neigh = bond.getNbrAtom(self)
-            if neigh.getAtomicNum() == MKElements.getAtomicNum("H") {
+            if neigh.getAtomicNum() == MKElements.Hydrogen.atomicNum {
                 return true
             }
         }
@@ -1236,7 +1236,7 @@ public class MKAtom: MKBase {
         
         for neigh in neighs {
             let ne_atomnum = neigh.getAtomicNum()
-            if (includePandS || (ne_atomnum != MKElements.getAtomicNum("S") && ne_atomnum != MKElements.getAtomicNum("P"))) {
+            if (includePandS || (ne_atomnum != MKElements.Sulfur.atomicNum && ne_atomnum != MKElements.Phosphorus.atomicNum)) {
                 guard let ne_bonds = neigh._vbond else { continue }
                 for ne_bond in ne_bonds {
                     let ne_neigh = ne_bond.getNbrAtom(neigh)
@@ -1328,7 +1328,6 @@ public class MKAtom: MKBase {
         self._type = ""
         self._pcharge = 0.0
         self._vbond?.removeAll()
-        self._vbond?.reserveCapacity(4)
         self._residue = nil;
         self._id = .Ref(generateUUID())
         self._c = []

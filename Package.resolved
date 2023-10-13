@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-algorithms",
       "state" : {
-        "revision" : "b14b7f4c528c942f121c8b860b9410b2bf57825e",
-        "version" : "1.0.0"
+        "revision" : "bcd4f369ac962bc3e5244c9df778739f8f5bdbf1",
+        "version" : "1.1.0"
       }
     },
     {
@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
       "state" : {
-        "revision" : "937e904258d22af6e447a0b72c0bc67583ef64a2",
-        "version" : "1.0.4"
+        "revision" : "a902f1823a7ff3c9ab2fba0f992396b948eda307",
+        "version" : "1.0.5"
       }
     },
     {
@@ -34,6 +34,15 @@
       "state" : {
         "revision" : "0a5bc04095a675662cf24757cc0640aa2204253b",
         "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "swiftbitset",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/CoryKornowicz/SwiftBitset.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "d8895abd880ea5e853221eb8ca3c6e5204ef98a1"
       }
     }
   ],

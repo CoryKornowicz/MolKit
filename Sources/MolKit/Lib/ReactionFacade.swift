@@ -1,7 +1,7 @@
 
 
 
-
+import Bitset
 
 /**
 * The various roles a reaction component can have
@@ -369,10 +369,10 @@ class MKReactionFacadePrivate {
             return false
         }
         let componentId = component_ids[Int(num)]
-        var atoms = MKBitVec()
+        var atoms = Bitset()
         for atom in _mol.getAtomIterator() {
             if getRole(atom) == rxnrole && getComponentId(atom) == componentId {
-                atoms.setBitOn(atom.getIdx())
+                atoms.add(atom.getIdx())
             }
         }
         var atomO: [Int]? = nil

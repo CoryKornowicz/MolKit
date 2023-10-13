@@ -17,7 +17,6 @@ final class SMARTSTest: XCTestCase {
         case emptyMol
     }
     
-    
     override class func setUp() {
         let smi: SMIFormat = SMIFormat() // initialize format so that MKConversion finds its input options
     }
@@ -36,15 +35,18 @@ final class SMARTSTest: XCTestCase {
         
         var numPatterns: Int = 0
         // get firstLine of smarts_results
-        smarts_results.foreachRow { line, rowNum in
-            if rowNum == 0 {  
-                // split and grab first contents
-                let contents = line.components(separatedBy: .whitespaces)
-                if let npats = Int(contents[0]) {
-                    numPatterns = npats
-                }
-            }
+        let data = try String(contentsOfFile: smarts_results.relativePath, encoding: .utf8)
+        let myStrings = data.components(separatedBy: .newlines)
+        
+        var myStringsOffset: Int = 0
+        
+        let contents = myStrings[myStringsOffset++].components(separatedBy: .whitespaces)
+        
+        if let npats = Int(contents[0]) {
+            numPatterns = npats
         }
+                
+        XCTAssert(numPatterns != 0)
         
         var vsp: [MKSmartsPattern] = []
         
@@ -60,6 +62,7 @@ final class SMARTSTest: XCTestCase {
         
         XCTAssert(numPatterns == vsp.count)
         
+        var vs: [String] = []
         let inputSmilesStream = try InputFileHandler(path: smiles_url, mode: "r")
         let outputStream = OutputStringStream()
         let conv: MKConversion = MKConversion(inputSmilesStream, outputStream)
@@ -67,49 +70,64 @@ final class SMARTSTest: XCTestCase {
         XCTAssert(conv.setInAndOutFormats("smi", "smi"))
         
         var mol = MKMol()
+        var currentMol: Int = 0
+        var molPassed: Bool = false
         
         smiles_url.foreachRow { smile, rowNum in
-            if !smile.starts(with: "#") || !smile.isEmpty  {
-                mol.clear()
-                conv.read(&mol)
-//                print(mol.numAtoms())
-                if mol.isEmpty() {
-                    print(smile)
+            
+            mol.clear()
+            conv.read(&mol)
+            
+            XCTAssert(!mol.isEmpty())
+            
+            currentMol += 1
+            molPassed = true
+            
+            for i in vsp {
+                if myStringsOffset >= myStrings.count { continue }
+                vs = myStrings[myStringsOffset++].components(separatedBy: .whitespaces).filter({ !$0.isEmpty })
+                if vs.isEmpty { continue }
+                
+                i.match(mol)
+                let mlist = i.getUMapList()
+                
+                if mlist.count != vs.count {
+                    print("not ok \(currentMol)")
+                    print("number of matches different than reference")
+                    print("Expected \(vs.count) matches, found \(mlist.count)")
+                    print("Error on molecule \(mol.getTitle())")
+                    print("on pattern \(i.getSMARTS())")
+                    if !mlist.isEmpty {
+                        print("First match: atom# \(mlist[0][0])")
+                    } else {
+                        print("No matches found")
+                    }
+                    molPassed = false
+                    continue
                 }
-//                XCTAssert(!mol.isEmpty())
+                    
+                if !mlist.isEmpty {
+                    for (n, k) in vs.enumerated() {
+                        if Int(k) != mlist[n][0] {
+                            print("not ok \(currentMol)")
+                            print("matching atom numbers different than reference")
+                            print("expected \(k) but found \(mlist[n][0])")
+                            print("# Molecule: \(mol.getTitle())")
+                            print("# Pattern: \(i.getSMARTS())")
+                        }
+                    }
+                }
             }
+            
+            if molPassed {
+                print("ok \(currentMol) molecule passed tests")
+            }
+            
         }
         
+        print("1..\(currentMol) ok")
     }
 
-//    func testBitVec() throws {
-//        
-//        var bv1 = MKBitVec(501)
-//        var bits: [Int] = [Int].init(repeating: 0, count: bv1.getSize())
-//        
-//        for j in [0,1,22,33,4,500,6,7] {
-//            bv1 |= j
-//            bv1.toVecInt(&bits)
-//            print(bits)
-//            bits.removeAll()
-//        }
-//        
-////        bv1.fromVecInt([0,1,2,3,4,500,6,7])
-//        
-////        bv1.toVecInt(&bits)
-////        print(bits)
-////        bits.removeAll()
-//                
-//        var i = 0
-//        i = bv1.nextBit(0)
-//        while i != bv1.endBit() {
-//            print(i)
-//            i = bv1.nextBit(i)
-//        }
-//        
-//        
-//        
-//    }
     
 
 }

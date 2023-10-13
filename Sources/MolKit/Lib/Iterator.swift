@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Bitset
 
 /// Concrete Iterators implement various traversal algorithms. These classes
 /// store the current traversal position at all times.
@@ -94,7 +95,7 @@ public class MKAtomDFSIterator: IteratorProtocol {
     
     var _parent: MKMol 
     var _ptr: MKAtom?
-    var _notVisited: MKBitVec = MKBitVec()
+    var _notVisited: Bitset = Bitset()
     var _stack: Stack<MKAtom> = Stack<MKAtom>()
 
     init(_ mol: MKMol, _ startIndex: Int = 1) {
@@ -104,16 +105,17 @@ public class MKAtomDFSIterator: IteratorProtocol {
         } else {
             fatalError("Cannot find atom in mol")
         }
+        // TODO: Maybe this is off by 1 here
+        for i in 0..._parent.numAtoms() - 1 {
+            self._notVisited.add(i)
+        }
         
-        self._notVisited.resize(UInt32(_parent.numAtoms()))
-        self._notVisited.setRangeOn(0, UInt32(_parent.numAtoms() - 1))
-        
-        _notVisited.setBitOff(_ptr!.getIdx() - 1)
+        _notVisited.remove(_ptr!.getIdx() - 1)
         
         if let nbrs = _ptr!.getNbrAtomIterator() {
             for a in nbrs {
                 _stack.push(a)
-                _notVisited.setBitOff(a.getIdx() - 1)
+                _notVisited.remove(a.getIdx() - 1)
             }
         }
     }
@@ -145,10 +147,10 @@ public class MKAtomDFSIterator: IteratorProtocol {
         if !iter._stack.isEmpty() {
             iter._ptr = iter._stack.pop()
         } else { // are there any disconnected subgraphs?
-            let next = iter._notVisited.firstBit()
-            if next != iter._notVisited.endBit() {
-                iter._ptr = iter._parent.getAtom(next + 1)
-                iter._notVisited.setBitOff(next)
+            let next = iter._notVisited.first()
+            if next != iter._notVisited.last(), next != nil {
+                iter._ptr = iter._parent.getAtom(next! + 1)
+                iter._notVisited.remove(next!)
             } else {
                 iter._ptr = nil
             }
@@ -158,7 +160,7 @@ public class MKAtomDFSIterator: IteratorProtocol {
                 for a in nbrs {
                     if iter._notVisited[a.getIdx() - 1] {
                         iter._stack.push(a)
-                        iter._notVisited.setBitOff(a.getIdx() - 1)
+                        iter._notVisited.remove(a.getIdx() - 1)
                     }
                 }
             }

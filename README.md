@@ -65,8 +65,8 @@ var mol: MKMol = MKMol()
 //
 // Read the pocket + ligand (initial guess for position) into mol...
 //
-var pocket: MKBitVec // set the bits with atoms indexes for the pocket to 1...
-var ligand: MKBitVec // set the bits with atoms indexes for the ligand to 1...
+var pocket: Bitset // set the bits with atoms indexes for the pocket to 1...
+var ligand: Bitset // set the bits with atoms indexes for the ligand to 1...
 
 guard let pFF: MKForceField = MKForceField.findForceField("MMFF94") else { 
     // handle error...
@@ -79,7 +79,7 @@ pFF.setLogLevel(.low)
 // Fix the binding pocket atoms
 var constraints: MKConstraints = MKConstraints()
 for a in mol.getAtomIterator() { 
-    if pocket.bitIsSet(a.getIdx()) { 
+    if pocket.contains(a.getIdx()) { 
         constraints.addAtomConstraint(a.getIdx())
     }
 }

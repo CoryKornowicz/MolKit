@@ -3,6 +3,7 @@
 import Foundation
 import Surge
 import simd
+import Bitset
 
 /** \class OBBuilder builder.h <openbabel/builder.h>
     \brief Class for 3D structure generation
@@ -637,7 +638,7 @@ class MKBuilder {
             return false
         }
 
-        let fragment: MKBitVec = getFragment(b)
+        let fragment: Bitset = getFragment(b)
 
         if fragment == getFragment(b) {
             return false // a and b are in the same fragment
@@ -649,7 +650,7 @@ class MKBuilder {
         // This lets us place fragments like Cp rings with dummy atoms
         if b.getAtomicNum() == 0 {
             connectedFrag = false
-            fragment.setRangeOn(UInt32(b.getIdx()), UInt32(mol.numAtoms()))
+            fragment.addRange(start: b.getIdx(), end: mol.numAtoms())
         }
 
         let posa = a.getVector()
@@ -658,7 +659,7 @@ class MKBuilder {
         // translate fragment so that atom b is at the origin
         //
         for i in 1...mol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 // the atom is part of the fragment, translate it
                 let atom = mol.getAtom(i)!
                 atom.setVector(atom.getVector() - posb)
@@ -716,7 +717,7 @@ class MKBuilder {
 
         xymat.setupRotMat(0.0, 0.0, xyang)
         for i in 1...mol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 let atom = mol.getAtom(i)!
                 atom.setVector(xymat * atom.getVector())
             }
@@ -739,7 +740,7 @@ class MKBuilder {
         }
         xzmat.setupRotMat(0.0, xzang, 0.0)
         for i in 1...mol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 let atom = mol.getAtom(i)!
                 atom.setVector(xzmat * atom.getVector()) // apply the rotation
             }
@@ -762,7 +763,7 @@ class MKBuilder {
         }
         yzmat.setupRotMat(yzang, 0.0, 0.0)
         for i in 1...mol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 let atom = mol.getAtom(i)!
                 atom.setVector(yzmat * atom.getVector()) // apply the rotation
             }
@@ -771,7 +772,7 @@ class MKBuilder {
         // translate fragment
         //
         for i in 1...mol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 let atom = mol.getAtom(i)!
                 atom.setVector(atom.getVector() + newpos)
             }
@@ -787,7 +788,7 @@ class MKBuilder {
         }
         var nbr_b: MKAtom? = nil
         for nbr in b.getNbrAtomIterator()! {
-            if fragment.bitIsSet(nbr.getIdx()) {
+            if fragment.contains(nbr.getIdx()) {
                 nbr_b = nbr
                 break
             }
@@ -1184,17 +1185,17 @@ class MKBuilder {
        *  \param atom Atom in the fragment.
        *  \returns The OBBitVec defining the fragment to which a belongs.
        */
-    static func getFragment(_ atom: MKAtom) -> MKBitVec {
-        var fragment = MKBitVec()
-        fragment.setBitOn(UInt32(atom.getIdx()))
+    static func getFragment(_ atom: MKAtom) -> Bitset {
+        var fragment = Bitset()
+        fragment.add(atom.getIdx())
         addNbrs(&fragment, atom)
         return fragment
     }
 
-    static func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom) {
+    static func addNbrs(_ fragment: inout Bitset, _ atom: MKAtom) {
         for nbr in atom.getNbrAtomIterator()! {
-            if !fragment.bitIsSet(nbr.getIdx()) {
-                fragment.setBitOn(UInt32(nbr.getIdx()))
+            if !fragment.contains(nbr.getIdx()) {
+                fragment.add(nbr.getIdx())
                 addNbrs(&fragment, nbr)
             }
         }
@@ -1209,8 +1210,8 @@ class MKBuilder {
        *  \param stereoWarnings Warn if the stereochemistry is incorrect (default is true)
        */
     func build(_ mol: inout MKMol, _ stereoWarnings: Bool = true) -> Bool {
-        var vdone: MKBitVec = MKBitVec() // Atoms that are done, need no further manipulation.
-        var vfrag: MKBitVec = MKBitVec() // Atoms that are part of a fragment found in the database.
+        var vdone: Bitset = Bitset() // Atoms that are done, need no further manipulation.
+        var vfrag: Bitset = Bitset() // Atoms that are part of a fragment found in the database.
                                          // These atoms have coordinates, but the fragment still has
                                          // to be rotated and translated.
         var molvec: Vector = VZero
@@ -1248,15 +1249,15 @@ class MKBuilder {
 
         // Get fragments using CopySubstructure
         // Copy all atoms
-        let atomsToCopy: MKBitVec = MKBitVec()
+        let atomsToCopy: Bitset = Bitset()
         for atom in mol.getAtomIterator() {
-            atomsToCopy.setBitOn(atom.getIdx())
+            atomsToCopy.add(atom.getIdx())
         }
         // Exclude rotatable bonds
-        let bondsToExclude: MKBitVec = MKBitVec()
+        let bondsToExclude: Bitset = Bitset()
         for bond in mol.getBondIterator() {
             if bond.isRotor() {
-                bondsToExclude.setBitOn(bond.getIdx())
+                bondsToExclude.add(Int(bond.getIdx()))
             }
         }
         // Generate fragments by copy
@@ -1289,7 +1290,7 @@ class MKBuilder {
                         // Have any atoms of this match already been added?
                         var alreadydone: Bool = false
                         for k in j {
-                            if vfrag.bitIsSet(k) {
+                            if vfrag.contains(k) {
                                 alreadydone = true
                                 break
                             }
@@ -1297,7 +1298,7 @@ class MKBuilder {
                         if alreadydone { continue }
                         
                         for k in j {
-                            vfrag.setBitOn(k) // set vfrag for all atoms of fragment
+                            vfrag.add(k) // set vfrag for all atoms of fragment
                         }
                         
                         var counter: Int = 0
@@ -1350,7 +1351,7 @@ class MKBuilder {
                             // Have any atoms of this match already been added?
                             var alreadydone: Bool = false
                             for k in j { // for all atoms of the fragment
-                                if vfrag.bitIsSet(k) {
+                                if vfrag.contains(k) {
                                     alreadydone = true
                                     break
                                 }
@@ -1358,7 +1359,7 @@ class MKBuilder {
                             if alreadydone { continue }
                             
                             for k in j {
-                                vfrag.setBitOn(k) // set vfrag for all atoms of fragment
+                                vfrag.add(k) // set vfrag for all atoms of fragment
                             }
                             
                             var counter: Int = 0
@@ -1390,7 +1391,7 @@ class MKBuilder {
         var dfsIter = MKAtomDFSIterator(mol)
         while let a = dfsIter.current() {
             // continue if the atom is already added
-            if vdone.bitIsSet(a.getIdx()) {
+            if vdone.contains(a.getIdx()) {
                 dfsIter++
                 continue
             }
@@ -1398,12 +1399,12 @@ class MKBuilder {
             var prev: MKAtom? = nil
             guard let nbrs = a.getNbrAtomIterator() else { fatalError("Cannot get nbrs for atom") }
             for nbr in nbrs {
-                if vdone.bitIsSet(nbr.getIdx()) {
+                if vdone.contains(nbr.getIdx()) {
                     prev = nbr
                 }
             }
             
-            if vfrag.bitIsSet(a.getIdx()) { // Is this atom part of a fragment?
+            if vfrag.contains(a.getIdx()) { // Is this atom part of a fragment?
                 if prev != nil { // if we have a previous atom, translate/rotate the fragment and connect it
                     guard let prevAtomBond = mol.getBond(prev!, a) else { fatalError() }
                     MKBuilder.connect(workMol, prev!.getIdx(), a.getIdx(), Int(prevAtomBond.getBondOrder()))
@@ -1454,7 +1455,7 @@ class MKBuilder {
                 moldir = VX + 0.01 * randomOffset
             }
             
-            vdone.setBitOn(a.getIdx())
+            vdone.add(a.getIdx())
             
             //place the atom
             guard let workMolaAtom = workMol.getAtom(a.getIdx()) else { fatalError() }
@@ -1491,11 +1492,11 @@ class MKBuilder {
                 OBBitVec atomsToCopy;
                 OBAtom *atom = bond->GetBeginAtom();
                 FOR_NBORS_OF_ATOM(a, &*atom) {
-                  atomsToCopy.SetBitOn(a->GetIdx());
+                  atomsToCopy.add(a->GetIdx());
                 }
                 atom = bond->GetEndAtom();
                 FOR_NBORS_OF_ATOM(a, &*atom) {
-                  atomsToCopy.SetBitOn(a->GetIdx());
+                  atomsToCopy.add(a->GetIdx());
                 }
                 OBMol mol_copy;
                 mol.CopySubstructure(mol_copy, &atomsToCopy);
@@ -1716,12 +1717,12 @@ class MKBuilder {
         workMol.deleteBond(bondTwo)
         
         guard let nbr0Atom = workMol.getAtom(nbrs[0]) else { fatalError("Could not extract nbrs[0] atom") }
-        let fragment: MKBitVec = getFragment(nbr0Atom)
+        let fragment: Bitset = getFragment(nbr0Atom)
         
         // Translate fragment to origin
         let posP = p.getVector()
         for i in 1...workMol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 guard let fragAtom = workMol.getAtom(i) else { fatalError("Could not get fragment atom") }
                 fragAtom.setVector(fragAtom.getVector() - posP)
             }
@@ -1741,7 +1742,7 @@ class MKBuilder {
         mat.rotAboutAxisByAngle(axis, 180)
                 
         for i in 1...workMol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 guard var tmpvec = workMol.getAtom(i)?.getVector() else { continue }
                 tmpvec = Surge.mul(tmpvec, mat)
                 workMol.getAtom(i)?.setVector(tmpvec)
@@ -1750,7 +1751,7 @@ class MKBuilder {
         
         // Set the coordinates of the original molecule using those of workmol
         for i in 1...workMol.numAtoms() {
-            if fragment.bitIsSet(i) {
+            if fragment.contains(i) {
                 guard let workAtom = workMol.getAtom(i) else { continue }
                 mol.getAtom(i)?.setVector(workAtom.getVector() + posP)
             }
@@ -1763,13 +1764,13 @@ class MKBuilder {
         guard atomIds.count > 0 else { return inversion }
         
         // Have we dealt with a particular ring stereo? (Indexed by Id)
-        let seen: MKBitVec = MKBitVec()
+        let seen: Bitset = Bitset()
 
         for n in 0..<atomIds.count {
             // Keep looping until you come to an unseen wrong stereo
-            if seen.bitIsSet(atomIds[n].0) || atomIds[n].1 { continue }
+            if seen.contains(atomIds[n].0.intValue) || atomIds[n].1 { continue }
             
-            var fragment: MKBitVec = MKBitVec() // indexed by id
+            var fragment: Bitset = Bitset() // indexed by id
             guard let atom = mol.getAtomById(atomIds[n].0) else { return inversion }
             addRingNbrs(&fragment, atom, mol)
             
@@ -1778,13 +1779,13 @@ class MKBuilder {
             var wrong: Refs = Refs()
             var right: Refs = Refs()
             for i in 0..<atomIds.count {
-                if fragment.bitIsSet(atomIds[i].0) {
+                if fragment.contains(atomIds[i].0.intValue) {
                     if atomIds[i].1 {
                         right.append(atomIds[i].0)
                     } else {
                         wrong.append(atomIds[i].0)
                     }
-                    seen.setBitOn(atomIds[i].0)
+                    seen.add(atomIds[i].0.intValue)
                 }
             }
             
@@ -1799,7 +1800,7 @@ class MKBuilder {
             inversion = true
             
             for a in mol.getAllAtoms() {
-                if fragment.bitIsSet(a.getId()) {
+                if fragment.contains(a.getId().intValue) {
                     a.setVector(-a.getVector())
                 }
             }
@@ -1809,7 +1810,7 @@ class MKBuilder {
             var reconnect: [MKBond] = [MKBond]()
             
             for a in mol.getAllAtoms() {
-                if fragment.bitIsSet(a.getId()) {
+                if fragment.contains(a.getId().intValue) {
                     if let bonds = atom.getBondIterator() {
                         for bond in bonds {
                             if !bond.isInRing() {
@@ -1833,11 +1834,11 @@ class MKBuilder {
         return inversion
     }
 
-    private static func addRingNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mol: MKMol) {
+    private static func addRingNbrs(_ fragment: inout Bitset, _ atom: MKAtom, _ mol: MKMol) {
         // Add the nbrs to the fragment, but don't add the neighbours of a spiro atom.
         for nbr in atom.getNbrAtomIterator()! {
-            if mol.getBond(nbr, atom)!.isInRing() && !fragment.bitIsSet(nbr.getId().intValue) && !MKBuilder.isSpiroAtom(atom.getId(), mol) {
-                fragment.setBitOn(UInt32(nbr.getId().intValue))
+            if mol.getBond(nbr, atom)!.isInRing() && !fragment.contains(nbr.getId().intValue) && !MKBuilder.isSpiroAtom(atom.getId(), mol) {
+                fragment.add(nbr.getId().intValue)
                 addRingNbrs(&fragment, nbr, mol)
             }
         }

@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import Bitset
+
 
 //! \class OBRotorRule rotor.h <openbabel/rotor.h>
 //! \brief A rule for torsional conformer searching, defined by a SMARTS pattern
@@ -337,9 +339,9 @@ class MKRotor {
     var _bond: MKBond? //!< the bond associated with this rotor
     var _ref: [Int] = [Int]() //!< indexes for atom coordinates (from 0, multiplied by 3)
     var _torsion: [Int] = [Int]() //!< indexes for atom coordinates (from 0, multiplied by 3)
-    var _fixedatoms: MKBitVec = MKBitVec() //!< fixed atoms/bonds
-    var _fixedbonds: MKBitVec = MKBitVec() //!< fixed atoms/bonds
-    var _evalatoms: MKBitVec = MKBitVec() //!< fixed atoms/bonds
+    var _fixedatoms: Bitset = Bitset() //!< fixed atoms/bonds
+    var _fixedbonds: Bitset = Bitset() //!< fixed atoms/bonds
+    var _evalatoms: Bitset = Bitset() //!< fixed atoms/bonds
     var _torsionAngles: [Double] = [Double]()  //!< torsion resolution
     var _invmag: [Double] = [Double]() //!< the inverse magnitudes (see Precalc)
     var _sn: [[Double]] = [[Double]]() //!< the rotation matrix (see Precalc())
@@ -411,11 +413,11 @@ class MKRotor {
     /**
      * Set the bonds that will be fixed.
      */
-    func setFixedBonds(_ bv: MKBitVec) {
+    func setFixedBonds(_ bv: Bitset) {
         _fixedbonds = bv
     }
     
-    func setEvalAtoms(_ bv: MKBitVec) {
+    func setEvalAtoms(_ bv: Bitset) {
         _evalatoms = bv
     }
     
@@ -728,7 +730,7 @@ class MKRotor {
      * Get an OBBitVec objects with bits set for all bonds that are fixed.
      * Bonds are indexed from 0.
      */
-    func getFixedBonds() -> MKBitVec {
+    func getFixedBonds() -> Bitset {
         return _fixedbonds
     }
     /**
@@ -813,14 +815,14 @@ class MKRotor {
 }
 
 @discardableResult
-func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: MKBitVec) -> Bool {
+func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: Bitset) -> Bool {
     dffv.removeAll()
     dffv.reserveCapacity(mol.numAtoms())
     
     var dffcount: Int, natom: Int
-    var used: MKBitVec = MKBitVec()
-    var curr: MKBitVec = MKBitVec()
-    let next: MKBitVec = MKBitVec()
+    var used: Bitset = Bitset()
+    var curr: Bitset = Bitset()
+    let next: Bitset = Bitset()
     
     for atom in mol.getAtomIterator() {
         if bv[atom.getIdx()] {
@@ -829,28 +831,25 @@ func getDFFVector(_ mol: MKMol, _ dffv: inout [Int], _ bv: MKBitVec) -> Bool {
         }
         
         dffcount = 0
-        used.clear()
-        curr.clear()
-        used.setBitOn(atom.getIdx())
-        curr.setBitOn(atom.getIdx())
+        used.removeAll()
+        curr.removeAll()
+        used.add(atom.getIdx())
+        curr.add(atom.getIdx())
         
         while !curr.isEmpty() && (bv&curr).isEmpty() {
-            next.clear()
-            natom = curr.nextBit(-1)
-            repeat {
+            next.removeAll()
+            for natom in curr {
                 guard let atom1 = mol.getAtom(natom),
                       let bonds = atom1.getBondIterator() else { fatalError() }
                 for bond in bonds {
-                    if (!used.bitIsSet(bond.getNbrAtomIdx(atom1)) &&
-                        !curr.bitIsSet(bond.getNbrAtomIdx(atom1))) {
+                    if (!used.contains(bond.getNbrAtomIdx(atom1)) &&
+                        !curr.contains(bond.getNbrAtomIdx(atom1))) {
                         if bond.getNbrAtom(atom1).getAtomicNum() != MKElements.Hydrogen.atomicNum {
-                            next.setBitOn(bond.getNbrAtomIdx(atom1))
+                            next.add(bond.getNbrAtomIdx(atom1))
                         }
                     }
                 }
-                
-                natom = curr.nextBit(natom)
-            } while natom != curr.endBit()
+            }
             
             used |= next
             curr = next
@@ -876,8 +875,8 @@ class MKRotorList {
     private var _quiet: Bool = false                         // Control debugging output
     private var _removesym: Bool = false                     // Control removal of symmetric rotations
     private var _ringRotors: Bool = false                    // Are there ring rotors
-    private var _fixedatoms: MKBitVec = MKBitVec()           // Bit vector of fixed (i.e., invariant) atoms
-    private var _fixedbonds: MKBitVec = MKBitVec()           // Bit vector of fixed (i.e., invariant) atoms
+    private var _fixedatoms: Bitset = Bitset()           // Bit vector of fixed (i.e., invariant) atoms
+    private var _fixedbonds: Bitset = Bitset()           // Bit vector of fixed (i.e., invariant) atoms
     private var _rr: MKRotorRules = MKRotorRules()           // Database of rotatable bonds and dihedral angles to test
     private var _dffv: [Int] = []                            // Distance from fixed
     private var _rotor: [MKRotor] = []                       // List of individual OBRotor torsions
@@ -920,7 +919,7 @@ class MKRotorList {
 
         // new fixed bonds
         if !_fixedbonds.isEmpty() {
-            return _fixedbonds.bitIsSet(Int(bond.getIdx()))
+            return _fixedbonds.contains(Int(bond.getIdx()))
         }
 
         if _fixedatoms.isEmpty() {
@@ -1067,9 +1066,9 @@ class MKRotorList {
     /**
      * Set the bonds that will be fixed.
      */
-    func setFixedBonds(_ fixedbonds: MKBitVec) {
+    func setFixedBonds(_ fixedbonds: Bitset) {
         _fixedbonds = fixedbonds
-        _fixedatoms.clear() // why is this here? 
+        _fixedatoms.removeAll() // why is this here? 
     }
 
     /**
@@ -1157,49 +1156,45 @@ class MKRotorList {
     @discardableResult
     func setEvalAtoms(_ mol: MKMol) -> Bool {
         
-        var eval: MKBitVec = MKBitVec()
-        var curr: MKBitVec = MKBitVec()
-        let next: MKBitVec = MKBitVec()
+        var eval: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        let next: Bitset = Bitset()
 
         for rotor in _rotor {
             guard let bond = rotor.getBond() else { fatalError("Cannot get rotor bond") }
-            curr.clear()
-            eval.clear()
-            curr.setBitOn(bond.getBeginAtomIdx())
-            curr.setBitOn(bond.getEndAtomIdx())
+            curr.removeAll()
+            eval.removeAll()
+            curr.add(bond.getBeginAtomIdx())
+            curr.add(bond.getEndAtomIdx())
             eval |= curr
-            var j: Int
             //follow all non-rotor bonds and add atoms to eval list
             repeat {
-                next.clear()
-                j = curr.nextBit(0)
-                repeat {
+                next.removeAll()
+                for j in curr {
                     guard let a1 = mol.getAtom(j),
                           let a1Nbrs = a1.getNbrAtomBondIterator() else { fatalError("Cannot get atom \(j)") }
                     for (a2, k) in a1Nbrs {
                         if !eval[a2.getIdx()] { // warning: maybe this needs to be subtracted by 1
                             if !k.isRotor(_ringRotors) || ((hasFixedAtoms() || hasFixedBonds()) && isFixedBond(k)) {
-                                next.setBitOn(a2.getIdx())
-                                eval.setBitOn(a2.getIdx())
+                                next.add(a2.getIdx())
+                                eval.add(a2.getIdx())
                             }
                         }
                     }
-                    j = curr.nextBit(j)
-                } while j != curr.endBit()
+                    
+                }
                 curr = next
             } while !curr.isEmpty()
             
             //add atoms alpha to eval list
-            next.clear()
-            j = eval.nextBit(0)
-            repeat {
+            next.removeAll()
+            for j in eval {
                 guard let a1 = mol.getAtom(j),
                       let a1Nbrs = a1.getNbrAtomIterator() else { fatalError("Cannot get atom j") }
                 for a2 in a1Nbrs {
-                    next.setBitOn(a2.getIdx())
+                    next.add(a2.getIdx())
                 }
-                j = eval.nextBit(j)
-            } while j != eval.endBit()
+            }
             
             eval |= next
             rotor.setEvalAtoms(eval)

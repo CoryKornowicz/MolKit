@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Bitset
 
 /**
 * Convert any reference to @p atomId in a stereo object to an OBStereo::ImplicitRef.
@@ -201,16 +202,16 @@ func isPotentialCisTrans(_ bond: MKBond) -> Bool {
 /**
 * Check if the specified stereogenic unit is in a fragment.
 */
-func isUnitInFragment(_ mol: MKMol, _ unit: MKStereoUnit, _ fragment: MKBitVec) -> Bool {
+func isUnitInFragment(_ mol: MKMol, _ unit: MKStereoUnit, _ fragment: Bitset) -> Bool {
     if (unit.type == .Tetrahedral) {
-        if (fragment.bitIsSet(unit.id.intValue)) {
+        if (fragment.contains(unit.id.intValue)) {
             return true
         }
     } else if (unit.type == .CisTrans) {
         guard let bond = mol.getBondById(unit.id) else { return false }
         let begin = bond.getBeginAtom()
         let end = bond.getEndAtom()
-        if (fragment.bitIsSet(begin.getId().intValue) || fragment.bitIsSet(end.getId().intValue)) {
+        if (fragment.contains(begin.getId().intValue) || fragment.contains(end.getId().intValue)) {
             return true
         }
     }
@@ -305,8 +306,8 @@ func classifyCisTransNbrSymClasses(_ symClasses: [UInt], _ doubleBond: MKBond, _
 * Rings are merged if they share at least one atom (e.g. bridged, spiro,
 * adjacent, ...).
 */
-func mergeRings(_ mol: MKMol, _ symClasses: [UInt]) -> [MKBitVec] {
-    var result = [MKBitVec]()
+func mergeRings(_ mol: MKMol, _ symClasses: [UInt]) -> [Bitset] {
+    var result = [Bitset]()
     let rings = mol.getSSSR()
     for ring in rings {
         // check if ring shares atom with previously found ring
@@ -316,7 +317,7 @@ func mergeRings(_ mol: MKMol, _ symClasses: [UInt]) -> [MKBitVec] {
             var shared = [UInt]()
             for path in ring._path {
             // check if the ring atom is in the current result bitvec
-                if (r.bitIsSet(path)) {
+                if (r.contains(path)) {
                     shared.append(UInt(path))
                 }
             }
@@ -331,16 +332,16 @@ func mergeRings(_ mol: MKMol, _ symClasses: [UInt]) -> [MKBitVec] {
             if (found) {
                 // add bits for the atoms in the ring
                 for path in ring._path {
-                    r.setBitOn(UInt32(path))
+                    r.add(path)
                 }
                 break
             }
         }
         // add the ring as a new bitvec if it shares no atom with a previous ring
         if (!found) {
-            let r = MKBitVec()
+            let r = Bitset()
             for path in ring._path {
-                r.setBitOn(UInt32(path))
+                r.add(path)
             }
             result.append(r)
         }
@@ -354,7 +355,7 @@ func mergeRings(_ mol: MKMol, _ symClasses: [UInt]) -> [MKBitVec] {
 /**
 * Helper function for getFragment below.
 */
-func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ skip: MKAtom) {
+func addNbrs(_ fragment: inout Bitset, _ atom: MKAtom, _ skip: MKAtom) {
     guard let nbors = atom.getNbrAtomIterator() else {
         // TODO: throw error
         return
@@ -365,11 +366,11 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ skip: MKAtom) {
             continue
         }
         // skip visited atoms
-        if (fragment.bitIsSet(nbr.getId().intValue)) {
+        if (fragment.contains(nbr.getId().intValue)) {
             continue
         }
         // add the neighbor atom to the fragment
-        fragment.setBitOn(UInt32(nbr.getId().intValue))
+        fragment.add(nbr.getId().intValue)
         // recurse...
         addNbrs(&fragment, nbr, skip)
     }
@@ -380,9 +381,9 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ skip: MKAtom) {
 * atoms for which there is a path to atom without going through skip. These
 * fragment bitvecs are indexed by unique id (i.e. OBAtom::GetId()).
 */
-func getFragment(_ atom: MKAtom, _ skip: MKAtom) -> MKBitVec {
-    var fragment: MKBitVec = MKBitVec()
-    fragment.setBitOn(UInt32(atom.getId().intValue))
+func getFragment(_ atom: MKAtom, _ skip: MKAtom) -> Bitset {
+    var fragment: Bitset = Bitset()
+    fragment.add(atom.getId().intValue)
     // start the recursion
     addNbrs(&fragment, atom, skip)
     return fragment
@@ -391,21 +392,21 @@ func getFragment(_ atom: MKAtom, _ skip: MKAtom) -> MKBitVec {
 /**
  * Helper function for getFragment below.
  */
-func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: inout MKBitVec) {
+func addNbrs(_ fragment: inout Bitset, _ atom: MKAtom, _ mask: inout Bitset) {
     guard let nbors = atom.getNbrAtomIterator() else {
         print("ERROR: no neighbors")
         return
     }
     for nbr in nbors {
-        if (!mask.bitIsSet(nbr.getId().intValue)) {
+        if (!mask.contains(nbr.getId().intValue)) {
             continue
         }
         // skip visited atoms
-        if (fragment.bitIsSet(nbr.getId().intValue)) {
+        if (fragment.contains(nbr.getId().intValue)) {
             continue
         }
         // add the neighbor atom to the fragment
-        fragment.setBitOn(UInt32(nbr.getId().intValue))
+        fragment.add(nbr.getId().intValue)
         // recurse...
         addNbrs(&fragment, nbr, &mask)
     }
@@ -416,10 +417,10 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: inout MKBitVec)
  * atoms for which there is a path to atom without going through skip. These
  * fragment bitvecs are indexed by atom idx (i.e. OBAtom::GetIdx()).
  */
-func getFragment(_ atom: MKAtom, _ mask: inout MKBitVec) -> MKBitVec
+func getFragment(_ atom: MKAtom, _ mask: inout Bitset) -> Bitset
 {
-    var fragment: MKBitVec = MKBitVec()
-    fragment.setBitOn(UInt32(atom.getIdx()))
+    var fragment: Bitset = Bitset()
+    fragment.add(atom.getIdx())
     // start the recursion
     addNbrs(&fragment, atom, &mask)
     return fragment
@@ -1009,18 +1010,18 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
         rings.append(StereoRing())
         var ring = rings.last!
         for j in 0..<stereoAtoms.count {
-            if lssr[i]._pathSet.bitIsSet(Int(stereoAtoms[j])) {
+            if lssr[i]._pathSet.contains(Int(stereoAtoms[j])) {
                 ring.trueCount += 1
             }
         }
         for j in 0..<paraAtoms.count {
-            if lssr[i]._pathSet.bitIsSet(Int(paraAtoms[j])) {
+            if lssr[i]._pathSet.contains(Int(paraAtoms[j])) {
                 guard let atom = mol.getAtom(Int(paraAtoms[j])) else {
                     fatalError("ERROR: atom is not found!!")
                 }
                 ring.paraAtoms.append(StereoRing.ParaAtom(id: atom.getId(), idx: .Ref(Int(paraAtoms[j]))))
                 for nbr in atom.getNbrAtomIterator()! {
-                    if lssr[i]._pathSet.bitIsSet(nbr.getIndex()) {
+                    if lssr[i]._pathSet.contains(nbr.getIndex()) {
                         guard var lastAtom = ring.paraAtoms.last else { break }
                         lastAtom.insideNbrs.append(nbr)
                     } else {
@@ -1039,7 +1040,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             }
             let beginIdx = bond.getBeginAtomIdx()
             let endIdx = bond.getEndAtomIdx()
-            if lssr[i]._pathSet.bitIsSet(Int(beginIdx)) {
+            if lssr[i]._pathSet.contains(Int(beginIdx)) {
                 ring.paraBonds.append(StereoRing.ParaBond(id: bond.getId(), inIdx: .Ref(beginIdx), outIdx: .Ref(endIdx)))
                 for nbr in bond.getBeginAtom().getNbrAtomIterator()! {
                     if nbr.getIndex() == endIdx {
@@ -1059,7 +1060,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                     ring.paraBonds.removeLast()
                 }
             }
-            if lssr[i]._pathSet.bitIsSet(Int(endIdx)) {
+            if lssr[i]._pathSet.contains(Int(endIdx)) {
                 ring.paraBonds.append(StereoRing.ParaBond(id: bond.getId(), inIdx: .Ref(endIdx), outIdx: .Ref(beginIdx)))
                 for nbr in bond.getEndAtom().getNbrAtomIterator()! {
                     if nbr.getIndex() == beginIdx {
@@ -1209,10 +1210,10 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                 print("ERROR: ligand atom is nil??")
                 break 
             } // TODO: Throw Error Here 
-            let ligand: MKBitVec = getFragment(ligandAtom!, begin)
+            let ligand: Bitset = getFragment(ligandAtom!, begin)
             for u2 in units {
                 if u2.type == .Tetrahedral {
-                    if ligand.bitIsSet(u2.id.intValue) {
+                    if ligand.contains(u2.id.intValue) {
                         beginValid = true
                         break
                     }
@@ -1220,7 +1221,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                     guard let bond2 = mol.getBondById(u2.id) else { continue }
                     let begin2 = bond2.getBeginAtom()
                     let end2 = bond2.getEndAtom()
-                    if ligand.bitIsSet(begin2.getId()) || ligand.bitIsSet(end2.getId()) {
+                    if ligand.contains(begin2.getId().intValue) || ligand.contains(end2.getId().intValue) {
                         beginValid = true
                         break
                     }
@@ -1251,10 +1252,10 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                 print("ERROR: ligand atom is nil??")
                 break
             } // TODO: Throw Error Here
-            let ligand: MKBitVec = getFragment(ligandAtom!, end)
+            let ligand: Bitset = getFragment(ligandAtom!, end)
             for u2 in units {
                 if u2.type == .Tetrahedral {
-                    if ligand.bitIsSet(u2.id.intValue) {
+                    if ligand.contains(u2.id.intValue) {
                         endValid = true
                         break
                     }
@@ -1262,7 +1263,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                     guard let bond2 = mol.getBondById(u2.id) else { continue }
                     let begin2 = bond2.getBeginAtom()
                     let end2 = bond2.getEndAtom()
-                    if ligand.bitIsSet(begin2.getId()) || ligand.bitIsSet(end2.getId()) {
+                    if ligand.contains(begin2.getId().intValue) || ligand.contains(end2.getId().intValue) {
                         endValid = true
                         break
                     }
@@ -1454,7 +1455,7 @@ func containsAtLeast_1true_2para(_ ligandAtom: MKAtom, atom: MKAtom, units: [MKS
 * true- or 2 separate assemblies of at least 2 para-stereocenter. This is rule
 * 2b in the Razinger paper on stereoisomer generation.
 */
-func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, units: [MKStereoUnit], mergedRings: [MKBitVec]) -> Bool {
+func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, units: [MKStereoUnit], mergedRings: [Bitset]) -> Bool {
     guard let mol = atom.getParent() else { return false }
     // check if ligand contains at least:
     // - 2 true-stereocenter
@@ -1464,11 +1465,11 @@ func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, u
     var ringIndices = [UInt]()
     for u2 in units {
         if u2.type == .Tetrahedral {
-            if ligand.bitIsSet(u2.id.intValue) {
+            if ligand.contains(u2.id.intValue) {
                 if u2.para {
                     if let paraAtom: MKAtom = mol.getAtomById(u2.id) {
                         for ringIdx in 0..<mergedRings.count {
-                            if mergedRings[ringIdx].bitIsSet(paraAtom.getIdx()) {
+                            if mergedRings[ringIdx].contains(paraAtom.getIdx()) {
                                 if !ringIndices.contains(UInt(ringIdx)) {
                                     ringIndices.append(UInt(ringIdx))
                                 }
@@ -1483,10 +1484,10 @@ func containsAtLeast_2true_2paraAssemblies(_ ligandAtom: MKAtom, atom: MKAtom, u
             guard let bond = mol.getBondById(u2.id) else { return false }
             let begin = bond.getBeginAtom() 
             let end = bond.getEndAtom()
-            if ligand.bitIsSet(begin.getIdx()) || ligand.bitIsSet(end.getIdx()) {
+            if ligand.contains(begin.getIdx()) || ligand.contains(end.getIdx()) {
                 if u2.para {
                     for ringIdx in 0..<mergedRings.count {
-                        if mergedRings[ringIdx].bitIsSet(begin.getIdx()) || mergedRings[ringIdx].bitIsSet(end.getIdx()) {
+                        if mergedRings[ringIdx].contains(begin.getIdx()) || mergedRings[ringIdx].contains(end.getIdx()) {
                             if !ringIndices.contains(UInt(ringIdx)) {
                                 ringIndices.append(UInt(ringIdx))
                             }
@@ -1573,12 +1574,12 @@ struct StereoInverted {
             assert( duplicatedAtoms[0].count == 2 )
             assert( duplicatedAtoms[1].count == 2 )
             for i in 0..<lssr.count {
-                if lssr[i]._pathSet.bitIsSet(duplicatedAtoms[0][0].getIdx()) &&
-                    lssr[i]._pathSet.bitIsSet(duplicatedAtoms[0][1].getIdx()) {
+                if lssr[i]._pathSet.contains(duplicatedAtoms[0][0].getIdx()) &&
+                    lssr[i]._pathSet.contains(duplicatedAtoms[0][1].getIdx()) {
                     return false
                 }
-                if lssr[i]._pathSet.bitIsSet(duplicatedAtoms[1][0].getIdx()) &&
-                    lssr[i]._pathSet.bitIsSet(duplicatedAtoms[1][1].getIdx()) {
+                if lssr[i]._pathSet.contains(duplicatedAtoms[1][0].getIdx()) &&
+                    lssr[i]._pathSet.contains(duplicatedAtoms[1][1].getIdx()) {
                     return false
                 }
             }
@@ -1631,7 +1632,7 @@ struct StereoInverted {
     static func compute(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphisms: Automorphisms) -> [Entry] {
         // We need topological canonical labels for this
         var canon_labels: [UInt] = []
-        canonicalLabels(mol, &symClasses, &canon_labels, MKBitVec(), 5, true)
+        canonicalLabels(mol, &symClasses, &canon_labels, Bitset(), 5, true)
         // the result
         var result: [Entry] = []
         // make a list of stereogenic centers inverted by the automorphism permutations
@@ -1961,7 +1962,7 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
 * @return vector containing symmetry classes index by OBAtom::GetIndex().
 */
 func findSymmetry(_ mol: MKMol) -> [Ref] {
-    var symVec: MKBitVec? = nil
+    var symVec: Bitset? = nil
     let symmetry = MKGraphSym(mol, &symVec)
     var symClasses = [Ref](repeating: .NoRef, count: mol.numAtoms())
     symmetry.getSymmetry(&symClasses)

@@ -6,11 +6,11 @@
 //
 
 import Foundation
-
+import Bitset
 
 class MKGraphSymPrivate { 
 
-    var _frag_atoms: MKBitVec = MKBitVec()
+    var _frag_atoms: Bitset = Bitset()
     var _pmol: MKMol
     var _conanLabels: [Int]?
     var _stereoUnits: MKStereoUnitSet = MKStereoUnitSet()
@@ -28,7 +28,7 @@ class MKGraphSymPrivate {
         guard let bonds = atom.getBondIterator() else { return count }
         for bond in bonds {
                 let nbr = bond.getNbrAtom(atom)
-                if _frag_atoms.bitIsSet(nbr.getIndex()) && nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+                if _frag_atoms.contains(nbr.getIndex()) && nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
                     count += 1
                 }
         }
@@ -52,7 +52,7 @@ class MKGraphSymPrivate {
         guard let bonds = atom.getBondIterator() else { return Int(count) }
         for bond in bonds {
             let nbr = bond.getNbrAtom(atom)
-            if _frag_atoms.bitIsSet(nbr.getIndex()) && nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
+            if _frag_atoms.contains(nbr.getIndex()) && nbr.getAtomicNum() != MKElements.Hydrogen.atomicNum {
                 if bond.isAromatic() {
                     count += 1.6
                 } else {
@@ -74,14 +74,13 @@ class MKGraphSymPrivate {
     *
     * @return A bit vector where TRUE means it's a ring atom.
     */
-    func findRingAtoms(_ ring_atoms: inout MKBitVec) {
-        ring_atoms.resize(UInt32(_pmol.numAtoms()))
-        ring_atoms.clear()
+    func findRingAtoms(_ ring_atoms: inout Bitset) {
+        ring_atoms.removeAll()
 
         let sssRings: [MKRing] = _pmol.getSSSR()
 
         for ri in sssRings {
-            let btmp: MKBitVec = _frag_atoms & ri._pathSet // intersection: fragment and ring
+            let btmp: Bitset = _frag_atoms & ri._pathSet // intersection: fragment and ring
             if btmp == ri._pathSet { //                       all ring atoms are in the fragment?
                 ring_atoms |= ri._pathSet //                  yes - add this ring's atoms
             }
@@ -135,7 +134,7 @@ class MKGraphSymPrivate {
             guard let nbrs = atom.getNbrAtomIterator() else { continue }
             for nbr in nbrs {
                 let idx = nbr.getIdx()
-                if _frag_atoms.bitIsSet(idx) {
+                if _frag_atoms.contains(idx) {
                     vtmp.append(vp1[idx2index[idx]].1)
                 }
             }
@@ -215,17 +214,17 @@ class MKGraphSymPrivate {
         getGTDVector(&v)
 
         // Compute the ring atoms for this particular fragment (set of atoms)
-        var ring_atoms: MKBitVec = MKBitVec()
+        var ring_atoms: Bitset = Bitset()
         findRingAtoms(&ring_atoms)
         var i = 0 
         for atom in _pmol.getAtomIterator() {
             vid[i] = Int(MKGraphSym.NoSymmetryClass)
-            if _frag_atoms.bitIsSet(atom.getIdx()) {
+            if _frag_atoms.contains(atom.getIdx()) {
                 vid[i] = 
                 v[i]                                                   // 10 bits: graph-theoretical distance
                 | (getHvyDegree(atom) << 10)                           //  4 bits: heavy valence
                 | ((atom.isAromatic() ? 1 : 0) << 14)                  //  1 bit:  aromaticity
-                | ((ring_atoms.bitIsSet(atom.getIdx()) ? 1 : 0) << 15) //  1 bit:  ring atom
+                | ((ring_atoms.contains(atom.getIdx()) ? 1 : 0) << 15) //  1 bit:  ring atom
                 | (atom.getAtomicNum() << 16)                          //  7 bits: atomic number
                 | (getHyvBondSum(atom) << 23)                          //  4 bits: heavy bond sum 
                 | (7 + atom.getFormalCharge() << 27)                   //  4 bits: formal charge
@@ -254,45 +253,44 @@ class MKGraphSymPrivate {
         gtd.removeAll()
         gtd.reserveCapacity(_pmol.numAtoms())
 
-        let next: MKBitVec = MKBitVec()
-        var curr: MKBitVec = MKBitVec()
-        var used: MKBitVec = MKBitVec()
+        let next: Bitset = Bitset()
+        var curr: Bitset = Bitset()
+        var used: Bitset = Bitset()
         var gtdcount: Int = 0
         var natom = 0
 
-        next.clear()
+        next.removeAll()
+        next.removeAll()
 
         for atom in _pmol.getAtomIterator() {
             let idx = atom.getIdx()
-            if !_frag_atoms.bitIsSet(idx) {
+            if !_frag_atoms.contains(idx) {
                 gtd[idx-1] = Int(MKGraphSym.NoSymmetryClass)
                 continue
             }
             gtdcount = 0 
-            used.clear()
-            curr.clear()
-            used.setBitOn(UInt32(idx))
-            curr.setBitOn(UInt32(idx))
+            used.removeAll()
+            curr.removeAll()
+            used.add(idx)
+            curr.add(idx)
 
             while !curr.isEmpty() {
-                next.clear()
-                natom = curr.nextBit(-1)
-                while natom != -1 {
+                next.removeAll()
+                for natom in curr {
                     guard let atom1 = _pmol.getAtom(natom) else { return false }
-                    if !_frag_atoms.bitIsSet(atom1.getIdx()) {
+                    if !_frag_atoms.contains(atom1.getIdx()) {
                         continue
                     }
                     guard let bonds = atom1.getBondIterator() else { continue }
                     for bond in bonds {
                         let nbr_idx = bond.getNbrAtomIdx(atom1)
-                        if _frag_atoms.bitIsSet(nbr_idx) && 
-                            !used.bitIsSet(nbr_idx) && 
-                            !curr.bitIsSet(nbr_idx) &&
+                        if _frag_atoms.contains(nbr_idx) && 
+                            !used.contains(nbr_idx) && 
+                            !curr.contains(nbr_idx) &&
                             bond.getNbrAtom(atom1).getAtomicNum() != MKElements.Hydrogen.atomicNum {
-                            next.setBitOn(UInt32(nbr_idx))
+                            next.add(nbr_idx)
                         }
                     }
-                    natom = curr.nextBit(natom)
                 }
                 used |= next 
                 curr = next
@@ -351,7 +349,7 @@ class MKGraphSymPrivate {
         // How many classes are we starting with?  (The "renumber" part isn't relevant.)
         MKGraphSymPrivate.countAndRenumberClasses(&symmetry_classes, &nclasses1)
 
-        let nfragatoms = _frag_atoms.countBits()
+        let nfragatoms = _frag_atoms.count()
 
         // LOOP: Do extended sum-of-invarients until no further changes are
         // noted.  (Note: This is inefficient, as it re-computes extended sums
@@ -406,7 +404,7 @@ class MKGraphSymPrivate {
         // Create a vector-of-pairs, associating each atom with its Class ID.
         for atom in _pmol.getAtomIterator() {
             let idx = atom.getIdx()
-            if _frag_atoms.bitIsSet(idx) {
+            if _frag_atoms.contains(idx) {
                 symmetry_classes.append((atom, vgi[idx-1]))
             }
             // } else {
@@ -446,7 +444,7 @@ class MKGraphSymPrivate {
         var symmetry_classes = [Pair<MKAtom, Int>]()
         for atom in _pmol.getAtomIterator() {
             let idx = atom.getIdx()
-            if _frag_atoms.bitIsSet(idx) {
+            if _frag_atoms.contains(idx) {
                 symmetry_classes.append(Pair(atom, symClasses[idx-1]))
             }
         }
@@ -477,28 +475,26 @@ class MKGraphSym {
     
     private var d: MKGraphSymPrivate
     
-    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec) {
+    init(_ pmol: MKMol, _ frag_atoms: inout Bitset) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
         if !frag_atoms.isEmpty() {
             d._frag_atoms = frag_atoms
         } else {
-            d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))
             for atom in d._pmol.getAtomIterator() {
-                d._frag_atoms.setBitOn(UInt32(atom.getIdx()))
+                d._frag_atoms.add(atom.getIdx())
             }
         }
     }
     
-    init(_ pmol: MKMol, _ frag_atoms: inout MKBitVec?) {
+    init(_ pmol: MKMol, _ frag_atoms: inout Bitset?) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
         if frag_atoms != nil {
             d._frag_atoms = frag_atoms!
         } else {
-            d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))
             for atom in d._pmol.getAtomIterator() {
-                d._frag_atoms.setBitOn(UInt32(atom.getIdx()))
+                d._frag_atoms.add(atom.getIdx())
             }
         }
     }
@@ -506,9 +502,8 @@ class MKGraphSym {
     init(_ pmol: MKMol) {
         self.d = MKGraphSymPrivate(pmol)
         d._pmol = pmol
-        d._frag_atoms.resize(UInt32(d._pmol.numAtoms()))
         for atom in d._pmol.getAtomIterator() {
-            d._frag_atoms.setBitOn(UInt32(atom.getIdx()))
+            d._frag_atoms.add(atom.getIdx())
         }
     }
     

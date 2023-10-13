@@ -1,4 +1,5 @@
 import Foundation
+import Bitset
 
 
 /**
@@ -104,7 +105,7 @@ class MKIsomorphMapper {
      * The default empty mask will result in all atoms being considered. The mask
      * indexes start from 1 (i.e. OBAtom::GetIdx()).
      */
-    open func mapFirst(_ queried: MKMol, _ map: inout Mapping, _ mask: MKBitVec = MKBitVec()) {
+    open func mapFirst(_ queried: MKMol, _ map: inout Mapping, _ mask: Bitset = Bitset()) {
         fatalError("Not implemented in base class")
     }
     /**
@@ -117,7 +118,7 @@ class MKIsomorphMapper {
      * The default empty mask will result in all atoms being considered. The mask
      * indexes start from 1 (i.e. OBAtom::GetIdx()).
      */
-    open func mapUnique(_ queried: MKMol, _ maps: inout Mappings, _ mask: MKBitVec = MKBitVec()) {
+    open func mapUnique(_ queried: MKMol, _ maps: inout Mappings, _ mask: Bitset = Bitset()) {
         fatalError("Not implemented in base class")
     }
     /**
@@ -131,7 +132,7 @@ class MKIsomorphMapper {
      * The default empty mask will result in all atoms being considered. The mask
      * indexes start from 1 (i.e. OBAtom::GetIdx()).
      */
-    open func MapAll(_ queried: MKMol, _ maps: inout Mappings, _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) {
+    open func MapAll(_ queried: MKMol, _ maps: inout Mappings, _ mask: Bitset = Bitset(), _ maxMemory: Int = 3000000) {
         fatalError("Not implemented in base class")
     }
     
@@ -164,7 +165,7 @@ class MKIsomorphMapper {
      * The default empty mask will result in all atoms being considered. The mask
      * indexes start from 1 (i.e. OBAtom::GetIdx()).
      */
-    open func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
+    open func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: Bitset = Bitset()) {
         fatalError("Not implemented in base class")
     }
     
@@ -212,7 +213,7 @@ typealias Automorphisms = MKIsomorphMapper.Mappings
 *
 * @since version 2.3
 */
-func findAutomorphisms(_ mol: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) -> Bool {
+func findAutomorphisms(_ mol: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ symmetry_classes: [UInt], _ mask: Bitset = Bitset(), _ maxMemory: Int = 3000000) -> Bool {
     maps.removeAll()
     var functor: MKIsomorphMapper.Functor = MapAllFunctor(maps, maxMemory)
     findAutomorhphisms(&functor, mol, symmetry_classes, mask)
@@ -226,12 +227,12 @@ func findAutomorphisms(_ mol: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ 
 *
 * @since version 2.3
 */
-func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ mask: inout MKBitVec, _ maxMemory: Int = 3000000) -> Bool {
+func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ mask: inout Bitset, _ maxMemory: Int = 3000000) -> Bool {
     // set all atoms to 1 if the mask is empty
-    var queriedMask: MKBitVec = mask
-    if queriedMask.countBits() == 0 {
+    var queriedMask: Bitset = mask
+    if queriedMask.count() == 0 {
         for i in 0..<mol.numAtoms() {
-            queriedMask.setBitOn(UInt32(i + 1))
+            queriedMask.add(i + 1)
         }
     }
     // get the symmetry classes
@@ -251,34 +252,35 @@ func findAutomorphisms(_ mol: MKMol, _ aut: inout MKIsomorphMapper.Mappings, _ m
 * @see  @ref MapGeneric
 * @since version 2.3
 */
-func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) {
+func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol, _ symmetry_classes: [UInt], _ mask: Bitset = Bitset()) {
     // set all atoms to 1 if the mask is empty
     var queriedMask = mask
-    if queriedMask.countBits() == 0 {
+    if queriedMask.count() == 0 {
         for i in 0..<mol.numAtoms() {
-            queriedMask.setBitOn(UInt32(i + 1))
+            queriedMask.add(i + 1)
         }
     }
     // compute the connected fragments
-    var visited: MKBitVec = MKBitVec()
-    var fragments: [MKBitVec] = []
+    var visited: Bitset = Bitset()
+    var fragments: [Bitset] = []
 
     for i in 0..<mol.numAtoms() {
-        if !queriedMask.bitIsSet(i + 1) || visited.bitIsSet(i + 1) {
+        if !queriedMask.contains(i + 1) || visited.contains(i + 1) {
             continue
         }
         fragments.append(getFragment(mol.getAtom(i + 1)!, &queriedMask))
         visited |= fragments.last!
     }
-    // count the symmetry classes, TODO: figure out why this was here in the first place
-//    var symClassCounts: [UInt] = [UInt].init(repeating: 0, count: symmetry_classes.count + 1)
-//    for i in 0..<symmetry_classes.count {
-//        if !queriedMask.bitIsSet(i + 1) {
-//            continue
-//        }
-//        let symClass = symmetry_classes[i]
-//        symClassCounts[Int(symClass)] += 1
-//    }
+    // count the symmetry classes
+    var symClassCounts: [UInt] = [UInt].init(repeating: 0, count: symmetry_classes.count + 1)
+    for i in 0..<symmetry_classes.count {
+        if !queriedMask.contains(i + 1) {
+            continue
+        }
+        let symClass = symmetry_classes[i]
+        symClassCounts[Int(symClass)] += 1
+    }
+    
     for i in 0..<fragments.count {
         let query = compileAutomorphismQuery(mol, symmetry_classes, fragments[i])
         guard let mapper = MKIsomorphMapper.getInstance(query) else {
@@ -294,14 +296,14 @@ func findAutomorhphisms(_ functor: inout MKIsomorphMapper.Functor, _ mol: MKMol,
 
 class AutomorphismFunctor: MKIsomorphMapper.Functor {
     private var m_functor: MKIsomorphMapper.Functor
-    private var m_fragment: MKBitVec
+    private var m_fragment: Bitset
     private var m_indexes: [UInt] = []
     
-    init(_ functor: MKIsomorphMapper.Functor, _ fragment: MKBitVec, _ numAtoms: UInt) {
+    init(_ functor: MKIsomorphMapper.Functor, _ fragment: Bitset, _ numAtoms: UInt) {
         m_functor = functor
         m_fragment = fragment
         for j in 0..<numAtoms {
-            if m_fragment.bitIsSet(Int(j) + 1) {
+            if m_fragment.contains(Int(j) + 1) {
                 m_indexes.append(j)
             }
         }
@@ -315,13 +317,13 @@ class AutomorphismFunctor: MKIsomorphMapper.Functor {
     }
 }
 
-func compileAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: MKBitVec = MKBitVec()) -> MKQuery {
+func compileAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: Bitset = Bitset()) -> MKQuery {
     let query: MKQuery = MKQuery()
     var offset: UInt = 0
     var indexes = [UInt]()
     for atom in mol.getAtomIterator() {
         indexes.append(UInt(atom.getIndex()) - offset)
-        if !mask.bitIsSet(atom.getIndex() + 1) {
+        if !mask.contains(atom.getIndex() + 1) {
             offset += 1
             continue
         }
@@ -333,7 +335,7 @@ func compileAutomorphismQuery(_ mol: MKMol, _ symmetry_classes: [UInt], _ mask: 
         }
         let beginIndex = bond.getBeginAtom().getIndex()
         let endIndex = bond.getEndAtom().getIndex()
-        if !mask.bitIsSet(beginIndex + 1) || !mask.bitIsSet(endIndex + 1) {
+        if !mask.contains(beginIndex + 1) || !mask.contains(endIndex + 1) {
             continue
         }
         query.addBond(MKQueryBond(query.getAtoms()[Int(indexes[beginIndex])], query.getAtoms()[Int(indexes[endIndex])], Int(bond.getBondOrder()), bond.isAromatic()))
@@ -506,17 +508,17 @@ class VF2Mapper: MKIsomorphMapper {
         var functor: MKIsomorphMapper.Functor
         var query: MKQuery                       // the query
         var queried: MKMol                       // the queried molecule
-        var queriedMask: MKBitVec                // the queriedMask
+        var queriedMask: Bitset                // the queriedMask
         var queryPath: [UInt]                    // the path in the query
         var queriedPath: [UInt]                  // the path in the queried molecule
         var mapping: [MKAtom?]
         // the terminal sets
-        var queryPathBits: MKBitVec
-        var queriedPathBits: MKBitVec
+        var queryPathBits: Bitset
+        var queriedPathBits: Bitset
         var queryDepths: [UInt]
         var queriedDepths: [UInt]
 
-        init(_ functor: inout MKIsomorphMapper.Functor, _ query: MKQuery, _ queried: MKMol, _ mask: MKBitVec) {
+        init(_ functor: inout MKIsomorphMapper.Functor, _ query: MKQuery, _ queried: MKMol, _ mask: Bitset) {
             self.abort = false
             self.functor = functor
             self.query = query
@@ -525,8 +527,8 @@ class VF2Mapper: MKIsomorphMapper {
             self.queryPath = []
             self.queriedPath = []
             self.mapping = [MKAtom?](repeating: nil, count: query.numAtoms())
-            self.queryPathBits = MKBitVec()
-            self.queriedPathBits = MKBitVec()
+            self.queryPathBits = Bitset()
+            self.queriedPathBits = Bitset()
             self.queryDepths = [UInt](repeating: 0, count: query.numAtoms())
             self.queriedDepths = [UInt](repeating: 0, count: queried.numAtoms())
         }
@@ -540,11 +542,11 @@ class VF2Mapper: MKIsomorphMapper {
         super.init(query)
     }
 
-    func isInTerminalSet(_ depths: [UInt], _ path: MKBitVec, _ i: UInt) -> Bool {
+    func isInTerminalSet(_ depths: [UInt], _ path: Bitset, _ i: UInt) -> Bool {
         if depths[Int(i)] == 0 {
             return false
         }
-        if path.bitIsSet(Int(i)) {
+        if path.contains(Int(i)) {
             return false
         }
         return true
@@ -600,8 +602,8 @@ class VF2Mapper: MKIsomorphMapper {
         state.queryPath.append(UInt(queryAtom.getIndex()))
         state.queriedPath.append(UInt(queriedAtom.getIndex()))
         // update the terminal sets
-        state.queryPathBits.setBitOn(UInt32(queryAtom.getIndex()))
-        state.queriedPathBits.setBitOn(UInt32(queriedAtom.getIndex()))
+        state.queryPathBits.add(queryAtom.getIndex())
+        state.queriedPathBits.add(queriedAtom.getIndex())
         // update mapping
         state.mapping[Int(queryAtom.getIndex())] = queriedAtom
         //
@@ -627,7 +629,7 @@ class VF2Mapper: MKIsomorphMapper {
 //        TODO: Throw error here
         for nbor in nbors {
             let index = nbor.getIndex()
-            if !state.queriedMask.bitIsSet(Int(index + 1)) {
+            if !state.queriedMask.contains(Int(index + 1)) {
                 continue
             }
             if state.queriedDepths[Int(index)] == 0 {
@@ -688,19 +690,19 @@ class VF2Mapper: MKIsomorphMapper {
         let mappingSize = state.queryPath.count
 
         if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
-            while (lastQueryAtom < querySize && (state.queryPathBits.bitIsSet(lastQueryAtom) || (state.queryDepths[lastQueryAtom] == 0))) {
+            while (lastQueryAtom < querySize && (state.queryPathBits.contains(lastQueryAtom) || (state.queryDepths[lastQueryAtom] == 0))) {
                 lastQueryAtom += 1
                 lastQueriedAtom = 0 
             }
         } else {
-            while(lastQueryAtom < querySize && state.queryPathBits.bitIsSet(lastQueryAtom)) {
+            while(lastQueryAtom < querySize && state.queryPathBits.contains(lastQueryAtom)) {
                 lastQueryAtom += 1
                 lastQueriedAtom = 0
             }
         }
 
         if (queryTerminalSize > mappingSize && queriedTerminalSize > mappingSize) {
-            while (lastQueriedAtom < queriedSize && (state.queriedPathBits.bitIsSet(lastQueriedAtom) || (state.queriedDepths[lastQueriedAtom] == 0))) {
+            while (lastQueriedAtom < queriedSize && (state.queriedPathBits.contains(lastQueriedAtom) || (state.queriedDepths[lastQueriedAtom] == 0))) {
                 lastQueriedAtom += 1
             }
         } else {
@@ -743,11 +745,11 @@ class VF2Mapper: MKIsomorphMapper {
         // remove last atoms from the mapping
         if (state.queryPath.count > 0) {
             state.mapping[Int(state.queryPath.last!)] = nil
-            state.queryPathBits.setBitOff(UInt32(state.queryPath.last!))
+            state.queryPathBits.remove(Int(state.queryPath.last!))
             state.queryPath.removeLast()
         }
         if state.queriedPath.count > 0 {
-            state.queriedPathBits.setBitOff(UInt32(state.queriedPath.last!))
+            state.queriedPathBits.remove(Int(state.queriedPath.last!))
             state.queriedPath.removeLast()
         }
         // restore queryDepths and queriedDepths
@@ -775,7 +777,7 @@ class VF2Mapper: MKIsomorphMapper {
     * @param queried The queried molecule.
     * @return The mapping.
     */
-    override func mapFirst(_ queried: MKMol, _ map: inout MKIsomorphMapper.Mapping, _ mask: MKBitVec = MKBitVec()) {
+    override func mapFirst(_ queried: MKMol, _ map: inout MKIsomorphMapper.Mapping, _ mask: Bitset = Bitset()) {
         var functor: MKIsomorphMapper.Functor = MapFirstFunctor(map)
         mapGeneric(&functor, queried, mask)
     }
@@ -825,7 +827,7 @@ class VF2Mapper: MKIsomorphMapper {
     * @param queried The queried molecule.
     * @return The unique mappings
     */
-    override func mapUnique(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: MKBitVec = MKBitVec()) {
+    override func mapUnique(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: Bitset = Bitset()) {
         maps.removeAll()
         var functor: MKIsomorphMapper.Functor = MapUniqueFunctor(maps)
         mapGeneric(&functor, queried, mask)
@@ -839,7 +841,7 @@ class VF2Mapper: MKIsomorphMapper {
     * @param queried The queried molecule.
     * @return The mappings.
     */
-    override func MapAll(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: MKBitVec = MKBitVec(), _ maxMemory: Int = 3000000) {
+    override func MapAll(_ queried: MKMol, _ maps: inout MKIsomorphMapper.Mappings, _ mask: Bitset = Bitset(), _ maxMemory: Int = 3000000) {
         maps.removeAll()
         var functor: MKIsomorphMapper.Functor = MapAllFunctor(maps, maxMemory)
         mapGeneric(&functor, queried, mask)
@@ -852,21 +854,21 @@ class VF2Mapper: MKIsomorphMapper {
         //       }
     }
 
-    override func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: MKBitVec = MKBitVec()) {
+    override func mapGeneric(_ functor: inout MKIsomorphMapper.Functor, _ queried: MKMol, _ mask: Bitset = Bitset()) {
         m_startTime = Date()
         if (m_query.numAtoms() == 0) {
             return
         }
         // set all atoms to 1 if the mask is empty
         let queriedMask = mask
-        if (queriedMask.countBits() == 0) {
+        if (queriedMask.count() == 0) {
             for i in 0..<queried.numAtoms() {
-                queriedMask.setBitOn(UInt32(i + 1))
+                queriedMask.add(i + 1)
             }
         }
         let queryAtom = m_query.getAtoms()[0]
         for i in 0..<queried.numAtoms() {
-            if (!queriedMask.bitIsSet(Int(i + 1))) {
+            if (!queriedMask.contains(Int(i + 1))) {
                 continue
             }
             var state = State(&functor, m_query, queried, queriedMask)

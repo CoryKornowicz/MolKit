@@ -7,6 +7,7 @@
 
 import Foundation
 import Collections
+import Bitset
 
 
 // This code uses the old OpenEye SMILES parser
@@ -66,7 +67,9 @@ public class SMIBaseFormat: MKMoleculeFormat {
                 title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 pmol.setTitle(title)
             } else {
-                smiles = ln
+                let temp_smiles = ln.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !temp_smiles.isEmpty else { return false }
+                smiles = temp_smiles
             }
         }
         
@@ -122,17 +125,17 @@ public class SMIBaseFormat: MKMoleculeFormat {
         // an ascii OBBitVec, representing the atoms of a fragment.  The
         // SMILES generated will only include these fragment atoms.
 
-        var fragatoms = MKBitVec(pmol.numAtoms())
+        var fragatoms = Bitset()
 
         if let dp = pmol.getData("SMILES_Fragment") as? MKPairData<String> {
-            fragatoms.fromString(dp.getValue()!, new_bit_size: UInt32(pmol.numAtoms()))
+            fragatoms.initialize(fromString: dp.getValue()!)
         } else if let ppF = pConv.isOption("F") {
-            fragatoms.fromString(ppF, new_bit_size: UInt32(pmol.numAtoms()))
+            fragatoms.initialize(fromString: ppF)
         } else {
         // If no "SMILES_Fragment" data, fill the entire OBBitVec
         // with 1's so that the SMILES will be for the whole molecule.
             for a in pmol.getAtomIterator() {
-                fragatoms.setBitOn(a.getIdx())
+                fragatoms.add(a.getIdx())
             }
         }
 
@@ -483,7 +486,7 @@ class MKSmilesParser {
             switch _ptr.cur() {
             case "\r":
                 return false
-            case "0"..."9", "%":
+            case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "%":
                 if _prev == 0 {
                     return false
                 }
@@ -1511,7 +1514,7 @@ class MKSmilesParser {
         var rad: Int = 0
         var clval: Int = 0
         _ptr.inc()
-        repeat {
+        lex_repeat: repeat {
             switch _ptr.cur() {
             case "@":
                 _ptr.inc()
@@ -1626,6 +1629,8 @@ class MKSmilesParser {
                 atomclass.setValue(clval)
                 atomclass.setOrigin(.fileformatInput)
                 atom.setData(atomclass)
+            case "]":
+                break lex_repeat
             default:
                 return false
             }
@@ -1745,30 +1750,35 @@ class MKSmilesParser {
         var str = ""
         _ptr.inc()
         // check for bond order indicators CC&=1.C&1
-        if _ptr.cur() == "-" {
+        
+        switch _ptr.cur() {
+        case "-":
             _order = 1
             _ptr.inc()
-        } else if _ptr.cur() == "=" {
+        case "=":
             _order = 2
             _ptr.inc()
-        } else if _ptr.cur() == "#" {
+        case  "#":
             _order = 3
             _ptr.inc()
-        } else if _ptr.cur() == "$" {
+        case  "$":
             _order = 4
             _ptr.inc()
-        } else if _ptr.cur() == ";" {
+        case  ";":
             _order = 5
             _ptr.inc()
-        } else if _ptr.cur() == "/" {
+        case  "/":
             _order = 1
             _updown = BondDownChar
             _ptr.inc()
-        } else if _ptr.cur() == "\\" {
+        case  "\\":
             _order = 1
             _updown = BondUpChar
             _ptr.inc()
+        default:
+            break
         }
+        
         if _ptr.cur() == "%" { // external bond indicator > 10
             _ptr.inc()
             str.append(_ptr.cur())
@@ -1836,7 +1846,7 @@ class MKSmilesParser {
                 if !_ptr.cur().isNumber || !(_ptr[1].isNumber) {
                     fatalError("Two digits expected after %")
                 }
-                digit = (_ptr.cur().wholeNumberValue!) * 10 + _ptr.cur().wholeNumberValue! + 1
+                digit = (_ptr.cur().wholeNumberValue!) * 10 + _ptr[1].wholeNumberValue! + 1
                 _ptr.inc()
             }
         } else {
@@ -2018,8 +2028,8 @@ struct OutOptions {
  ----------------------------------------------------------------------*/
 class MKMol2Cansmi {
     var _atmorder: [Int] = []
-    var _uatoms: MKBitVec = MKBitVec()
-    var _ubonds: MKBitVec = MKBitVec()
+    var _uatoms: Bitset = Bitset()
+    var _ubonds: Bitset = Bitset()
     var _vopen: [MKBondClosureInfo] = []
     var _bcdigit: Int = 0 // Unused unless option "R" is specified
     var _cistrans: [MKCisTransStereo] = []
@@ -2238,7 +2248,7 @@ class MKMol2Cansmi {
      *       molecular fragment.
      ***************************************************************************/
     @discardableResult
-    func buildCanonTree(_ mol: MKMol, _ frag_atoms: inout MKBitVec, _ canonical_order: [Int], _ node: MKCanSmiNode) -> Bool {
+    func buildCanonTree(_ mol: MKMol, _ frag_atoms: inout Bitset, _ canonical_order: [Int], _ node: MKCanSmiNode) -> Bool {
         let atom = node.getAtom()
         
         // Create a vector of neighbors sorted by canonical order, but favor
@@ -2255,7 +2265,7 @@ class MKMol2Cansmi {
         var set_nbr: Bool = false
         for nbr in atom.getNbrAtomIterator()! {
             let idx = atom.getIdx()
-            if _uatoms[idx] || !frag_atoms.bitIsSet(idx) { continue }
+            if _uatoms[idx] || !frag_atoms.contains(idx) { continue }
             guard let nbr_bond = atom.getBond(nbr) else { fatalError("ERROR: Could not find bond") }
             _ = nbr_bond.getBondOrder()
             let new_needs_bsymbol = needsBondSymbol(nbr_bond)
@@ -2280,10 +2290,10 @@ class MKMol2Cansmi {
             set_nbr = false
         }
         
-        _uatoms.setBitOn(atom.getIdx()) // mark the aotm as visited
+        _uatoms.add(atom.getIdx()) // mark the aotm as visited
         
         if _endatom != nil {
-            if !_uatoms.bitIsSet(_endatom!.getIdx()) && sort_nbrs.count > 1 {
+            if !_uatoms.contains(_endatom!.getIdx()) && sort_nbrs.count > 1 {
                 // If you have specified an _endatom, the following section rearranges
                 // sort_nbrs as follows:
                 //   - if a branch does not lead to the end atom, move it to the front
@@ -2311,7 +2321,7 @@ class MKMol2Cansmi {
             let idx = nbr.getIdx()
             if _uatoms[idx] { continue }
             guard let bond = atom.getBond(nbr) else { fatalError("ERROR: Could not find bond") }
-            _ubonds.setBitOn(bond.getIdx())
+            _ubonds.add(Int(bond.getIdx()))
             let next = MKCanSmiNode(atom: nbr)
             next.setParent(atom)
             node.addChildNode(next, bond)
@@ -2331,7 +2341,7 @@ class MKMol2Cansmi {
     *       with disconnected parts), selects a new root from the remaining
     *       atoms and repeats the process.
     ***************************************************************************/
-    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: inout MKBitVec, _ buffer: inout String) {
+    func createFragCansmiString(_ mol: MKMol, _ frag_atoms: inout Bitset, _ buffer: inout String) {
         
         var symmetry_classes: [Ref] = []
         var canonical_order: [Ref] = []
@@ -2380,10 +2390,10 @@ class MKMol2Cansmi {
         }
         if _canonicalOutput {
             // Find the (dis)connected fragments.
-            var visited = MKBitVec()
-            var fragments: [MKBitVec] = []
+            var visited = Bitset()
+            var fragments: [Bitset] = []
             for i in 0..<mol.numAtoms() {
-                if !frag_atoms.bitIsSet(i+1) || visited.bitIsSet(i+1) { continue }
+                if !frag_atoms.contains(i+1) || visited.contains(i+1) { continue }
                 if let atom = mol.getAtom(i+1) {
                     fragments.append(getFragment(atom, frag_atoms))
                     visited |= fragments.last!
@@ -2398,7 +2408,7 @@ class MKMol2Cansmi {
                 var tmp: [Ref] = []
                 gs.getSymmetry(&tmp)
                 for j in 0..<mol.numAtoms() {
-                    if fragments[i].bitIsSet(j+1) {
+                    if fragments[i].contains(j+1) {
                         symmetry_classes[j] = tmp[j]
                     }
                 }
@@ -2468,7 +2478,7 @@ class MKMol2Cansmi {
             var lowest_canorder = 999999
             // If we specified a startatom_idx & it's in this fragment, use it to start the fragment
             if (_startatom != nil) {
-                if !_uatoms[_startatom!.getIdx()] && frag_atoms.bitIsSet(_startatom!.getIdx()) &&
+                if !_uatoms[_startatom!.getIdx()] && frag_atoms.contains(_startatom!.getIdx()) &&
                     (!isrxn || rxn.getRole(atom: _startatom!).rawValue == rxnrole) {
                     root_atom = _startatom
                 }
@@ -2478,7 +2488,7 @@ class MKMol2Cansmi {
                     let idx = atom.getIdx()
                     if ( //atom.getAtomicNum() != MKElements.Hydrogen       // don't start with a hydrogen
                         !_uatoms[idx]          // skip atoms already used (for fragments)
-                        && frag_atoms.bitIsSet(idx)// skip atoms not in this fragment
+                        && frag_atoms.contains(idx)// skip atoms not in this fragment
                         && (!isrxn || rxn.getRole(atom: atom).rawValue == rxnrole) // skip atoms not in this rxn role
                         //&& !atom->IsChiral()    // don't use chiral atoms as root node
                         && canonical_order[idx-1].intValue < lowest_canorder) {
@@ -2917,7 +2927,7 @@ class MKMol2Cansmi {
      *       to the lowest canonical-ordered neighbor is assigned the first
      *       available number, and upwards in neighbor-atom canonical order.
      ***************************************************************************/
-    func getCanonClosureDigits(_ atom: MKAtom, _ frag_atoms: inout MKBitVec, _ canonical_order: [Int]) -> [MKBondClosureInfo] {
+    func getCanonClosureDigits(_ atom: MKAtom, _ frag_atoms: inout Bitset, _ canonical_order: [Int]) -> [MKBondClosureInfo] {
         var vp_closures: [MKBondClosureInfo] = []
         var vbonds: [MKBond] = []
         
@@ -2925,12 +2935,12 @@ class MKMol2Cansmi {
         var setNewBond: Bool = false
         for bond1 in atom.getBondIterator()! {
             // Is this a ring-closure neighbor?
-            if _ubonds.bitIsSet(Int(bond1.getIdx())) { continue }
+            if _ubonds.contains(Int(bond1.getIdx())) { continue }
             let nbr1 = bond1.getNbrAtom(atom)
             // Skip hydrogens before checking canonical_order
             // PR#1999348
             if ((nbr1.getAtomicNum() == MKElements.Hydrogen.atomicNum && isSuppressedHydrogen(nbr1)) ||
-                (!frag_atoms.bitIsSet(nbr1.getIdx()))) { continue }
+                (!frag_atoms.contains(nbr1.getIdx()))) { continue }
             let nbr1_canorder = canonical_order[nbr1.getIdx() - 1]
             
             // Insert into the bond-vector in canonical order (by neightbor atom order)
@@ -2952,7 +2962,7 @@ class MKMol2Cansmi {
         // If we found new open bonds, assign a bond-closure digits to each one,
         // add it to _vopen, and add it to the return vector.
         for bond1 in vbonds {
-            _ubonds.setBitOn(bond1.getIdx())
+            _ubonds.add(Int(bond1.getIdx()))
             let digit = getUnusedIndex()
             // let bo = bond1.isAromatic() ? 1 : bond1.getBondOrder() // CJ: why was this line added?  bo is never used?
             let newAdd = MKBondClosureInfo(toatom: bond1.getNbrAtom(atom), fromatom: atom, bond: bond1, ringdigit: digit, is_open: 1) // interpret 1 as True
@@ -3023,7 +3033,7 @@ class MKMol2Cansmi {
     *       in" for the "C" in the first, even though the actual carbon atom appears
     *       after the Bromine atom in the second string.
     ***************************************************************************/
-    func toCansmilesString(_ node: MKCanSmiNode, _ buffer: inout String, _ frag_atoms: inout MKBitVec, _ symmetry_classes: [Int], _ canonical_order: [Int]) {
+    func toCansmilesString(_ node: MKCanSmiNode, _ buffer: inout String, _ frag_atoms: inout Bitset, _ symmetry_classes: [Int], _ canonical_order: [Int]) {
         let atom = node.getAtom()
         var chiral_neighbors: [MKAtom?] = [] 
 
@@ -3241,27 +3251,24 @@ class MKMol2Cansmi {
     //! Adaptation of OBMol::FindChildren to allow a vector of OBAtoms to be passed in
     //  MOVE THIS TO OBMOL FOR 2.4
     //         TODO: substitute this with the moleucule classes implementation :: mol.findChildren
-    func myFindChildren(_ mol: MKMol, _ children: inout [MKAtom], _ seen: MKBitVec, _ end: MKAtom) {
-        var curr = MKBitVec()
-        var next = MKBitVec()
-        var used = MKBitVec(seen)
-        used |= end.getIdx()
-        curr |= end.getIdx()
+    func myFindChildren(_ mol: MKMol, _ children: inout [MKAtom], _ seen: Bitset, _ end: MKAtom) {
+        var curr = Bitset()
+        var next = Bitset()
+        var used = Bitset(seen)
+        used.add(end.getIdx())
+        curr.add(end.getIdx())
         children.removeAll()
-        var i: Int
         while true {
-            next.clear()
-            i = curr.nextBit(-1)
-            while i != curr.endBit() {
+            next.removeAll()
+            for i in curr {
                 guard let atom = mol.getAtom(i) else { fatalError("Cannot find atom in molecule : myFindChildren") }
                 for nbr in atom.getNbrAtomIterator()! {
                     if !used[nbr.getIdx()] {
                         children.append(nbr)
-                        next |= nbr.getIdx()
-                        used |= nbr.getIdx()
+                        next.add(nbr.getIdx())
+                        used.add(nbr.getIdx())
                     }
                 }
-                i = curr.nextBit(i)
             }
             if next.isEmpty() {
                 break
@@ -3412,7 +3419,7 @@ func needsBondSymbol(_ bond: MKBond) -> Bool {
  *        Creates a set of non-canonical labels for the fragment atoms
  * ***************************************************************************/
 
-func standardLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
+func standardLabels(_ mol: MKMol, _ frag_atoms: Bitset, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
     for atom in mol.getAtomIterator() {
         if frag_atoms[atom.getIdx()] {
             labels.append(.Ref(atom.getIdx() - 1))
@@ -3434,9 +3441,9 @@ func standardLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: in
  *    molecule, and use those to test the canonicalizer.
  ***************************************************************************/
 
-func randomLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
+func randomLabels(_ mol: MKMol, _ frag_atoms: Bitset, _ symmetry_classes: inout [Ref], _ labels: inout [Ref]) {
     let natoms = mol.numAtoms()
-    let used = MKBitVec(natoms)
+    let used = Bitset()
     
     for atom in mol.getAtomIterator() {
         if frag_atoms[atom.getIdx()] {
@@ -3444,7 +3451,7 @@ func randomLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inou
             while used[r] {
                 r = (r + 1) % natoms // find an unused number
             }
-            used.setBitOn(r)
+            used.add(r)
             labels.append(.Ref(r))
             symmetry_classes.append(.Ref(r))
         }
@@ -3458,11 +3465,11 @@ func randomLabels(_ mol: MKMol, _ frag_atoms: MKBitVec, _ symmetry_classes: inou
 /**
 * Helper function for getFragment below.
 */
-func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: MKBitVec) {
+func addNbrs(_ fragment: inout Bitset, _ atom: MKAtom, _ mask: Bitset) {
     for nbr in atom.getNbrAtomIterator()! {
         if !mask[nbr.getIdx()] { continue } // skip atoms not in mask
         if fragment[nbr.getIdx()] { continue }  // skip visited atoms
-        fragment.setBitOn(nbr.getIdx()) // add the neighbor atom to the fragment
+        fragment.add(nbr.getIdx()) // add the neighbor atom to the fragment
         addNbrs(&fragment, nbr, mask) // recurse...
     }
 }
@@ -3473,9 +3480,9 @@ func addNbrs(_ fragment: inout MKBitVec, _ atom: MKAtom, _ mask: MKBitVec) {
 * fragment bitvecs are indexed by atom idx (i.e. OBAtom::GetIdx()).
 */
 
-func getFragment(_ atom: MKAtom, _ mask: MKBitVec) -> MKBitVec {
-    var fragment = MKBitVec()
-    fragment.setBitOn(atom.getIdx())
+func getFragment(_ atom: MKAtom, _ mask: Bitset) -> Bitset {
+    var fragment = Bitset()
+    fragment.add(atom.getIdx())
     addNbrs(&fragment, atom, mask)
     return fragment
 }
@@ -3494,7 +3501,7 @@ func getFragment(_ atom: MKAtom, _ mask: MKBitVec) -> MKBitVec {
 *       of any class.)
 *
 ***************************************************************************/
-func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms: inout MKBitVec, _ pConv: MKConversion) {
+func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms: inout Bitset, _ pConv: MKConversion) {
     let canonical: Bool = pConv.isOption("c")
 
     let options = OutOptions(isomeric: !pConv.isOption("i"), kekulesmi: pConv.isOption("k"),
@@ -3523,7 +3530,7 @@ func createCansmiString(_ mol: inout MKMol, _ buffer: inout String, _ frag_atoms
         for atom in mol.getAtomIterator() {
             if frag_atoms[atom.getIdx()] && atom.getAtomicNum() == MKElements.Hydrogen.atomicNum
                 && (!options.isomeric || m2s.isSuppressedHydrogen(atom)) {
-                frag_atoms.setBitOff(atom.getIdx())
+                frag_atoms.remove(atom.getIdx())
             }
         }
     }
@@ -3587,9 +3594,10 @@ class FIXFormat: MKMoleculeFormat {
                                  ordering: pConv.isOption("o")!)
         let m2s = MKMol2Cansmi(options, mol, true, pConv)
         
-        var allbits = MKBitVec(mol.numAtoms())
+        var allbits = Bitset()
+        
         for a in mol.getAtomIterator() {
-            allbits.setBitOn(a.getIdx())
+            allbits.add(a.getIdx())
         }
         
         if mol.numAtoms() > 0 {
