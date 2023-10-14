@@ -31,10 +31,11 @@ public enum RefValue: Equatable, Hashable {
             }
         }
         set {
-            switch self {
-            case .NoRef, .ImplicitRef:
-                return
-            case .Ref(_):
+            if newValue == .max {
+                self = .NoRef
+            } else if newValue == -9999 {
+                self = .ImplicitRef
+            } else {
                 self = .Ref(newValue)
             }
         }
@@ -42,7 +43,7 @@ public enum RefValue: Equatable, Hashable {
     
     public static func == (_ lhs: RefValue, _ rhs: RefValue) -> Bool {
         switch lhs {
-        case .NoRef:
+        case .NoRef: // Allow any no refs to be equal?
             if case .NoRef = rhs {
                 return true
             } else {
@@ -50,7 +51,7 @@ public enum RefValue: Equatable, Hashable {
             }
         case .ImplicitRef:
             if case .ImplicitRef = rhs {
-                return true
+                return true // Allow implicit to match implicit?
             } else {
                 return false
             }
@@ -85,12 +86,11 @@ public enum RefValue: Equatable, Hashable {
     }
     
     static func == (_ lhs: RefValue, _ rhs: from_or_towrds) -> Bool {
-        return lhs.intValue == rhs.value
+        return lhs == rhs.refValue
     }
     
     static func -= (_ lhs: RefValue, _ rhs: Int) -> Int {
-        var lhsInt = lhs.intValue
-        return lhsInt - rhs
+        return lhs.intValue - rhs
     }
     
     static func - (_ lhs: RefValue, _ rhs: Int) -> RefValue {
@@ -240,12 +240,13 @@ public struct MKStereo {
         }
 //        return sum of invVec
         return invVec.reduce(into: 0) { partialResult, ref in
-            switch ref {
-            case .Ref(let value):
-                partialResult += value
-            default:
-                break
-            }
+//            switch ref {
+//            case .Ref(let value):
+//                partialResult += value
+//            default:
+//                break
+//            }
+            partialResult += ref.intValue
         }
     }
     
@@ -286,7 +287,7 @@ public struct MKStereo {
     static func permuted(_ refs: Refs, _ i: Int, _ j: Int) -> Refs {
         if i >= refs.count { return refs }
         if j >= refs.count { return refs }
-        var result = refs
+        var result = copy refs
         result[i] = refs[j]
         result[j] = refs[i]
         return result
@@ -1781,7 +1782,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
                 if config.refs[i*2] != .ImplicitRef && ring.isMember(mol.getAtomById(config.refs[i*2])!) {
                     ringRefs.append(config.refs[i*2])
                 } else {
-                    ringRefs.append(config.refs[i*2 + 1])
+                    ringRefs.append(config.refs[(i*2) + 1])
                 }
             }
             if !ct.isCis(ringRefs[0], ringRefs[1]) {

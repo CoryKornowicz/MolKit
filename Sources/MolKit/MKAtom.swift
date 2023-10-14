@@ -798,7 +798,7 @@ public class MKAtom: MKBase {
     //!  (i.e., N, O, P, S ...) ?
     func isHeteroatom() -> Bool {
         switch(self.getAtomicNum()) {
-        case 7,8,15,16,33,34,51,52,83,84 :
+        case 7, 8, 15, 16, 33, 34, 51, 52, 83, 84:
             return true
         default :
             return false
@@ -809,7 +809,7 @@ public class MKAtom: MKBase {
     func isConnected(_ atom: MKAtom) -> Bool {
         if let bonds = self._vbond {
             for bond in bonds {
-                if bond.getBeginAtom() == atom || bond.getEndAtom() == atom {
+                if bond.getBeginAtom().getIdx() == atom.getIdx() || bond.getEndAtom().getIdx() == atom.getIdx() {
                     return true
                 }
             }
@@ -825,7 +825,7 @@ public class MKAtom: MKBase {
         
         for bond in bonds {
             for bond2 in a2Bonds {
-                if bond.getNbrAtom(self) == bond2.getNbrAtom(atom) {
+                if bond.getNbrAtom(self).getIdx() == bond2.getNbrAtom(atom).getIdx() {
                     return true
                 }
             }
@@ -851,20 +851,31 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a carboxyl (-CO2 or CO2H) group?
     func isCarboxylOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum {
             return false
         }
+        
+        if self.getHeavyDegree() != 1 {
+            return false
+        }
+        
         guard let bonds = self._vbond else { return false }
-        let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.getAtomicNum("C")
-        }?.getNbrAtom(self)
+        
+        var atom: MKAtom?
+        
+        for bond in bonds {
+            if bond.getNbrAtom(self).getAtomicNum() == MKElements.Carbon.atomicNum {
+                atom = bond.getNbrAtom(self)
+                break
+            }
+        }
         
         if atom != nil {
-            if (!(atom!.countFreeOxygens() == 2) && !(atom!.countFreeOxygens() == 1 && atom!.countFreeSulfurs() == 1)) {
+            if ( !(atom!.countFreeOxygens() == 2) &&
+                 !(atom!.countFreeOxygens() == 1 && atom!.countFreeSulfurs() == 1) ) {
                 return false
-            } else {
-                return true
             }
+            return true
         } else {
             return false
         }
@@ -872,20 +883,27 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a phosphate (R-PO3) group?
     func isPhosphateOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum {
             return false
         }
-        guard let bonds = self._vbond else { return false }
-        let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.Phosphorus.atomicNum
-        }?.getNbrAtom(self)
+        if self.getHeavyDegree() != 1 {
+            return false
+        }
         
+        guard let bonds = self._vbond else { return false }
+        var atom: MKAtom?
+        for bond in bonds {
+            if bond.getNbrAtom(self).getAtomicNum() == MKElements.Phosphorus.atomicNum {
+                atom = bond.getNbrAtom(self)
+                break
+            }
+        }
+            
         if atom != nil {
             if atom!.countFreeOxygens() > 2 {
                 return true
-            } else {
-                return false
             }
+            return false
         } else {
             return false
         }
@@ -893,47 +911,68 @@ public class MKAtom: MKBase {
     
     // //! \return Is this atom an oxygen in a sulfate (-SO3) group?
     func isSulfateOxygen() -> Bool {
-        if self.getAtomicNum() != MKElements.Oxygen.atomicNum || self.getHeavyDegree() != 1 {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum  {
             return false
         }
+        
+        if self.getHeavyDegree() != 1 {
+            return false
+        }
+        
         guard let bonds = self._vbond else { return false }
-        let atom: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(self).getAtomicNum() == MKElements.Sulfur.atomicNum
-        }?.getNbrAtom(self)
+        var atom: MKAtom?
+        
+        for bond in bonds {
+            if bond.getNbrAtom(self).getAtomicNum() == MKElements.Sulfur.atomicNum {
+                atom = bond.getNbrAtom(self)
+                break
+            }
+        }
         
         if atom != nil {
             if atom!.countFreeOxygens() < 3 {
                 return false
-            } else {
-                return true
             }
+            return true
         } else {
             return false
         }
     }
     
     // Helper function for IsHBondAcceptor
-    static func isSulfoneOxygen(_ atom: MKAtom) -> Bool {
-        if atom.getAtomicNum() != MKElements.Oxygen.atomicNum || atom.getHeavyDegree() != 1 {
+    func isSulfoneOxygen() -> Bool {
+        if self.getAtomicNum() != MKElements.Oxygen.atomicNum {
             return false
         }
-        guard let bonds = atom._vbond else { return false }
-        let atom2: MKAtom? = bonds.first { bond in
-            bond.getNbrAtom(atom).getAtomicNum() == MKElements.Sulfur.atomicNum
-        }?.getNbrAtom(atom)
         
-        if atom2 != nil {
-            // check for sulfate
-            if atom2!.countFreeOxygens() != 2 {
-                return false
-            } else {
-                // check for sulfonamide
-                guard let bonds2 = atom2!._vbond else { return true }
-                let atom3: MKAtom? = bonds2.first { bond in
-                    bond.getNbrAtom(atom2!).getAtomicNum() == MKElements.Nitrogen.atomicNum
-                }?.getNbrAtom(atom2!)
-                return (atom3 == nil) ? true : false
+        if self.getHeavyDegree() != 1 {
+            return false
+        }
+        
+        guard let bonds = self._vbond else { return false }
+        var nbr: MKAtom?
+        
+        for bond in bonds {
+            if bond.getNbrAtom(self).getAtomicNum() == MKElements.Sulfur.atomicNum {
+                nbr = bond.getNbrAtom(self)
+                break
             }
+        }
+        
+        if nbr != nil {
+            // check for sulfate
+            if nbr!.countFreeOxygens() != 2 {
+                return false
+            }
+            // check for sulfonamide
+            guard let bonds2 = nbr!._vbond else { return true }
+            
+            for bond in bonds2 {
+                if bond.getNbrAtom(nbr!).getAtomicNum() == MKElements.Nitrogen.atomicNum {
+                    return false
+                }
+            }
+            return true
         } else {
             return false
         }
@@ -1118,7 +1157,7 @@ public class MKAtom: MKBase {
             // maybe could be a bool option in the function?
             // aromatic oxygen (furan) (NO)
             // sulfone (NO)
-            if self.isNitroOxygen() || self.isAromatic() || MKAtom.isSulfoneOxygen(self) {
+            if self.isNitroOxygen() || self.isAromatic() || self.isSulfoneOxygen() {
                 return false
             }
             guard let neighs = self._vbond?.map({ $0.getNbrAtom(self) }) else { return true }

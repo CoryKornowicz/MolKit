@@ -633,6 +633,7 @@ class MKSmilesParser {
         }
         // TODO: Only Kekulize if the molecule has a lower case atom
         let ok = MKKekulize(mol)
+        
         if !ok {
             print("Failed to kekulize aromatic SMILES")
             print("Title is \(mol.getTitle())")

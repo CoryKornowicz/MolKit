@@ -67,9 +67,6 @@ private let BE_DOWN =           14
 private let BE_UPUNSPEC =       15
 private let BE_DOWNUNSPEC =     16
 
-//private let SmartsImplicitRef = -9999 // Used as a placeholder when recording atom nbrs for chiral atoms
-private let SmartsImplicitRef: Ref = .ImplicitRef
-
 //! \union _AtomExpr parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) atomic expression
 
@@ -1256,8 +1253,7 @@ public class MKSmartsPattern {
                     return nil
                 }
                 if prev == -1 {
-                    index = pat?.acount ?? -1
-                    prev = -1
+                    index = pat!.acount
                     pat = SMARTSParser(&pat, &stat, &prev, part) ?? nil
                     if pat == nil { return nil }
                     if index == pat!.acount {
@@ -1350,15 +1346,13 @@ public class MKSmartsPattern {
                         print("ParseSMARTSError: found bad closure in \"0-9\"")
                         return nil
                     }
+                    
                     createBond(&pat!, bexpr!, prev, stat.closure[index])
                     
                     pat!.atom[prev].nbrs.append(stat.closure[index])
                     for nbr_idx in 0..<pat!.atom[stat.closure[index]].nbrs.count {
-                        if pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] == -index {
-//                          pat!.atom[stat.closure[index]].nbrs[safelyAccess: nbr_idx] = prev
-                            pat!.atom[stat.closure[index]].nbrs.insert(prev, at: (nbr_idx < 0 ? pat!.atom[stat.closure[index]].nbrs.endIndex.advanced(by: nbr_idx) :
-                                                                                                nbr_idx ))
-
+                        if pat!.atom[stat.closure[index]].nbrs[nbr_idx] == -index {
+                            pat!.atom[stat.closure[index]].nbrs[nbr_idx] = prev
                         }
                     }
                     stat.closure[index] = -1
@@ -1393,7 +1387,7 @@ public class MKSmartsPattern {
                     bexpr = nil
                 }
                 if self.LexPtr[-1] == "H" && self.LexPtr[-2] == "@" { // i.e. [C@H] or [C@@H]
-                    pat?.atom[index].nbrs.append(SmartsImplicitRef.intValue)
+                    pat?.atom[index].nbrs.append(Ref.ImplicitRef.intValue)
                 }
                 prev = index
                 self.LexPtr.inc()
@@ -1820,6 +1814,7 @@ class MKSmartsMatcher {
                     return false
                 }
                 expr = rgt
+                break
             case BE_OR:
                 // get expr to BondExpr bin type
                 guard case var .bin(_, lft, rgt) = expr else { return false }
@@ -1827,6 +1822,7 @@ class MKSmartsMatcher {
                     return true
                 }
                 expr = rgt
+                break
             case BE_NOT:
                 // get expr to BondExpr mon type
                 guard case var .mon(_, arg) = expr else { return false }
@@ -1841,15 +1837,7 @@ class MKSmartsMatcher {
             case BE_QUAD: return bond.getBondOrder() == 4
             case BE_AROM: return bond.isAromatic()
             case BE_RING: return bond.isInRing()
-            //case BE_UP:
-            //  return bond->IsUp();
-            //case BE_DOWN:
-            //  return bond->IsDown();
-            //case BE_UPUNSPEC: // up or unspecified (i.e., not down)
-            //  return !bond->IsDown();
-            //case BE_DOWNUNSPEC: // down or unspecified (i.e., not up)
-            //  return !bond->IsUp();
-            default: return false 
+            default: return false
             }
         }
     }
@@ -1885,7 +1873,8 @@ class MKSmartsMatcher {
 
         var bcount: Int = 0 
         for atom in mol.getAtomIterator() {
-            if evalAtomExpr(&pat.atom[0].expr, atom) {
+            var aexpr = pat.atom[0].expr
+            if evalAtomExpr(&aexpr, atom) {
                 
                 map[0] = atom.getIdx()
                 if (pat.bcount != 0) {
@@ -1906,7 +1895,8 @@ class MKSmartsMatcher {
                     if !(pat.bond[bcount].grow ?? false) {
                         if !vif[bcount] {
                             if let bond = mol.getBond(map[pat.bond[bcount].src], map[pat.bond[bcount].dst])  {
-                                if evalBondExpr(&pat.bond[bcount].expr, bond) {
+                                var bexpr = pat.bond[bcount].expr
+                                if evalBondExpr(&bexpr, bond) {
                                     vif[bcount] = true
                                     bcount += 1
                                     if bcount < pat.bcount {
@@ -1934,9 +1924,11 @@ class MKSmartsMatcher {
 
                         while nbr != nil {
                             if !bv[nbr!.getIdx()] {
-                                if evalAtomExpr(&pat.atom[pat.bond[bcount].dst].expr, nbr!) {
+                                var nbr_aexpr = pat.atom[pat.bond[bcount].dst].expr
+                                if evalAtomExpr(&nbr_aexpr, nbr!) {
                                     if let bond = mol.getBond(a1.getIdx(), nbr!.getIdx()) {
-                                        if evalBondExpr(&pat.bond[bcount].expr, bond) {
+                                        var nbr_bexpr = pat.bond[bcount].expr
+                                        if evalBondExpr(&nbr_bexpr, bond) {
                                             bv.add(nbr!.getIdx())
                                             map[pat.bond[bcount].dst] = nbr!.getIdx()
                                             vif[bcount] = true
@@ -1983,7 +1975,7 @@ class MKSmartsMatcher {
                 var allStereoCentersMatch = true 
 
                 // for each pattern atom
-                for j in 0..<pat.acount {
+                for j in 1..<pat.acount {
                     // skip non-chiral pattern atoms
                     if (pat.atom[j].chiral_flag == nil) { continue }
                     // ignore @? in smarts, parse like any other smarts
@@ -2017,7 +2009,7 @@ class MKSmartsMatcher {
                     // construct a OBTetrahedralStereo::Config using the smarts pattern
                     var smartsConfig = MKTetrahedralStereo.Config()
                     smartsConfig.center = center.getId()
-                    if nbrs[0] == SmartsImplicitRef.intValue {
+                    if nbrs[0] == Ref.ImplicitRef.intValue {
                         smartsConfig.from_or_towrds = .from(.ImplicitRef)
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[0]])?.getId() else { continue }
@@ -2025,7 +2017,7 @@ class MKSmartsMatcher {
                     }
                     
                     var firstref: Ref
-                    if nbrs[1] == SmartsImplicitRef.intValue {
+                    if nbrs[1] == Ref.ImplicitRef.intValue {
                         firstref = .ImplicitRef
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[1]])?.getId() else { continue }
@@ -2087,7 +2079,7 @@ class MKSSMatch {
     init(_ mol: MKMol, _ pat: Pattern) {
         self._mol = mol
         self._pat = pat
-        self._map.resize(pat.acount, with: 0)
+        self._map.resize(pat.acount + 1, with: 0)
         
         if !mol.isEmpty() {
             _uatoms.resize(mol.numAtoms()+1, with: false)

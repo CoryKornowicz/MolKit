@@ -504,9 +504,9 @@ public class MKBond: MKBase {
                             let torsion = abs(mol.getTorsion(bgnNeighbor, begin, end, endNeighbor))
                             // >12&&<168 not enough
                             if ( torsion > 15.0  && torsion < 160.0 ) {
-                                    // Geometry does not match a double bond
-                                    return false
-                                }
+                                // Geometry does not match a double bond
+                                return false
+                            }
                         }
                     }
                 }

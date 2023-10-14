@@ -1428,7 +1428,7 @@ struct CanonicalLabelsImpl {
    */
 func canonicalLabels(_ mol: MKMol, _ symmetry_classes: inout [UInt], _ canonical_labels: inout [UInt], _ mask: Bitset = Bitset(), _ maxSeconds: Int = 5, _ onlyOne: Bool = false) {
     // make sure the mask is valid: no mask = all atoms
-    var maskCopy = mask 
+    var maskCopy = copy mask 
     if maskCopy.count() == 0 {
         for atom in mol.getAtomIterator() {
             maskCopy.add(atom.getIdx())

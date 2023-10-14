@@ -540,7 +540,6 @@ class MKGraphSym {
             // Now find the number of unique elements
             symmetry_classes = symmetry_classes.unique()
             nclasses = symmetry_classes.count
-            
         }
         return nclasses
     }

@@ -266,13 +266,13 @@ public class MKMol: MKBase, Copying {
             self.findSSSR()
         }
         
-        var ringData = MKRingData()
         if !self.hasData("SSSR") {
+            var ringData = MKRingData()
             ringData.setAttribute("SSSR")
             self.setData(ringData)
         }
         
-        ringData = self.getData("SSSR") as! MKRingData
+        let ringData = self.getData("SSSR") as! MKRingData
         ringData.setOrigin(.perceived)
         return ringData.getData()
     }
@@ -282,13 +282,13 @@ public class MKMol: MKBase, Copying {
             self.findLSSR()
         }
         
-        var ringData = MKRingData()
         if !self.hasData("LSSR") {
+            var ringData = MKRingData()
             ringData.setAttribute("LSSR")
             self.setData(ringData)
         }
         
-        ringData = self.getData("LSSR") as! MKRingData
+        let ringData = self.getData("LSSR") as! MKRingData
         ringData.setOrigin(.perceived)
         return ringData.getData()
     }
@@ -555,6 +555,7 @@ public class MKMol: MKBase, Copying {
         // Clear multi-conformer data
         self._vconf.removeAll()
         //Clear flags except OB_PATTERN_STRUCTURE which is left the same
+        self._flags = 0
         self._flags &= OB_PATTERN_STRUCTURE
 
         self._c = []
@@ -588,15 +589,14 @@ public class MKMol: MKBase, Copying {
         //reset all the indices to the atoms
         var _idx = 0
         for atom in self.getAtomIterator() {
-            atom.setIdx(_idx)
+            atom.setIdx(_idx + 1) // atom idx's are offset by one
             _idx += 1
         }
         
         self.endModify(false)
         
         // Delete any stereo objects involving this atom
-        let id: Ref = atom.getId()
-        MKMol.deleteStereoOnAtom(self, id)
+        MKMol.deleteStereoOnAtom(self, atom.getId())
         
 //        if destroyAtom {}
         self.setSSSRPerceived(false)
@@ -632,7 +632,7 @@ public class MKMol: MKBase, Copying {
         //reset all the indices to the atoms
         var _idx = 0
         for bond in self.getBondIterator() {
-            bond.setIdx(_idx)
+            bond.setIdx(_idx) // bonds are idx offset by 0
             _idx += 1
         }
 
@@ -951,13 +951,14 @@ public class MKMol: MKBase, Copying {
         }
         
         if !delatoms.isEmpty {
-            //      int tmpflags = _flags & (~(OB_SSSR_MOL));
+            let tmpflags = _flags & (~(OB_SSSR_MOL));
             self.beginModify()
             for atom in delatoms {
                 self.deleteAtom(atom)
             }
             self.endModify(false)
-            //      _flags = tmpflags;  // Gave crash when SmartsPattern::Match()
+            self._flags = tmpflags
+            // Gave crash when SmartsPattern::Match() (in OpenBabel only)
             // was called susequently
             // Hans De Winter; 03-nov-2010
         }
@@ -2676,8 +2677,8 @@ public class MKMol: MKBase, Copying {
             children[j] = (children[j] - 1) * 3
         }
         
-//        in radians!
-        //calculate the torsion angle
+        // in radians!
+        // calculate the torsion angle
         // TODO: fix this calculation for periodic systems
         let radang = calculateTorsionAngle(a.getVector(), b.getVector(), c.getVector(), d.getVector()).degreesToRadians
         // now we have the torsion angle (radang) - set up the rot matrix

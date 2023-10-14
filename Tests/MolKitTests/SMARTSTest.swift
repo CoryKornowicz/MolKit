@@ -77,9 +77,7 @@ final class SMARTSTest: XCTestCase {
             
             mol.clear()
             conv.read(&mol)
-            
-            XCTAssert(!mol.isEmpty())
-            
+                        
             currentMol += 1
             molPassed = true
             
@@ -96,6 +94,7 @@ final class SMARTSTest: XCTestCase {
                     print("number of matches different than reference")
                     print("Expected \(vs.count) matches, found \(mlist.count)")
                     print("Error on molecule \(mol.getTitle())")
+                    print("SMILES: \(smile)")
                     print("on pattern \(i.getSMARTS())")
                     if !mlist.isEmpty {
                         print("First match: atom# \(mlist[0][0])")

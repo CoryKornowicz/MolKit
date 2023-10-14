@@ -197,20 +197,16 @@ class MKRingSearch {
     //! Starting with a full ring set - reduce to SSSR set
     func removeRedundant(_ frj: Int) {  
         
-        if _rlist.count == 0 { return } // nothing to do
-
         //remove identical rings
-        if _rlist.count > 1 {
-            for i in (1..._rlist.count-1).reversed() {
-                for j in (0...i-1).reversed() {
-                    if j == i { continue }
-                    if _rlist[i]._pathSet == _rlist[j]._pathSet {
-                        _rlist.remove(at: i)
-                        break
-                    }
+        for i in (0..._rlist.count-1).reversed().dropLast() { // dropLast removes 0 from the array
+            for j in (0...i-1).reversed() {
+                if _rlist[i]._pathSet == _rlist[j]._pathSet {
+                    _rlist.remove(at: i)
+                    break
                 }
             }
         }
+        
         
         if _rlist.count == 0 { return } // nothing to do
                 
@@ -223,7 +219,7 @@ class MKRingSearch {
                 visitRing(mol, _rlist[i], &rlist, &rignored)
             }
             for i in 0..<rignored.count {
-                rlist.remove(at: i)
+                rignored.remove(at: i)
             }
             _rlist = rlist
             return
@@ -233,16 +229,12 @@ class MKRingSearch {
         if _rlist.count == frj { return }
         
         //make sure tmp is the same size as the rings
-        var tmp: Bitset = Bitset()
-        for j in 0..<_rlist.count {
-            tmp = _rlist[j]._pathSet
-        }
-        
+        let tmp: Bitset = Bitset()
         //remove larger rings that cover the same atoms as smaller rings
         for i in (0..._rlist.count-1).reversed() {
             tmp.removeAll()
             for j in 0..<_rlist.count {
-                if (_rlist[j]._path.count <= _rlist[i]._path.count) && (i != j) {
+                if _rlist[j]._path.count <= _rlist[i]._path.count && (i != j) {
                     tmp |= _rlist[j]._pathSet
                 }
             }
@@ -358,7 +350,7 @@ func atomRingToBondRing(_ mol: MKMol, _ atoms: [Int]) -> [UInt] {
         guard let index = mol.getBond(beginIndex, endIndex)?.getIdx() else { continue }
         bonds.append(index)
     }
-    guard let lastBond = mol.getBond(atoms[0], atoms[atoms.count-1]) else { return bonds }
+    guard let lastBond = mol.getBond(atoms.first!, atoms.last!) else { return bonds }
     bonds.append(lastBond.getIdx())
     return bonds
 }
@@ -380,16 +372,10 @@ func atomRingToBondRing(_ mol: MKMol, _ atoms: [Int]) -> [UInt] {
    */
 func visitRing(_ mol: MKMol, _ ring: MKRing, _ rlist: inout [MKRing],_ rignored: inout [MKRing]) {
     
-    var mask = Bitset()
-    // Make sure mask is the same size as the maximum ring atom/bond index.
-    mask.add(mol.numAtoms())
-    mask.add(mol.numBonds())
-    
+    let mask = Bitset()
     //
     // Remove larger rings that cover the same atoms as smaller rings.
     //
-    
-    mask.removeAll()
     for j in 0..<rlist.count {
         // Here we select only smaller rings.
         if rlist[j]._path.count < ring._path.count {
@@ -501,6 +487,7 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
     for atom in mol.getAtomIterator() {
         atom.setInRing(false)
     }
+    
     for bond in mol.getBondIterator() {
         bond.setInRing(false)
         bond.setClosure(false)
@@ -514,6 +501,9 @@ func findRingAtomsAndBonds2(_ mol: MKMol) -> UInt {
     var avisit: [Int] = Array<Int>.init(repeating: 0, count: asize)
     
     var frj: UInt = 0
+    
+    guard acount > 0 else { return frj }
+    
     for i in 1...acount {
         if avisit[i] == 0 {
             avisit[i] = 1
@@ -535,7 +525,7 @@ func buildMKRTreeVector(_ atom: MKAtom, _ prv: MKRTree?, _ vt: inout [MKRTree?],
     
     var curr: Bitset = Bitset()
     var used: Bitset = Bitset()
-    var next: Bitset = Bitset()
+    let next: Bitset = Bitset()
         
     curr.add(atom.getIdx())
     used = bv | curr

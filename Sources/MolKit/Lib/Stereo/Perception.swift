@@ -860,6 +860,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
 //           TODO: throw error gracefully and return
             return units
         }
+        
         for nbr in nbors {
             // check if we already have a neighbor with this symmetry class
             for k in 0..<tlist.count {
@@ -880,7 +881,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
 
         if isChiral {
             // true-stereocenter found
-            stereoAtoms.append(UInt(atom.getIndex()))
+            stereoAtoms.append(UInt(atom.getIdx()))
             units.append(MKStereoUnit(.Tetrahedral, atom.getId()))
         }
     }
@@ -1021,7 +1022,7 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
                 }
                 ring.paraAtoms.append(StereoRing.ParaAtom(id: atom.getId(), idx: .Ref(Int(paraAtoms[j]))))
                 for nbr in atom.getNbrAtomIterator()! {
-                    if lssr[i]._pathSet.contains(nbr.getIndex()) {
+                    if lssr[i]._pathSet.contains(nbr.getIdx()) {
                         guard var lastAtom = ring.paraAtoms.last else { break }
                         lastAtom.insideNbrs.append(nbr)
                     } else {
@@ -1043,14 +1044,14 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             if lssr[i]._pathSet.contains(Int(beginIdx)) {
                 ring.paraBonds.append(StereoRing.ParaBond(id: bond.getId(), inIdx: .Ref(beginIdx), outIdx: .Ref(endIdx)))
                 for nbr in bond.getBeginAtom().getNbrAtomIterator()! {
-                    if nbr.getIndex() == endIdx {
+                    if nbr.getIdx() == endIdx {
                         continue
                     }
                     guard var lastBond = ring.paraBonds.last else { break }
                     lastBond.insideNbrs.append(nbr)
                 }
                 for nbr in bond.getEndAtom().getNbrAtomIterator()! {
-                    if nbr.getIndex() == beginIdx {
+                    if nbr.getIdx() == beginIdx {
                         continue
                     }
                     guard var lastBond = ring.paraBonds.last else { break }
@@ -1063,14 +1064,14 @@ func findStereogenicUnits(_ mol: MKMol, symClasses: inout [UInt]) -> MKStereoUni
             if lssr[i]._pathSet.contains(Int(endIdx)) {
                 ring.paraBonds.append(StereoRing.ParaBond(id: bond.getId(), inIdx: .Ref(endIdx), outIdx: .Ref(beginIdx)))
                 for nbr in bond.getEndAtom().getNbrAtomIterator()! {
-                    if nbr.getIndex() == beginIdx {
+                    if nbr.getIdx() == beginIdx {
                         continue
                     }
                     guard var lastBond = ring.paraBonds.last else { break }
                     lastBond.insideNbrs.append(nbr)
                 }
                 for nbr in bond.getBeginAtom().getNbrAtomIterator()! {
-                    if nbr.getIndex() == endIdx {
+                    if nbr.getIdx() == endIdx {
                         continue
                     }
                     guard var lastBond = ring.paraBonds.last else { break }
@@ -1758,14 +1759,10 @@ func findStereogenicUnits(_ mol: MKMol, _ symClasses: inout [UInt], _ automorphi
     // Compute which automorphisms cause inversion of configuration
     // for the stereogenic units
     let inverted = StereoInverted.compute(mol, &symClasses, automorphisms)
-    // std::vector<OBBitVec> mergedRings = mergeRings(mol, symClasses);
     let mergedRings = mergeRings(mol, symClasses)
-    // std::vector<unsigned long> doneAtoms, doneBonds;
     var doneAtoms: [UInt] = []
     var doneBonds: [UInt] = []
-    // unsigned int lastSize = units.size();
     var lastSize = units.count
-    // while (true) {
     while true {
         
         for atom in mol.getAtomIterator() {

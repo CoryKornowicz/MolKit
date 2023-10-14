@@ -36,7 +36,7 @@ func getMaxAtomIdx(_ mol: MKMol) -> Int {
 }
 
 func getMaxBondIdx(_ mol: MKMol) -> Int {
-    return mol.numBonds() + 1
+    return mol.numBonds()
 }
 
 class Kekulizer {

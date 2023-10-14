@@ -86,7 +86,7 @@ public class MKTetraNonPlanarStereo: MKStereoBase {
             // move id to front and remove it = 1 permutation
             for i in 0..<3 {
                 if (cfg.refs[i] == fromTowards) {
-                    result.refs[i] = .Ref(cfg.from_or_towrds.value!)
+                    result.refs[i] = cfg.from_or_towrds.refValue
                     break
                 }
             }
