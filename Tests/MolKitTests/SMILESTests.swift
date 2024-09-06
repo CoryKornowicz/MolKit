@@ -48,7 +48,10 @@ final class SmilesTest: XCTestCase {
         // 0 1 2  3 4  <- ids
         //
         
-        let cfg: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config(center: Ref(integerLiteral: 1), from_or_towrds: .from(Ref(integerLiteral: 0)), winding: .Clockwise, view: .ViewFrom, specified: true, refs: MKStereo.makeRefs(4, 3, 2))
+        let cfg: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config(center: Ref(integerLiteral: 1), 
+                                                                         from_or_towrds: .from(Ref(integerLiteral: 0)),
+                                                                         winding: .Clockwise,
+                                                                         view: .ViewFrom, specified: true, refs: MKStereo.makeRefs(4, 3, 2))
         print(cfg)
         // compare stereochemistry
         XCTAssert(ts.getConfig() == cfg)
@@ -59,19 +62,35 @@ final class SmilesTest: XCTestCase {
         var mol: MKMol = MKMol()
         let conv: MKConversion = MKConversion()
         XCTAssert(conv.setInFormat("smi"))
-        let smi =  "OP(=O)(=O)c1[se]c2ccccc2c1Br" //"OC[C@@H](O1)[C@@H](O)[C@H](O)[C@@H](O)[C@@H](O)1"
+//        let smi = "CC(=C)[C@@H]1CCC2(CC[C@]3(C)C(CCC4[C@@]5(C)CCC(=O)C(C)(C)C5CC[C@]43C)C12)N=C=O"
+//        let smi = "CO[C@@H]1C[C@@H](C[C@H]2CC[C@H](C)[C@@H](O2)[C@@H](C)C(=O)O)O[C@]3(O[C@@](C)(C[C@H]3C)[C@@H]4CC[C@@](C)(O4)[C@H]5O[C@@H](C[C@H]5C)[C@@H]6O[C@](O)(CO)[C@@H](C)C[C@H]6C)[C@@H]1C"
+        let smi = "O=C1C(=C[C@@H]2[C@@H](O1)CCCC2)C1CCCCC1"
         print("Parsing smiles: \(smi)")
         
         XCTAssert(conv.readString(&mol, smi))
-        
+//        mol.percieveBondOrders()
         // Get the stereo data
-        /*XCTAssert*/(mol.hasData(.StereoData))
+        let data = mol.getAllData(.StereoData)
+        
+        for dat in data! {
+            print((dat as! MKTetrahedralStereo).getConfig())
+        }
         
         for atom in mol.getAtomIterator() {
             print("Atom \(atom.getAtomicNum()) \(atom.getType()) ")
         }
         
+        // PATTERN
         
+        let pattern = MKSmartsPattern()
+        pattern.initialize("[C@@H]")
+        
+        pattern.match(mol) 
+        
+        for i in pattern.getUMapList() {
+            print(i)
+        }
+                
     }
     
 

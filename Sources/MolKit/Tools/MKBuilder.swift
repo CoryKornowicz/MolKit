@@ -1090,7 +1090,7 @@ class MKBuilder {
                 var errorMsg = "Could not correct \(unfixed.count) stereocenter(s) in this molecule (\(mol.getTitle()))\nWith Atom Ids as follows"
                 for refIter in unfixed {
                     errorMsg += " "
-                    errorMsg.append(String(refIter.intValue ?? -1))
+                    errorMsg.append(String(refIter.intValue))
                 }
                 MKLogger.throwError(errorMsg: errorMsg)
                 success = false // uncorrected bond
@@ -1790,11 +1790,11 @@ class MKBuilder {
             }
             
             if right.count > wrong.count { // inverting would make things worse
-                unfixedcenters.insert(contentsOf: wrong, at: unfixedcenters.count)
+                unfixedcenters.append(contentsOf: wrong)
                 continue
             }
             
-            unfixedcenters.insert(contentsOf: right, at: unfixedcenters.count)
+            unfixedcenters.append(contentsOf: right)
             
             // Invert the coordinates (QUESTION: should I invert relative to the centroid?)
             inversion = true

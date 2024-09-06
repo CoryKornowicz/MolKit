@@ -8,9 +8,9 @@
 import Foundation
 import Bitset
 
+fileprivate let SmartsImplicitRef = -9999
 
 //Daylight SMARTS parser
-
 
 private let ATOMPOOL =          1
 private let BONDPOOL =          1
@@ -96,7 +96,6 @@ indirect enum BondExpr {
             return type
         }
     }
-    
 }
 
 
@@ -109,6 +108,14 @@ struct BondSpec: Equatable {
     var visit: Int?
     var grow: Bool?
     
+//    init(expr: BondExpr, src: Int, dst: Int, visit: Int? = nil, grow: Bool? = nil) {
+//        self.expr = expr
+//        self.src = src
+//        self.dst = dst
+//        self.visit = visit
+//        self.grow = grow
+//    }
+    
     static func == (lhs: BondSpec, rhs: BondSpec) -> Bool {
         lhs.src == rhs.src && lhs.dst == rhs.dst && lhs.grow == rhs.grow && lhs.visit == rhs.visit
     }
@@ -118,41 +125,50 @@ struct BondSpec: Equatable {
 //! \struct AtomSpec parsmart.h <openbabel/parsmart.h>
 //! \brief An internal (SMARTS parser) atom specification
 struct AtomSpec: Equatable {
-
     var expr: AtomExpr
     var visit: Int?
-    var part: Int
+    var part: Int = 0
     var chiral_flag: Int?
-    var vb: Int
-    var nbrs: [Int] = [] 
-//    {
-//        didSet {
-//            print(self)
-//        }
+    var vb: Int = 0
+    var nbrs: [Int] = [] {
+        didSet {
+            if nbrs.count >= 3 {
+                print("Many neighbords")
+            }
+        }
+    }
+
+//    init(expr: AtomExpr, visit: Int? = nil, part: Int, chiral_flag: Int? = nil, vb: Int, nbrs: [Int]) {
+//        self.expr = expr
+//        self.visit = visit
+//        self.part = part
+//        self.chiral_flag = chiral_flag
+//        self.vb = vb
+//        self.nbrs = nbrs
 //    }
-//    
+    
     static func == (lhs: AtomSpec, rhs: AtomSpec) -> Bool {
-        lhs.part == rhs.part && lhs.visit == rhs.visit && lhs.chiral_flag == rhs.chiral_flag && lhs.vb == rhs.vb && lhs.nbrs == rhs.nbrs
+        lhs.part == rhs.part && lhs.visit == rhs.visit && lhs.chiral_flag == rhs.chiral_flag && lhs.vb == rhs.vb // && lhs.nbrs == rhs.nbrs
         // add _expr comparators if truly needed
     }
 }
 
 //! \struct Pattern parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal pattern
-struct Pattern: Equatable {
+class Pattern: Equatable {
     
-    var aalloc: Int = 0
     var acount: Int  {
         get {
             return atom.count
         }
     }
-    var balloc: Int = 0
+
     var bcount: Int {
         get {
             return bond.count
         }
     }
+    
     var isChiral: Bool = false
     var atom: [AtomSpec] = []
     var bond: [BondSpec] = []
@@ -182,7 +198,7 @@ struct Pattern: Equatable {
 
 //! \struct ParseState parsmart.h <openbabel/parsmart.h>
 //! \brief A SMARTS parser internal state
-struct ParseState {
+class ParseState {
     var closord: [BondExpr?] = [BondExpr?]()
     var closure: [Int] = [Int]()
     var closindex: Int = 0
@@ -197,7 +213,7 @@ struct ParseState {
 //! \brief SMARTS (SMiles ARbitrary Target Specification) substructure searching
 public class MKSmartsPattern {
     
-    enum MatchType {
+    public enum MatchType {
         case All
         case Single
         case AllUnique
@@ -217,12 +233,12 @@ public class MKSmartsPattern {
     //********Pattern Matching**********
     //**********************************
     
-    init() {
+    public init() {
         _pat = nil
     }
     
     @discardableResult
-    func initialize(_ pattern: String) -> Bool {
+    public func initialize(_ pattern: String) -> Bool {
         _str = pattern
         _pat = self.parseSMARTSRecord(pattern)
         return _pat != nil
@@ -265,13 +281,13 @@ public class MKSmartsPattern {
     }
     
     func getAtomicNum(_ idx: Int) -> Int? {
-        //        TODO: throw error here on nil
+        //  TODO: throw error here on nil
         guard let pat = _pat else { return nil }
         return getExprAtomicNum(pat.atom[idx].expr)
     }
     
     func getCharge(_ idx: Int) -> Int? {
-        //        TODO: throw error here on nil
+        //  TODO: throw error here on nil
         guard let pat = _pat else { return nil }
         return getExprCharge(pat.atom[idx].expr)
     }
@@ -283,24 +299,22 @@ public class MKSmartsPattern {
     //! \param single Whether only a single match is required (faster). Default is false.
     //! \return Whether matches occurred
     @discardableResult
-    func match(_ mol: MKMol, _ single: Bool = false) -> Bool {
+    public func match(_ mol: MKMol, _ single: Bool = false) -> Bool {
         
         let matcher = MKSmartsMatcher()
         
-        guard var _pat = _pat else { return false }
+        guard self._pat != nil else { return false }
         
-        defer {
-            self._pat = _pat
-        }
-        
-        if _pat.hasExplicitH { //The SMARTS pattern contains [H]
+        if self._pat!.hasExplicitH { //The SMARTS pattern contains [H]
             //Do matching on a copy of mol with explicit hydrogens
-            let tmol = copy mol
+            let tmol = mol.copy() as! MKMol
             tmol.addHydrogens(false, false)
-            return matcher.match(tmol, &_pat, &_mlist, single)
+            let res = matcher.match(tmol, &self._pat!, &_mlist, single)
+            return res
+        } else {
+            let res = matcher.match(mol, &self._pat!, &_mlist, single)
+            return res
         }
-        
-        return matcher.match(mol, &_pat, &_mlist, single)
     }
     
     //! \name Matching methods (SMARTS on a specific OBMol)
@@ -311,32 +325,24 @@ public class MKSmartsPattern {
     //! \param mlist The resulting match list
     //! \param mtype The match type to use. Default is All.
     //! \return Whether matches occurred
-    func match(_ mol: MKMol, _ mlist: inout [[Int]], _ mtype: MatchType = .All) -> Bool {
+    public func match(_ mol: MKMol, _ mlist: inout [[Int]], _ mtype: MatchType = .AllUnique) -> Bool {
         
         let matcher = MKSmartsMatcher()
         mlist.removeAll()
         
-        guard var _pat = _pat else { return false }
+        guard self._pat != nil else { return false }
         
-        if _pat.hasExplicitH { //The SMARTS pattern contains [H]
+        if self._pat!.hasExplicitH { //The SMARTS pattern contains [H]
             //Do matching on a copy of mol with explicit hydrogens
-            let tmol = mol
+            let tmol = mol.copy() as! MKMol
             tmol.addHydrogens(false, false)
-            if !matcher.match(tmol, &_pat, &mlist, mtype == .Single) {
-                defer {
-                    self._pat = _pat
-                }
+            if !matcher.match(tmol, &self._pat!, &mlist, mtype == .Single) {
                 return false
             }
-        } else if !matcher.match(mol, &_pat, &mlist, mtype == .Single) {
-            defer {
-                self._pat = _pat
-            }
+        } else if !matcher.match(mol, &self._pat!, &mlist, mtype == .Single) {
             return false
         }
-        
-        self._pat = _pat
-        
+                
         if mtype == .AllUnique && mlist.count > 1 {
             //uniquify
             var ok = true
@@ -459,7 +465,7 @@ public class MKSmartsPattern {
      matches will be returned. If GetUMapList() is called only unique
      matches of the pattern will be returned.
      **/
-    func getUMapList() -> [[Int]] {
+    public func getUMapList() -> [[Int]] {
         if self._mlist.isEmpty || self._mlist.count == 1 {
             return self._mlist
         }
@@ -500,7 +506,6 @@ public class MKSmartsPattern {
             
             self.LexPtr.inc()
             
-            // TODO: reconcile passing references and values with return types
             result = self.parseSMARTSPart(&result, result!.parts)
             if result == nil { return nil }
             result!.parts += 1
@@ -525,7 +530,7 @@ public class MKSmartsPattern {
             self.LexPtr.inc()
         }
         
-        return self.parseSMARTSPart(&result, 0)
+        return self.parseSMARTSPart(&result, 1)
     }
     
     private func parseSMARTSPart(_ result: inout Pattern?, _ part: Int) -> Pattern? {
@@ -539,7 +544,8 @@ public class MKSmartsPattern {
         }
         var prev = -1
         
-        guard var result: Pattern = SMARTSParser(&result, &stat, &prev, part) else { return nil }
+        result = SMARTSParser(&result, &stat, &prev, part)
+        if result == nil { return nil }
         
         flag = false
         for i in 0..<100 {
@@ -550,20 +556,20 @@ public class MKSmartsPattern {
         
         if flag {
             // TODO: throw error here
-            MKLogger.throwError(errorMsg: "SMARTS Error: Flag was triggered - pattern \(result) part \(part)")
+            MKLogger.throwError(errorMsg: "SMARTS Error: Flag was triggered - pattern \(result!) part \(part)")
             return result
         } else {
-            markGrowBonds(&result)
-            result.isChiral = false
-            for i in 0..<result.acount {
-                result.atom[i].chiral_flag = getChiralFlag(result.atom[i].expr)
-                if let flag = result.atom[i].chiral_flag {
+            markGrowBonds(&result!)
+            result!.isChiral = false
+            for i in 0..<result!.acount {
+                result!.atom[i].chiral_flag = getChiralFlag(result!.atom[i].expr)
+                if let flag = result!.atom[i].chiral_flag {
                     if Bool(flag) {
-                        result.isChiral = true
+                        result!.isChiral = true
                     }
                 }
             }
-            return result
+            return result!
         }
         
     }
@@ -629,7 +635,6 @@ public class MKSmartsPattern {
     }
     
     private func parseComplexAtomPrimitive() -> AtomExpr? {
-        var pat: Pattern?
         var index: Int
         
         switch self.LexPtr.next() {
@@ -647,11 +652,11 @@ public class MKSmartsPattern {
         case "$":
             if self.LexPtr != "(" { return nil }
             self.LexPtr.inc()
-            pat = parseSMARTSPattern()
+            var pat: Pattern? = parseSMARTSPattern()
             if self.LexPtr != ")" { return nil }
             self.LexPtr.inc()
             if pat != nil {
-                return buildAtomRecurs(pat!)
+                return buildAtomRecurs(&pat!)
             } else { return nil }
         case "*":
             return buildAtomPred(AE_TRUE)
@@ -1099,7 +1104,7 @@ public class MKSmartsPattern {
                 self.LexPtr.inc()
                 expr1 = parseAtomExpr(3) ?? nil
                 if expr1 != nil {
-                    return buildAtomNot(expr1!)
+                    return buildAtomNot(&expr1!)
                 } else { return nil }
             }
             return parseComplexAtomPrimitive()
@@ -1254,7 +1259,7 @@ public class MKSmartsPattern {
                 }
                 if prev == -1 {
                     index = pat!.acount
-                    pat = SMARTSParser(&pat, &stat, &prev, part) ?? nil
+                    pat = SMARTSParser(&pat, &stat, &prev, part)
                     if pat == nil { return nil }
                     if index == pat!.acount {
                         print("ParseSMARTSError: index == pat!.acount")
@@ -1287,7 +1292,8 @@ public class MKSmartsPattern {
                     print("ParseSMARTSError: found bad prev in \"%\"")
                     return nil
                 }
-                if self.LexPtr[0].isNumber && self.LexPtr[1].isNumber {
+                if let firstNum = self.LexPtr[0], firstNum.isNumber,
+                   let secondNum = self.LexPtr[1], secondNum.isNumber {
                     index = 10 * (self.LexPtr.next()?.wholeNumberValue)! + (self.LexPtr.next()?.wholeNumberValue)!
                     self.LexPtr += 2
                 } else {
@@ -1387,7 +1393,7 @@ public class MKSmartsPattern {
                     bexpr = nil
                 }
                 if self.LexPtr[-1] == "H" && self.LexPtr[-2] == "@" { // i.e. [C@H] or [C@@H]
-                    pat?.atom[index].nbrs.append(Ref.ImplicitRef.intValue)
+                    pat?.atom[index].nbrs.append(SmartsImplicitRef)
                 }
                 prev = index
                 self.LexPtr.inc()
@@ -1437,7 +1443,7 @@ func buildAtomLeaf(_ type: Int, _ value: Int) -> AtomExpr {
     return AtomExpr.leaf(type: type, value: value)
 }
 
-func buildAtomNot(_ expr: AtomExpr) -> AtomExpr {
+func buildAtomNot(_ expr: inout AtomExpr) -> AtomExpr {
     return AtomExpr.mon(type: AE_NOT, arg: expr)
 }
 
@@ -1445,7 +1451,7 @@ func buildAtomBinary(_ type: Int, _ lhs: AtomExpr, _ rhs: AtomExpr) -> AtomExpr 
     return AtomExpr.bin(type: type, lft: lhs, rgt: rhs)
 }
 
-func buildAtomRecurs(_ pat: Pattern) -> AtomExpr {
+func buildAtomRecurs(_ pat: inout Pattern) -> AtomExpr {
     return AtomExpr.recur(type: AE_RECUR, recur: pat)
 }
 
@@ -1516,8 +1522,9 @@ func generateDefaultBond() -> BondExpr {
   /*  SMARTS Pattern Manipulation  */
   /*===============================*/
 
+@discardableResult
 func createAtom(_ pat: inout Pattern, _ expr: AtomExpr, _ part: Int, _ vb: Int = 0) -> Int {
-    pat.atom.append(AtomSpec(expr: expr, part: part, vb: vb))
+    pat.atom.append(AtomSpec(expr: expr, part: part, vb: vb, nbrs: []))
     return pat.acount - 1
 }
 
@@ -1563,8 +1570,8 @@ func getChiralFlag(_ expr: AtomExpr) -> Int {
             type == AE_ANDLO {
             let tmp1 = getChiralFlag(lft)
             let tmp2 = getChiralFlag(rgt)
-            if tmp1 == 0 { return 0 }
-            if tmp2 == 0 { return 0 }
+            if tmp1 == 0 { return tmp2 }
+            if tmp2 == 0 { return tmp1 }
             if tmp1 == tmp2 { return tmp1 }
         }
     case .recur(_, _):
@@ -1789,7 +1796,7 @@ class MKSmartsMatcher {
                 }
                 //perceive and match pattern
                 var mlist : [[Int]] = []
-                guard var par = atom.getParent() else { return false }
+                guard let par = atom.getParent() else { return false }
                 var vb: [Bool] = [Bool].init(repeating: false, count: par.numAtoms() + 1)
                 
                 if match(par, &recur, &mlist) {
@@ -1809,7 +1816,7 @@ class MKSmartsMatcher {
             switch expr.type {
             case BE_ANDHI, BE_ANDLO:
                 // get expr to BondExpr bin type
-                guard case var .bin(_, lft, rgt) = expr else { return false }
+                guard case .bin(_, var lft, let rgt) = expr else { return false }
                 if !evalBondExpr(&lft, bond) {
                     return false
                 }
@@ -1817,7 +1824,7 @@ class MKSmartsMatcher {
                 break
             case BE_OR:
                 // get expr to BondExpr bin type
-                guard case var .bin(_, lft, rgt) = expr else { return false }
+                guard case .bin(_, var lft, let rgt) = expr else { return false }
                 if evalBondExpr(&lft, bond) {
                     return true
                 }
@@ -1963,7 +1970,7 @@ class MKSmartsMatcher {
             fastSingleMatch(mol, &pat, &mlist)
         } else {
             // perform normal match (chirality ignored and checked below)
-            let ssm: MKSSMatch = MKSSMatch(mol, pat)
+            let ssm: MKSSMatch = MKSSMatch(mol, &pat)
             ssm.match(&mlist)
         }
 
@@ -1972,10 +1979,10 @@ class MKSmartsMatcher {
             // iterate over the atom mappings
             for m in mlist {
                 
-                var allStereoCentersMatch = true 
+                var allStereoCentersMatch = false
 
                 // for each pattern atom
-                for j in 1..<pat.acount {
+                for j in 0..<pat.acount { // MARK: 0 -> 1 fixes ERROR: SMARTS chiral atom has 0 neighbors, only works with 4, why??
                     // skip non-chiral pattern atoms
                     if (pat.atom[j].chiral_flag == nil) { continue }
                     // ignore @? in smarts, parse like any other smarts
@@ -2009,7 +2016,8 @@ class MKSmartsMatcher {
                     // construct a OBTetrahedralStereo::Config using the smarts pattern
                     var smartsConfig = MKTetrahedralStereo.Config()
                     smartsConfig.center = center.getId()
-                    if nbrs[0] == Ref.ImplicitRef.intValue {
+                    
+                    if nbrs[0] == SmartsImplicitRef {
                         smartsConfig.from_or_towrds = .from(.ImplicitRef)
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[0]])?.getId() else { continue }
@@ -2017,7 +2025,7 @@ class MKSmartsMatcher {
                     }
                     
                     var firstref: Ref
-                    if nbrs[1] == Ref.ImplicitRef.intValue {
+                    if nbrs[1] == SmartsImplicitRef {
                         firstref = .ImplicitRef
                     } else {
                         guard let ma = mol.getAtom(m[nbrs[1]])?.getId() else { continue }
@@ -2041,8 +2049,8 @@ class MKSmartsMatcher {
                     }
                     
                     // and save the match if the two configurations are the same
-                    if ts?.getConfig() != smartsConfig {
-                        allStereoCentersMatch = false
+                    if ts?.getConfig() == smartsConfig {
+                        allStereoCentersMatch = true
                     }
 
                     // don't waste time checking more stereocenters using this mapping if one didn't match
@@ -2076,10 +2084,10 @@ class MKSSMatch {
     private var _pat: Pattern
     private var _map: [Int] = []
 
-    init(_ mol: MKMol, _ pat: Pattern) {
+    init(_ mol: MKMol, _ pat: inout Pattern) {
         self._mol = mol
         self._pat = pat
-        self._map.resize(pat.acount + 1, with: 0)
+        self._map.resize(pat.acount, with: 0)
         
         if !mol.isEmpty() {
             _uatoms.resize(mol.numAtoms()+1, with: false)
@@ -2131,8 +2139,8 @@ class MKSSMatch {
                         _map[dst] = nbr.getIdx()
                         _uatoms[nbr.getIdx()] = true
                         match(&mlist, bidx+1)
-                        _map[dst] = 0
                         _uatoms[nbr.getIdx()] = false
+                        _map[dst] = 0
                     }
                 }
             }
@@ -2152,10 +2160,10 @@ class MKSSMatch {
 
 class LexicalParser: IteratorProtocol, Equatable {
    
+    typealias Element = Character
+
     private var _lexCharacters: [Character] = []
     private var _index: Int = 0
-    
-    typealias Element = Character
     
     init() { }
     
@@ -2179,24 +2187,25 @@ class LexicalParser: IteratorProtocol, Equatable {
         defer {
             self._index += 1
         }
-        return self._index >= _lexCharacters.count ? "\0" : _lexCharacters[self._index]
+        return self._index >= _lexCharacters.count ? nil : _lexCharacters[self._index]
     }
     
-    public subscript (_ idx: Int) -> Character {
+    public subscript (_ idx: Int) -> Character? {
         if idx < 0 {
             // subtract from end and return character
             let lastIndex = _lexCharacters.count - 1
-            if lastIndex + idx > 0 {
+            if lastIndex + idx >= 0 {
                 return _lexCharacters[lastIndex + idx]
             } else {
-                return _lexCharacters.first != nil ? _lexCharacters.first! : "\0"
+                return nil
             }
         } else if idx > 0 {
+            // start from current position and move forward
             let firstIndex = _index
             if firstIndex + idx < _lexCharacters.count {
                 return _lexCharacters[firstIndex + idx]
             } else {
-                return _lexCharacters.last != nil ? _lexCharacters.last! : "\0"
+                return nil
             }
         } else {
             return _lexCharacters[_index]
@@ -2217,15 +2226,16 @@ class LexicalParser: IteratorProtocol, Equatable {
     }
     
     public func cur() -> Character {
-        self._index < self._lexCharacters.count ? self._lexCharacters[self._index] : "\0"
+        if self._index >= self._lexCharacters.count || self._index < 0 { return "\0" }
+        return self._lexCharacters[self._index]
     }
     
     public func prev() -> Character {
-        if self._index > 0 {
-            return self._lexCharacters[self._index - 1]
-        } else {
-            return self._lexCharacters.first!
-        }   
+        if self._index < 1 || // underflow case (index - 1) < 0
+            self._index > self._lexCharacters.count // overflow case index - 1 > self.count - 1
+        { return "\0" }
+        
+        return self._lexCharacters[self._index - 1]
     }
 
     @discardableResult

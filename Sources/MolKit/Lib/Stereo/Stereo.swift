@@ -23,20 +23,11 @@ public enum RefValue: Equatable, Hashable {
         get {
             switch self {
             case .NoRef:
-                return .max
+                return Int.max
             case .ImplicitRef:
-                return -9999 // SMARTS ImplicitRef number
+                return -9999
             case .Ref(let value):
                 return value
-            }
-        }
-        set {
-            if newValue == .max {
-                self = .NoRef
-            } else if newValue == -9999 {
-                self = .ImplicitRef
-            } else {
-                self = .Ref(newValue)
             }
         }
     }
@@ -52,6 +43,8 @@ public enum RefValue: Equatable, Hashable {
         case .ImplicitRef:
             if case .ImplicitRef = rhs {
                 return true // Allow implicit to match implicit?
+            } else if case .Ref(let refValue) = rhs {
+                return refValue == lhs.intValue // Allow implicit to match ref value of -9999?
             } else {
                 return false
             }
@@ -72,13 +65,18 @@ public enum RefValue: Equatable, Hashable {
         case .NoRef:
             return false
         case .ImplicitRef:
-            return false
+            if case .NoRef = rhs {
+                return true
+            } else {
+                return false // implicit ref is technically 1 less than MAX_INT in OpenBabel
+            }
         case .Ref(let value):
             switch rhs {
             case .NoRef:
                 return false
             case .ImplicitRef:
                 return false
+//                return true // implicit ref is quite a large number even though it is only -9999 here for SMARTS
             case .Ref(let rvalue):
                 return value < rvalue
             }
@@ -94,13 +92,15 @@ public enum RefValue: Equatable, Hashable {
     }
     
     static func - (_ lhs: RefValue, _ rhs: Int) -> RefValue {
-        if case .Ref(var val) = lhs {
-            val -= rhs
-            return lhs
-        } else if case .ImplicitRef = lhs {
+        switch lhs {
+        case .NoRef:
+            return .NoRef
+        case .ImplicitRef:
             return .ImplicitRef
+        case .Ref(var val):
+            val -= rhs
+            return .Ref(val)
         }
-        return lhs
     }
     
     public func hash(into hasher: inout Hasher) {
@@ -240,12 +240,6 @@ public struct MKStereo {
         }
 //        return sum of invVec
         return invVec.reduce(into: 0) { partialResult, ref in
-//            switch ref {
-//            case .Ref(let value):
-//                partialResult += value
-//            default:
-//                break
-//            }
             partialResult += ref.intValue
         }
     }
@@ -268,9 +262,7 @@ public struct MKStereo {
     static func permutate(_ refs: inout Refs, _ i: Int, _ j: Int) {
         if i >= refs.count { return }
         if j >= refs.count { return }
-        let id = refs[i]
-        refs[i] = refs[j]
-        refs[j] = id
+        refs.swapAt(i, j)
     }
     
     /**
@@ -288,8 +280,7 @@ public struct MKStereo {
         if i >= refs.count { return refs }
         if j >= refs.count { return refs }
         var result = copy refs
-        result[i] = refs[j]
-        result[j] = refs[i]
+        result.swapAt(i, j)
         return result
     }
     
@@ -411,43 +402,39 @@ class MKStereoFacade {
                     continue
                 }
                 m_tetrahedralMap[config.center.intValue] = ts
-            } else {
-                if (type == .SquarePlanar) {
-                    let sp: MKSquarePlanarStereo = (data as! MKSquarePlanarStereo)
-                    let config: MKSquarePlanarStereo.Config = sp.getConfig()
-                    if (config.center == .NoRef) {
-                        continue
-                    }
-                    m_squarePlanarMap[config.center.intValue] = sp
-                } else {
-                    if (type == .CisTrans) {
-                        let ct: MKCisTransStereo = (data as! MKCisTransStereo)
-                        let config: MKCisTransStereo.Config = ct.getConfig()
-                        // find the bond id from begin & end atom ids
-                        var id: RefValue = .NoRef
-                        let a: MKAtom? = m_mol.getAtomById(config.begin)
-                        if (a == nil) {
-                            continue
-                        }
-                        guard let bonds = a?.getBondIterator() else {
-                            print("ERROR: No bonds for atom in stereo data??")
-                            continue
-                        }
-                        for bond in bonds {
-                            let beginId: Ref = bond.getBeginAtom().getId()
-                            let endId: Ref = bond.getEndAtom().getId()
-                            if ((beginId == config.begin && endId == config.end) ||
-                                (beginId == config.end && endId == config.begin)) {
-                                id = bond.getId()
-                                break
-                            }
-                        }
-                        if (id == .NoRef) {
-                            continue
-                        }
-                        m_cistransMap[id.intValue] = ct
+            } else if (type == .SquarePlanar) {
+                let sp: MKSquarePlanarStereo = (data as! MKSquarePlanarStereo)
+                let config: MKSquarePlanarStereo.Config = sp.getConfig()
+                if (config.center == .NoRef) {
+                    continue
+                }
+                m_squarePlanarMap[config.center.intValue] = sp
+            } else  if (type == .CisTrans) {
+                let ct: MKCisTransStereo = (data as! MKCisTransStereo)
+                let config: MKCisTransStereo.Config = ct.getConfig()
+                // find the bond id from begin & end atom ids
+                var id: RefValue = .NoRef
+                let a: MKAtom? = m_mol.getAtomById(config.begin)
+                if (a == nil) {
+                    continue
+                }
+                guard let bonds = a?.getBondIterator() else {
+                    print("ERROR: No bonds for atom in stereo data??")
+                    continue
+                }
+                for bond in bonds {
+                    let beginId: Ref = bond.getBeginAtom().getId()
+                    let endId: Ref = bond.getEndAtom().getId()
+                    if ((beginId == config.begin && endId == config.end) ||
+                        (beginId == config.end && endId == config.begin)) {
+                        id = bond.getId()
+                        break
                     }
                 }
+                if (id == .NoRef) {
+                    continue
+                }
+                m_cistransMap[id.intValue] = ct
             }
         }
         m_init = true
@@ -1613,7 +1600,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
     
     // Delete any existing stereo objects that are not a member of 'centers'
     // and make a map of the remaining ones
-    var existingMap: OrderedDictionary<Int, MKTetrahedralStereo> = [:]    
+    var existingMap: OrderedDictionary<Ref, MKTetrahedralStereo> = [:]
     let stereoData: [MKGenericData] = mol.getAllData(.StereoData)!
     for data in stereoData {
         if (data as! MKStereoBase).getType() == .Tetrahedral {
@@ -1629,7 +1616,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
                 }
             }
             if isStereogenic {
-                existingMap[center.intValue] = ts
+                existingMap[center] = ts
                 configs.append(ts)
             } else {
                 // According to OpenBabel, this is not a tetrahedral stereo
@@ -1642,7 +1629,7 @@ func tetrahedralFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol:
         if u.type != .Tetrahedral {
             continue
         }
-        if existingMap[u.id.intValue] != nil {
+        if existingMap[u.id] != nil {
             continue
         }
         let center = mol.getAtomById(u.id)
@@ -1698,7 +1685,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
     let bonds = stereoUnits.filter { $0.type == .CisTrans }.map { $0.id }
     // Delete any existing stereo objects that are not a member of 'bonds'
     // and make a map of the remaining ones
-    var existingMap: OrderedDictionary<Int, MKCisTransStereo> = [:]    
+    var existingMap: OrderedDictionary<Ref, MKCisTransStereo> = [:]
     let stereoData: [MKGenericData] = mol.getAllData(.StereoData)!
     for data in stereoData {
         if (data as! MKStereoBase).getType() == .CisTrans {
@@ -1725,7 +1712,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
                 print("Removed spurious CisTransStereo object")
                 mol.deleteData(ct)
             } else {
-                existingMap[id.intValue] = ct
+                existingMap[id] = ct
                 configs.append(ct)
             }
         }
@@ -1734,8 +1721,8 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
     for i in bonds {
         // If there already exists a OBCisTransStereo object for this
         // bond, leave it alone unless it's in a ring of small size
-        let alreadyExists = existingMap.contains { (key: Int, value: MKCisTransStereo) in
-            key == i.intValue
+        let alreadyExists = existingMap.contains { (key: Ref, value: MKCisTransStereo) in
+            key == i
         }
         guard let bond = mol.getBondById(i) else {
             continue
@@ -1743,7 +1730,7 @@ func cisTransFrom0D(_ mol: MKMol, _ stereoUnits: MKStereoUnitSet, _ addToMol: Bo
         var ct: MKCisTransStereo
         var config: MKCisTransStereo.Config = MKCisTransStereo.Config()
         if alreadyExists {
-            ct = existingMap[i.intValue]!
+            ct = existingMap[i]!
             config = ct.getConfig()
         } else {
             let begin = bond.getBeginAtom()
@@ -1820,11 +1807,11 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
     for data in vdata {
         if (data as! MKStereoBase).getType() == .Tetrahedral {
             let ts = data as! MKTetrahedralStereo
-            var cfg: MKTetrahedralStereo.Config = ts.getConfig()
+            let cfg: MKTetrahedralStereo.Config = ts.getConfig()
             if cfg.specified {
                 var chosen: MKBond? = nil
                 guard let center: MKAtom = mol.getAtomById(cfg.center) else { continue }
-                var center_coord: Vector<Double> = center.getVector()
+                let center_coord: Vector<Double> = center.getVector()
                 // Find the two bonds closest in angle and remember them if
                 // they are closer than DELTA_ANGLE_FOR_OVERLAPPING_BONDS
                 var nbrs: [MKAtom] = []
@@ -1836,7 +1823,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
                 var close_bond_b: MKBond? = nil
                 for i in 0..<nbrs.count - 1 {
                     for j in i+1..<nbrs.count {
-                        var angle = abs(nbrs[i].getAngle(center, nbrs[j]))
+                        let angle = abs(nbrs[i].getAngle(center, nbrs[j]))
                         if angle < min_angle {
                             min_angle = angle
                             close_bond_a = mol.getBond(center, nbrs[i])!
@@ -1866,7 +1853,7 @@ func tetStereoToWedgeHash(_ mol: MKMol, _ updown: inout [MKBond: MKStereo.BondDi
                         continue
                     }
                     let nbr = b.getNbrAtom(center)
-                    var nbr_bonds: Int = nbr.getExplicitDegree()
+                    let nbr_bonds: Int = nbr.getExplicitDegree()
                     var score: Int = 0
                     if !b.isInRing() {
                         if !nbr.isInRing() {

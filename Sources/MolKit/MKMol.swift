@@ -743,11 +743,10 @@ public class MKMol: MKBase, Copying {
         let atom = MKAtom()
         atom.setIdx(self._natoms+1)
         atom.setParent(self)
+        atom.setId(Int(id))
 
         self._vatomIds.insert(atom, at: Int(id))
-        atom.setId(Int(id))
-        
-        self._vatom.append(atom)
+        self._vatom.append(atom)        
 
         if self.hasData(.VirtualBondData) {
             /*add bonds that have been queued*/
@@ -2311,7 +2310,7 @@ public class MKMol: MKBase, Copying {
       AssignSpinMultiplicity(true) is called at the end of the function. The true
       states that there are no implict hydrogens in the molecule.
     */
-    func percieveBondOrders() {
+    public func percieveBondOrders() {
         
         if self.isEmpty() { return }
         
@@ -3817,7 +3816,7 @@ public class MKMol: MKBase, Copying {
         }
         var correspondingId: [Ref: Ref] = [:]
         for atom in rhs.getAtomIterator() {
-            lhs.addAtom(atom) // forceNewId=true (don't reuse the original Id)
+            lhs.addAtom(atom, true) // forceNewId=true (don't reuse the original Id)
             let addedAtom = lhs.getAtom(lhs.numAtoms())!
             correspondingId[atom.getId()] = addedAtom.getId()
         }

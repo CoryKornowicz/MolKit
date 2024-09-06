@@ -223,7 +223,7 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
         
         if !lhs.isValid() || !rhs.isValid() { return false }
         
-        var u: Config = MKTetraPlanarStereo.toConfig(rhs.getConfig(), lhs.m_cfg!.refs[0], .ShapeU)
+        let u: Config = MKTetraPlanarStereo.toConfig(rhs.getConfig(), lhs.m_cfg!.refs[0], .ShapeU)
 
         var a1 = u.refs[0]
         var b1 = u.refs[2]
@@ -297,8 +297,8 @@ class MKSquarePlanarStereo: MKTetraPlanarStereo {
         for i in 0..<4 {
             if m_cfg!.refs[i] == id {
                 // use it's index to get the left/right reference ids
-                var j = (i > 0) ? i - 1 : 3
-                var k = (i < 3) ? i + 1 : 0
+                let j = (i > 0) ? i - 1 : 3
+                let k = (i < 3) ? i + 1 : 0
                 refs.append(m_cfg!.refs[j]) 
                 refs.append(m_cfg!.refs[k])
                 return refs

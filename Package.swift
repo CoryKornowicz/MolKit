@@ -1,4 +1,4 @@
-// swift-tools-version: 5.7
+// swift-tools-version: 5.10
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -7,8 +7,8 @@ let package = Package(
     name: "MolKit",
     defaultLocalization: "en",
     platforms: [
-        .macOS(.v12),
-        .iOS(.v16)
+        .macOS(.v14),
+        .iOS(.v17)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
@@ -30,8 +30,7 @@ let package = Package(
         .target(
             name: "MolKit",
             dependencies: [.product(name: "Algorithms", package: "swift-algorithms"),
-                           "Surge", 
-                            .product(name: "Collections", package: "swift-collections"),
+                           "Surge", .product(name: "Collections", package: "swift-collections"),
                            .product(name: "Bitset", package: "SwiftBitset")],
             resources: [
                     // Apply platform-specific rules.
@@ -43,7 +42,8 @@ let package = Package(
                   ]),
         .testTarget(
             name: "MolKitTests",
-            dependencies: ["MolKit", .product(name: "Algorithms", package: "swift-algorithms"), "Surge", .product(name: "Collections", package: "swift-collections"),
+            dependencies: ["MolKit", .product(name: "Algorithms", package: "swift-algorithms"), 
+                           "Surge", .product(name: "Collections", package: "swift-collections"),
                            .product(name: "Bitset", package: "SwiftBitset")],
             resources: [
                     // Copy Tests/ExampleTests/Resources directories as-is.

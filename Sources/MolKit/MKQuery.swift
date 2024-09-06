@@ -236,13 +236,13 @@ class MKQuery {
 */
 func compileMoleculeQuery(_ mol: MKMol, _ mask: Bitset = Bitset()) -> MKQuery {
     // set all atoms to 1 if the mask is empty
-    var mask2 = mask
+    let mask2 = mask
     if mask2.count() == 0 {
         for i in 0..<mol.numAtoms() {
             mask2.add(i + 1)
         }
     }
-    var query = MKQuery()
+    let query = MKQuery()
     var offset = 0
     var indexes: [Int] = []
     for atom in mol.getAtomIterator() {

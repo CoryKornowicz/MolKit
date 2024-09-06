@@ -51,17 +51,9 @@ public class MKTetraNonPlanarStereo: MKStereoBase {
      */
     static func toConfig<T: ConfigNonPlanar, U: ConfigNonPlanar>(_ cfg: T, _ fromTowards: from_or_towrds, _ winding: MKStereo.Winding = .Clockwise, _ view: MKStereo.View = .ViewFrom) -> U {
 //        Swift ensures cases with defined values are uniquely treated, thus the need for reduncant code.
-        switch cfg.from_or_towrds {
-        case .from(let ref):
-            if ref == .NoRef {
-                print("MKTetraNonPlanarStereo.toConfig : Invalid from in ConfigType struct.")
-                return U()
-            }
-        case .towards(let ref):
-            if ref == .NoRef {
-                print("MKTetraNonPlanarStereo.toConfig : Invalid from in ConfigType struct.")
-                return U()
-            }
+        if cfg.from_or_towrds.refValue == .NoRef {
+            print("MKTetraNonPlanarStereo.toConfig : Invalid from in ConfigType struct.")
+            return U()
         }
         
         if cfg.refs.count != 3 {

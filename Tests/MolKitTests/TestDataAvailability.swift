@@ -10,12 +10,12 @@ import XCTest
 
 final class DataAvailabilityTests: XCTestCase {
     
-    func testFindSpaceGroup() throws {
+    public func testFindSpaceGroup() throws {
         
         // Define bundle path to Data folder
         let path = Bundle.module.url(forResource: "space-groups", withExtension: "txt", subdirectory: "Data")
         let data = try String(contentsOf: path!)
-        
+                
         XCTAssert(!data.isEmpty)
     }
     

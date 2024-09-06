@@ -12,7 +12,7 @@ final class RingTest: XCTestCase {
     
     let subDir = "Data/testdata"
     
-    let ring_results = "ringresults" // txt
+    let ring_results = "ringresults"     // txt
     let test_smiles = "attype.00"        // smi
     
     enum RingErrors: Error {
@@ -42,31 +42,32 @@ final class RingTest: XCTestCase {
                 
         XCTAssert(conv.setInAndOutFormats("smi", "smi"))
         
-        var mol = MKMol()
         var currentTest: Int = 0
-        var molPassed: Bool = false
         var buffer: [String] = []
-        var vb: [Bool] = []
-        var vi: [Int] = []
-        var vr: [MKRing] = []
         
         try smiles_url.foreachRow { smile, rowNum in
-            mol.clear()
+            
+            var mol = MKMol()
+//            var molPassed: Bool = false
+            var vb: [Bool] = []
+//            var vi: [Int] = []
+            var vr: [MKRing] = []
+
             conv.read(&mol)
             
             if myStringsOffset >= myStrings.count { throw RingErrors.noMoreLines }
             buffer = myStrings[myStringsOffset++].components(separatedBy: .whitespaces).filter({ !$0.isEmpty })
             
-            while buffer.isEmpty {
-                buffer = myStrings[myStringsOffset++].components(separatedBy: .whitespaces).filter({ !$0.isEmpty }) //??
-            }
-            
             vb.resize(mol.numBonds(), with: false)
-            //MARK: Check ring bond data
-            for i in buffer {
-                //convert i to integer and store at
-                guard let index = Int(i) else { throw RingErrors.integerConversion }
-                vb[index] = true
+            
+            //MARK: Check ring bond data if buffer is not empty
+            
+            if !buffer.isEmpty {
+                for i in buffer {
+                    //convert i to integer and store at
+                    guard let index = Int(i) else { throw RingErrors.integerConversion }
+                    vb[index] = true
+                }
             }
             
             for bond in mol.getBondIterator() {
@@ -85,11 +86,10 @@ final class RingTest: XCTestCase {
             
             if myStringsOffset >= myStrings.count { throw RingErrors.noMoreLines }
             buffer = myStrings[myStringsOffset++].components(separatedBy: .whitespaces).filter({ !$0.isEmpty })
-            if buffer.isEmpty { throw RingErrors.noMoreLines }
             
-            guard let size = Int(buffer[0]) else { throw RingErrors.integerConversion }
+            guard let vr_size = Int(buffer[0]) else { throw RingErrors.integerConversion }
             
-            if vr.count != size {
+            if vr.count != vr_size {
                 print("not ok \(++currentTest)")
                 print("# SSSR size different than reference")
                 print("# Molecule: \(mol.getTitle())")
@@ -101,8 +101,7 @@ final class RingTest: XCTestCase {
             
             if myStringsOffset >= myStrings.count { throw RingErrors.noMoreLines }
             buffer = myStrings[myStringsOffset++].components(separatedBy: .whitespaces).filter({ !$0.isEmpty })
-            if buffer.isEmpty { buffer = ["0"] }
-            
+                        
             var vsIterator = MKIterator<String>(buffer)
             var i = vsIterator.next()
             
@@ -123,11 +122,11 @@ final class RingTest: XCTestCase {
                     }
                 }
                 
-                guard i != nil, let size = Int(i!) else {
+                guard i != nil, let count_size = Int(i!) else {
                     continue
                 }
                 
-                if size != count {
+                if count_size != count {
                     print("no ok \(++currentTest) # ring memebership test failed")
                     print("# Molecule: \(mol.getTitle())")
                 } else {

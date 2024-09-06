@@ -46,14 +46,14 @@ public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             var lhsConfig: Config
             var rhsConfig: Config
             
-            if lhs.from_or_towrds == .from(.ImplicitRef) { // not check the towards parameter (could it ever be there?)
+            if lhs.from_or_towrds.refValue == .ImplicitRef { // not check the towards parameter (could it ever be there?)
                 lhsConfig = MKTetraNonPlanarStereo.toConfig(lhs, .from(lhs.refs[0]), lhs.winding, lhs.view)
                 rhsConfig = MKTetraNonPlanarStereo.toConfig(rhs, lhsConfig.from_or_towrds, lhs.winding, lhs.view)
-            } else if rhs.from_or_towrds == .from(.ImplicitRef) {
+            } else if rhs.from_or_towrds.refValue == .ImplicitRef {
                 rhsConfig = MKTetraNonPlanarStereo.toConfig(rhs, .from(rhs.refs[0]), lhs.winding, lhs.view)
                 lhsConfig = MKTetraNonPlanarStereo.toConfig(lhs, rhsConfig.from_or_towrds, lhs.winding, lhs.view)
             } else {
-                lhsConfig = lhs
+                lhsConfig = copy lhs
                 rhsConfig = MKTetraNonPlanarStereo.toConfig(rhs, lhsConfig.from_or_towrds, lhs.winding, lhs.view)
             }
             
@@ -96,9 +96,9 @@ public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
                                 }
                             }
                             if !found {
-                                for var refIter in rhsConfig.refs {
-                                    if refIter == .ImplicitRef {
-                                        refIter = lhsConfig.refs[i]
+                                for (k, j) in rhsConfig.refs.enumerated() {
+                                    if j == .ImplicitRef {
+                                        rhsConfig.refs[k] = lhsConfig.refs[i]
                                     }
                                 }
                                 break
@@ -134,15 +134,8 @@ public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
         if m_cfg!.center == .NoRef || m_cfg!.refs.count != 3 {
             return false
         }
-        switch m_cfg!.from_or_towrds {
-        case .from(let from):
-            if from == .NoRef {
-                return false
-            }
-        case .towards(let towards):
-            if towards == .NoRef {
-                return false
-            }
+        if m_cfg!.from_or_towrds.refValue == .NoRef{
+            return false
         }
         return true
     }
@@ -156,7 +149,7 @@ public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             m_cfg = Config()
             return
         }
-        if cfg.from_or_towrds == .from(.NoRef) || cfg.from_or_towrds == .towards(.NoRef) {
+        if cfg.from_or_towrds.refValue == .NoRef {
             print("MKTetrahedralStereo::setConfig(): from/towards atom id is invalid")
             m_cfg = Config()
             return
@@ -178,23 +171,23 @@ public class MKTetrahedralStereo: MKTetraNonPlanarStereo {
             return Config()
         }
         if m_cfg!.winding != .UnknownWinding {
-            return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds, winding, view)
+            return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds.from, m_cfg!.winding, m_cfg!.view)
         } else {
-            return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds, .UnknownWinding, view)
+            return MKTetraNonPlanarStereo.toConfig(m_cfg!, m_cfg!.from_or_towrds.from, .UnknownWinding, m_cfg!.view)
         }
     }
     
     /**
      * Get the configuration as Config struct viewing from/towards the specified id.
      */
-    func getConfig(_ fromTorwards: from_or_towrds, _ winding: MKStereo.Winding = .Clockwise, _ view: MKStereo.View = .ViewFrom) -> Config {
+    public func getConfig(_ fromTorwards: from_or_towrds, _ winding: MKStereo.Winding = .Clockwise, _ view: MKStereo.View = .ViewFrom) -> Config {
         if !isValid() {
             return Config()
         }
         if m_cfg!.winding != .UnknownWinding {
-            return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, winding, view)
+            return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, m_cfg!.winding, m_cfg!.view)
         } else {
-            return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, .UnknownWinding, view)
+            return MKTetraNonPlanarStereo.toConfig(m_cfg!, fromTorwards, .UnknownWinding, m_cfg!.view)
         }
     }
     

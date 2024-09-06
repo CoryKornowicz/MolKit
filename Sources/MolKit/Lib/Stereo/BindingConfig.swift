@@ -6,29 +6,6 @@ public enum from_or_towrds: Equatable {
     case from(_ value: Ref)
     case towards(_ value: Ref)
     
-    var value: Int? {
-        switch self {
-        case .from(let ref):
-            switch ref {
-            case .NoRef:
-                return nil
-            case .ImplicitRef:
-                return nil
-            case .Ref(let intValue):
-                return intValue
-            }
-        case .towards(let ref):
-            switch ref {
-            case .NoRef:
-                return nil
-            case .ImplicitRef:
-                return nil
-            case .Ref(let intValue):
-                return intValue
-            }
-        }
-    }
-    
     var refValue: Ref {
         get {
             switch self {
@@ -41,50 +18,57 @@ public enum from_or_towrds: Equatable {
         
         set {
             switch self {
-            case .from(var ref):
-                ref = newValue
-            case .towards(var ref):
-                ref = newValue
+            case .from(_):
+                self = .from(newValue)
+            case .towards(_):
+                self = .towards(newValue)
             }
         }
     }
         
-    var from: Ref? {
+    var from: from_or_towrds {
         get {
-            if case .from(let value) = self {
-                return value
-            } else {
-                return nil
-            }
+            return .from(self.refValue)
         }
         set {
-            self = .from(newValue!)
+            self = newValue
         }
     }
     
-    var towards: Ref? {
+    var towards: from_or_towrds {
         get {
-            if case .towards(let value) = self {
-                return value
-            } else {
-                return nil
-            }
+            return .towards(refValue)
         }
         set {
-            self = .towards(newValue!)
+            self = newValue
         }
     }
     
     public static func == (_ lhs: from_or_towrds, _ rhs: from_or_towrds) -> Bool {
-        return lhs.value == rhs.value
+        switch lhs {
+        case .from(let lhsRefValue):
+            switch rhs {
+            case .from(let rhsRefValue):
+                return lhsRefValue == rhsRefValue
+            case .towards(_):
+                return false
+            }
+        case .towards(let lhsRefValue):
+            switch rhs {
+            case .from(_):
+                return false
+            case .towards(let rhsRefValue):
+                return lhsRefValue == rhsRefValue
+            }
+        }
     }
     
     static func == (_ lhs: from_or_towrds, _ rhs: RefValue) -> Bool {
-        return lhs.value == rhs.intValue
+        return lhs.refValue == rhs
     }
     
     static func != (_ lhs: from_or_towrds, _ rhs: RefValue) -> Bool {
-        return lhs.value != rhs.intValue
+        return lhs.refValue != rhs
     }
     
 }

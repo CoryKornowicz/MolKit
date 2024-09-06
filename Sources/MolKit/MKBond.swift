@@ -464,7 +464,7 @@ public class MKBond: MKBase {
     }
 
     func isClosure() -> Bool {
-        guard var mol = self.getParent() else { return false }
+        guard let mol = self.getParent() else { return false }
         if (!mol.hasClosureBondsPerceived()) {
             mol.findRingAtomsAndBonds()
         }

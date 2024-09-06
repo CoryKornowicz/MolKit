@@ -659,8 +659,8 @@ class MKSmilesParser {
                             ts.refs[1] = ts.refs[0]
                             if chiralLonePair.value.wholeNumberValue! == 0 { // Insert in the 'from' position
                                 // TODO: probably need to guard this statement
-                                ts.refs[0] = ts.from_or_towrds.from!
-                                ts.from_or_towrds.from = .ImplicitRef
+                                ts.refs[0] = ts.from_or_towrds.refValue
+                                ts.from_or_towrds = .from(.ImplicitRef)
                             } else { // Insert in the refs[0] position
                                 ts.refs[0] = .ImplicitRef
                             }
@@ -889,7 +889,7 @@ class MKSmilesParser {
                                             "Warning: Overwriting previous from reference id \(_tetrahedralMap[ChiralSearchKey]!.from_or_towrds.from) with \(id)"
                     )
                 }
-                _tetrahedralMap[ChiralSearchKey]!.from_or_towrds.from = id
+                _tetrahedralMap[ChiralSearchKey]!.from_or_towrds = .from(id)
             } else {
                 if _tetrahedralMap[ChiralSearchKey]!.refs[insertpos] != .NoRef {
                     MKLogger.throwError(errorMsg:
@@ -932,7 +932,7 @@ class MKSmilesParser {
     // NumConnections finds the number of connections already made to
     // a particular atom. This is used to figure out the correct position
     // to insert an atom ID into atom4refs
-    func numConnections(_ atom: MKAtom, _ isImplicitRef: Bool) -> Int {
+    func numConnections(_ atom: MKAtom, _ isImplicitRef: Bool = false) -> Int {
         var val = atom.getExplicitDegree()
         // The implicit H is not included in "val" so we need to adjust by 1
         if isImplicitRef {
@@ -1489,8 +1489,11 @@ class MKSmilesParser {
             }
         case "#":
             // Only support three digits for this extension
-            if _ptr[1] == "1" || _ptr[1] == "2" && _ptr[2] >= "0" && _ptr[2] <= "9" && _ptr[3] >= "0" && _ptr[3] <= "9" {
-                element = (_ptr[1].wholeNumberValue!) * 100 + (_ptr[2].wholeNumberValue!) * 10 + (_ptr[3].wholeNumberValue!)
+            if let firstNum = _ptr[1], firstNum == "1" || firstNum == "2",
+               let secondNum = _ptr[2], secondNum  >= "0" && secondNum <= "9",
+               let thirdNum = _ptr[3], thirdNum >= "0" && thirdNum <= "9" {
+                
+                element = (firstNum.wholeNumberValue!) * 100 + (secondNum.wholeNumberValue!) * 10 + (thirdNum.wholeNumberValue!)
                 if element > 255 {
                     let err = "Element number must be <= 255)"
                     print(err)
@@ -1515,7 +1518,7 @@ class MKSmilesParser {
         var rad: Int = 0
         var clval: Int = 0
         _ptr.inc()
-        lex_repeat: repeat {
+        lex_repeat: while !_ptr.empty() && _ptr.cur() != "]" {
             switch _ptr.cur() {
             case "@":
                 _ptr.inc()
@@ -1557,6 +1560,7 @@ class MKSmilesParser {
                         _ptr.dec()
                     }
                 }
+                break
             case "-":
                 if charge != 0 {
                     let err = "Charge can only be specified once"
@@ -1578,6 +1582,7 @@ class MKSmilesParser {
                     charge -= 1 // finish handling [Ca++]
                 }
                 _ptr.dec()
+                break
             case "+":
                 if charge != 0 {
                     let err = "Charge can only be specified once"
@@ -1599,6 +1604,7 @@ class MKSmilesParser {
                     charge += 1 // finish handling [Ca++]
                 }
                 _ptr.dec()
+                break
             case "H":
                 _ptr.inc()
                 if _ptr.cur().isNumber {
@@ -1607,6 +1613,7 @@ class MKSmilesParser {
                     hcount = 1
                     _ptr.dec()
                 }
+                break
             case ".":
                 rad = 2
                 if _ptr.inc().cur() == "." {
@@ -1614,6 +1621,7 @@ class MKSmilesParser {
                 } else {
                     _ptr.dec()
                 }
+                break
             case ":":
                 if !_ptr.inc().cur().isNumber {
                     let err = "The atom class following : must be a number"
@@ -1630,13 +1638,12 @@ class MKSmilesParser {
                 atomclass.setValue(clval)
                 atomclass.setOrigin(.fileformatInput)
                 atom.setData(atomclass)
-            case "]":
-                break lex_repeat
+                break
             default:
                 return false
             }
             _ptr.inc()
-        } while !_ptr.empty() && _ptr.cur() != "]"
+        }
         
         if _ptr.empty() || _ptr.cur() != "]" {
             let err = "Expected a closing ]"
@@ -1682,7 +1689,7 @@ class MKSmilesParser {
                 _upDownMap[mol.getBond(_prev, mol.numAtoms())!] = _updown
             }
             if chiralWatch { // if tetrahedral atom, set previous as from atom
-                _tetrahedralMap[atom]!.from_or_towrds.from = mol.getAtom(_prev)!.getId()
+                _tetrahedralMap[atom]!.from_or_towrds = .from(mol.getAtom(_prev)!.getId())
                 if canHaveLonePair(element) { // Handle chiral lone pair as in X[S@@](Y)Z
                     _chiralLonePair[UInt(mol.numAtoms())] = "1" // First of the refs
                 }
@@ -1844,10 +1851,10 @@ class MKSmilesParser {
                     fatalError("Matching close parenthesis not found for ring closure number")
                 }
             } else { // % followed by two-digit ring closure
-                if !_ptr.cur().isNumber || !(_ptr[1].isNumber) {
+                if !_ptr.cur().isNumber || !(_ptr[1]!.isNumber) {
                     fatalError("Two digits expected after %")
                 }
-                digit = (_ptr.cur().wholeNumberValue!) * 10 + _ptr[1].wholeNumberValue! + 1
+                digit = (_ptr.cur().wholeNumberValue!) * 10 + _ptr[1]!.wholeNumberValue! + 1
                 _ptr.inc()
             }
         } else {
@@ -1903,7 +1910,7 @@ class MKSmilesParser {
                             if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from != .NoRef {
                                 print("Warning: Overwriting previous from reference id.")
                             }
-                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds.from = mol.getAtom(_prev)!.getId()
+                            _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.from_or_towrds = .from(mol.getAtom(_prev)!.getId())
                         case 0, 1, 2:
                             if _tetrahedralMap[_tetrahedralMap.keys[ChiralSearchIndex]]!.refs[insertpos] != .NoRef {
                                 print("Warning: Overwriting previously set reference id.")
@@ -1930,7 +1937,7 @@ class MKSmilesParser {
         //since no closures save another rclose bond
         
         guard let atom = mol.getAtom(_prev) else { return false }
-        let ringClosure: RingClosureBond = RingClosureBond(digit: digit, prev: _prev, order: _order, updown: _updown, numConnections: numConnections(atom, atom.getId() == .ImplicitRef))
+        let ringClosure: RingClosureBond = RingClosureBond(digit: digit, prev: _prev, order: _order, updown: _updown, numConnections: numConnections(atom))
         //store position to insert closure bond
         _rclose.append(ringClosure)
         _order = 0
@@ -2182,20 +2189,20 @@ class MKMol2Cansmi {
                     
                     for i in 0..<4 {
                         if _isup.contains(where: { $0.key == refbonds[i] }) { // We have already set this one (conjugated bond)
-                            if (refbonds[i] != nil) {
-                                if _isup[refbonds[i]!] == (config[i] ^ use_same_config) {
-                                    use_same_config = !use_same_config
-                                    break
-                                }
+                            if _isup[refbonds[i]!] == Bool(Int(config[i]) ^ Int(use_same_config)) {
+                                use_same_config = !use_same_config
+                                break
                             }
                         }
                     }
                     for i in 0..<4 {
                         if refbonds[i] != nil {
-                            _isup[refbonds[i]!] = config[i] ^ use_same_config
+                            _isup[refbonds[i]!] = Bool(Int(config[i]) ^ Int(use_same_config))
                         }
                     }
-                    _unvisited_cistrans.removeAll(where: { $0 === ChiralSearch }) // this one should be a memory match since we are in a loop-closure
+                    if let eraseIndex = _unvisited_cistrans.firstIndex(where: { $0 === ChiralSearch }) {
+                        _unvisited_cistrans.remove(at: eraseIndex)
+                    } // this one should be a memory match since we are in a loop-closure
                     break
                 }
             }
@@ -2560,27 +2567,31 @@ class MKMol2Cansmi {
         if chiral_neighbors.count < 4 { return "" }
         // If atom is not a tetrahedral center, we're done
         let atom = node.getAtom()
-        let atomid = atom.getId().intValue
-        guard let ts = _stereoFacade.getTetrahedralStereo(atomid) else { return "" }
+        guard let ts = _stereoFacade.getTetrahedralStereo(atom.getId().intValue) else { return "" }
         // get the Config struct defining the stereochemistry
         let atomConfig = ts.getConfig()
         // Unspecified or unknown stereochemistry
         if !atomConfig.specified || (atomConfig.specified && atomConfig.winding == .UnknownWinding) { return "" }
         // create a Config struct with the chiral_neighbors in canonical output order
         var canonRefs: Refs = []
-        for atomit in chiral_neighbors.suffix(from: 1) {
+        
+        for atomit in chiral_neighbors[1...] {
             if atomit != nil {
                 canonRefs.append(atomit!.getId())
             } else {
                 canonRefs.append(.ImplicitRef)
             }
         }
+        
         var canConfig: MKTetrahedralStereo.Config = MKTetrahedralStereo.Config()
+        canConfig.center = atom.getId()
+        
         if chiral_neighbors[0] != nil {
-            canConfig.from_or_towrds.from = atom.getId()
+            canConfig.from_or_towrds = .from(chiral_neighbors[0]!.getId())
         } else { // Handle a chiral lone pair, represented by a NULL OBAtom* in chiral_neighbors
-            canConfig.from_or_towrds.from = .ImplicitRef
+            canConfig.from_or_towrds = .from(.ImplicitRef)
         }
+        
         canConfig.refs = canonRefs
         // config is clockwise
         if atomConfig == canConfig {
@@ -2701,6 +2712,7 @@ class MKMol2Cansmi {
                 stereo = getSquarePlanarStereo(node, chiral_neighbors, symmetry_classes)
             }
         }
+        
         if stereo != nil {
             bracketElement = true
         }
